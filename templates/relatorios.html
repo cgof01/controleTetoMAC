@@ -1,178 +1,674 @@
 {% extends "base.html" %}
 {% block title %}Relatórios — Teto MAC{% endblock %}
 
+{% block extra_css %}
+<style>
+  .nav-tabs .nav-link { font-size:.83rem; padding:.45rem .8rem; white-space:nowrap; }
+  .tab-table th { font-size:.75rem; white-space:nowrap; background:#f8fafc; }
+  .tab-table td { font-size:.82rem; }
+  .tab-table .num { text-align:right; font-variant-numeric:tabular-nums; }
+  .chart-wrap { position:relative; height:280px; }
+  .loading-spin { display:flex; align-items:center; justify-content:center; height:120px; color:#94a3b8; gap:.5rem; }
+  .badge-rank { min-width:1.8rem; text-align:center; }
+  .inc-bar { height:8px; border-radius:4px; background:linear-gradient(90deg,#2a7dd8,#17a2b8); }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="page-header">
-  <h4 class="mb-0 fw-bold"><i class="bi bi-file-earmark-text me-2"></i>Relatórios</h4>
-  <small class="opacity-75">Selecione o tipo de relatório desejado</small>
-</div>
-
-<div class="row g-3">
-  <!-- Resumo DRS -->
-  <div class="col-md-6 col-lg-4">
-    <div class="card h-100">
-      <div class="card-header bg-primary text-white">
-        <i class="bi bi-diagram-3 me-2"></i><strong>Resumo por DRS</strong>
-      </div>
-      <div class="card-body">
-        <p class="text-muted small">Total agrupado por Departamento Regional de Saúde para uma competência específica.</p>
-        <form method="get" action="{{ url_for('relatorio_resumo_drs') }}">
-          <div class="row g-2">
-            <div class="col-6">
-              <select name="ano" class="form-select form-select-sm">
-                {% for ano in anos_disponiveis %}
-                  <option value="{{ ano }}" {{ 'selected' if ano == ultimo.ano }}>{{ ano }}</option>
-                {% endfor %}
-              </select>
-            </div>
-            <div class="col-6">
-              <select name="mes" class="form-select form-select-sm">
-                {% for num, nome in meses.items() %}
-                  <option value="{{ num }}" {{ 'selected' if num == ultimo.mes }}>{{ nome }}</option>
-                {% endfor %}
-              </select>
-            </div>
-          </div>
-          <button type="submit" class="btn btn-primary btn-sm mt-2 w-100">
-            <i class="bi bi-arrow-right-circle me-1"></i>Gerar Relatório
-          </button>
-        </form>
-      </div>
-    </div>
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <div>
+    <h4 class="mb-0 fw-bold"><i class="bi bi-file-earmark-bar-graph me-2"></i>Relatórios</h4>
+    <small class="opacity-75">Análises por diferentes dimensões do Teto MAC</small>
   </div>
-
-  <!-- Por Período -->
-  <div class="col-md-6 col-lg-4">
-    <div class="card h-100">
-      <div class="card-header bg-success text-white">
-        <i class="bi bi-calendar-range me-2"></i><strong>Por Período</strong>
-      </div>
-      <div class="card-body">
-        <p class="text-muted small">Todos os registros em um intervalo de meses/anos.</p>
-        <form method="get" action="{{ url_for('relatorio_periodo') }}">
-          <div class="row g-1 mb-2">
-            <div class="col-12"><small class="fw-bold text-muted">DE:</small></div>
-            <div class="col-6">
-              <select name="ano_ini" class="form-select form-select-sm">
-                {% for ano in anos_disponiveis %}
-                  <option value="{{ ano }}" {{ 'selected' if ano == ultimo.ano }}>{{ ano }}</option>
-                {% endfor %}
-              </select>
-            </div>
-            <div class="col-6">
-              <select name="mes_ini" class="form-select form-select-sm">
-                {% for num, nome in meses.items() %}
-                  <option value="{{ num }}" {{ 'selected' if num == 1 }}>{{ nome }}</option>
-                {% endfor %}
-              </select>
-            </div>
-            <div class="col-12"><small class="fw-bold text-muted">ATÉ:</small></div>
-            <div class="col-6">
-              <select name="ano_fim" class="form-select form-select-sm">
-                {% for ano in anos_disponiveis %}
-                  <option value="{{ ano }}" {{ 'selected' if ano == ultimo.ano }}>{{ ano }}</option>
-                {% endfor %}
-              </select>
-            </div>
-            <div class="col-6">
-              <select name="mes_fim" class="form-select form-select-sm">
-                {% for num, nome in meses.items() %}
-                  <option value="{{ num }}" {{ 'selected' if num == ultimo.mes }}>{{ nome }}</option>
-                {% endfor %}
-              </select>
-            </div>
-          </div>
-          <button type="submit" class="btn btn-success btn-sm w-100">
-            <i class="bi bi-arrow-right-circle me-1"></i>Gerar Relatório
-          </button>
-        </form>
-      </div>
-    </div>
-  </div>
-
-  <!-- Por Unidade -->
-  <div class="col-md-6 col-lg-4">
-    <div class="card h-100">
-      <div class="card-header bg-warning text-dark">
-        <i class="bi bi-graph-up me-2"></i><strong>Evolução por Unidade</strong>
-      </div>
-      <div class="card-body">
-        <p class="text-muted small">Histórico completo de uma unidade ao longo do tempo por CNES.</p>
-        <form method="get" action="{{ url_for('relatorio_comparativo_unidade') }}">
-          <div class="mb-2">
-            <input type="text" name="cnes" class="form-control form-control-sm" placeholder="Digite o CNES da unidade" required>
-          </div>
-          <button type="submit" class="btn btn-warning btn-sm w-100">
-            <i class="bi bi-arrow-right-circle me-1"></i>Gerar Relatório
-          </button>
-        </form>
-      </div>
-    </div>
-  </div>
-
-  <!-- Exportar Excel Pesquisa -->
-  <div class="col-md-6 col-lg-4">
-    <div class="card h-100">
-      <div class="card-header bg-dark text-white">
-        <i class="bi bi-file-excel me-2"></i><strong>Exportar para Excel</strong>
-      </div>
-      <div class="card-body">
-        <p class="text-muted small">Exporta registros filtrados para planilha Excel formatada.</p>
-        <form method="get" action="{{ url_for('exportar_excel') }}">
-          <div class="row g-1 mb-2">
-            <div class="col-6">
-              <select name="ano" class="form-select form-select-sm">
-                <option value="">Todos os anos</option>
-                {% for ano in anos_disponiveis %}
-                  <option value="{{ ano }}" {{ 'selected' if ano == ultimo.ano }}>{{ ano }}</option>
-                {% endfor %}
-              </select>
-            </div>
-            <div class="col-6">
-              <select name="mes" class="form-select form-select-sm">
-                <option value="">Todos os meses</option>
-                {% for num, nome in meses.items() %}
-                  <option value="{{ num }}" {{ 'selected' if num == ultimo.mes }}>{{ nome }}</option>
-                {% endfor %}
-              </select>
-            </div>
-          </div>
-          <button type="submit" class="btn btn-dark btn-sm w-100">
-            <i class="bi bi-download me-1"></i>Baixar Excel
-          </button>
-        </form>
-      </div>
-    </div>
-  </div>
-
-  <!-- Pesquisa avançada -->
-  <div class="col-md-6 col-lg-4">
-    <div class="card h-100">
-      <div class="card-header" style="background:var(--ses-azul);color:white">
-        <i class="bi bi-search me-2"></i><strong>Pesquisa Completa</strong>
-      </div>
-      <div class="card-body d-flex flex-column">
-        <p class="text-muted small">Acesse a pesquisa completa com todos os filtros disponíveis e exportação.</p>
-        <a href="{{ url_for('pesquisa') }}" class="btn btn-ses btn-sm mt-auto">
-          <i class="bi bi-arrow-right-circle me-1"></i>Ir para Pesquisa
-        </a>
-      </div>
-    </div>
-  </div>
-
-  <!-- Gráficos avançados -->
-  <div class="col-md-6 col-lg-4">
-    <div class="card h-100">
-      <div class="card-header bg-info text-white">
-        <i class="bi bi-bar-chart-line me-2"></i><strong>Gráficos Avançados</strong>
-      </div>
-      <div class="card-body d-flex flex-column">
-        <p class="text-muted small">Visualizações interativas: evolução, comparativos, distribuição e tendências.</p>
-        <a href="{{ url_for('graficos') }}" class="btn btn-info btn-sm mt-auto">
-          <i class="bi bi-arrow-right-circle me-1"></i>Ver Gráficos
-        </a>
-      </div>
-    </div>
+  <div class="d-flex gap-2 flex-wrap align-items-center">
+    <select id="selAno" class="form-select form-select-sm" style="width:90px">
+      {% for ano in anos_disponiveis %}
+        <option value="{{ ano }}" {{ 'selected' if ano == ultimo.ano }}>{{ ano }}</option>
+      {% endfor %}
+    </select>
+    <select id="selMes" class="form-select form-select-sm" style="width:125px">
+      {% for num, nome in meses.items() %}
+        <option value="{{ num }}" {{ 'selected' if num == ultimo.mes }}>{{ nome }}</option>
+      {% endfor %}
+    </select>
+    <button class="btn btn-ses btn-sm" onclick="recarregarAba()">
+      <i class="bi bi-arrow-clockwise me-1"></i>Atualizar
+    </button>
   </div>
 </div>
+
+<!-- Nav tabs -->
+<ul class="nav nav-tabs mb-0" id="relTabs" role="tablist">
+  <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tabDRS">Por DRS</a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabTipo">Por Tipo</a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabUnidade">Por Unidade</a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabMunicipio">Por Município</a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabFaec"><abbr title="Fundo de Ações Estratégicas e Compensação">FAEC</abbr></a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabMac"><abbr title="Média e Alta Complexidade">MAC</abbr></a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabIncentivos">Incentivos</a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabCnes">Por CNES</a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabPeriodo">Por Período</a></li>
+  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabExportar">Exportar</a></li>
+</ul>
+
+<div class="tab-content border border-top-0 rounded-bottom bg-white p-3" id="relTabContent">
+
+  <!-- ─── DRS ─────────────────────────────────────────────────────────────── -->
+  <div class="tab-pane fade show active" id="tabDRS" role="tabpanel">
+    <div class="row g-3">
+      <div class="col-lg-7">
+        <div id="tblDRS"><div class="loading-spin"><div class="spinner-border spinner-border-sm"></div> Carregando…</div></div>
+      </div>
+      <div class="col-lg-5">
+        <div class="chart-wrap"><canvas id="chDRS"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── TIPO ─────────────────────────────────────────────────────────────── -->
+  <div class="tab-pane fade" id="tabTipo" role="tabpanel">
+    <div class="row g-3">
+      <div class="col-lg-7">
+        <div id="tblTipo"><div class="loading-spin"><div class="spinner-border spinner-border-sm"></div> Carregando…</div></div>
+      </div>
+      <div class="col-lg-5">
+        <div class="chart-wrap"><canvas id="chTipo"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── UNIDADE ──────────────────────────────────────────────────────────── -->
+  <div class="tab-pane fade" id="tabUnidade" role="tabpanel">
+    <div class="row g-3">
+      <div class="col-lg-8">
+        <div id="tblUnidade"><div class="loading-spin"><div class="spinner-border spinner-border-sm"></div> Carregando…</div></div>
+      </div>
+      <div class="col-lg-4">
+        <div class="chart-wrap" style="height:320px"><canvas id="chUnidade"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── MUNICÍPIO ─────────────────────────────────────────────────────────── -->
+  <div class="tab-pane fade" id="tabMunicipio" role="tabpanel">
+    <div class="row g-3">
+      <div class="col-lg-8">
+        <div id="tblMunicipio"><div class="loading-spin"><div class="spinner-border spinner-border-sm"></div> Carregando…</div></div>
+      </div>
+      <div class="col-lg-4">
+        <div class="chart-wrap" style="height:320px"><canvas id="chMunicipio"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── FAEC ─────────────────────────────────────────────────────────────── -->
+  <div class="tab-pane fade" id="tabFaec" role="tabpanel">
+    <p class="small text-muted mb-2"><i class="bi bi-info-circle me-1"></i>Fundo de Ações Estratégicas e Compensação: AIH Físico/FAEC, AIH FAEC, SIA FAEC, Equip. Hemodiálise e Limite de Complementação — agrupados por DRS.</p>
+    <div class="row g-3">
+      <div class="col-12">
+        <div id="tblFaec"><div class="loading-spin"><div class="spinner-border spinner-border-sm"></div> Carregando…</div></div>
+      </div>
+      <div class="col-12">
+        <div class="chart-wrap" style="height:300px"><canvas id="chFaec"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── MAC ──────────────────────────────────────────────────────────────── -->
+  <div class="tab-pane fade" id="tabMac" role="tabpanel">
+    <p class="small text-muted mb-2"><i class="bi bi-info-circle me-1"></i>Média e Alta Complexidade: AIH MC, AIH AC, SIA MC, SIA AC — agrupados por DRS.</p>
+    <div class="row g-3">
+      <div class="col-12">
+        <div id="tblMac"><div class="loading-spin"><div class="spinner-border spinner-border-sm"></div> Carregando…</div></div>
+      </div>
+      <div class="col-12">
+        <div class="chart-wrap" style="height:300px"><canvas id="chMac"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── INCENTIVOS ──────────────────────────────────────────────────────── -->
+  <div class="tab-pane fade" id="tabIncentivos" role="tabpanel">
+    <div class="row g-3">
+      <div class="col-lg-6">
+        <div id="tblIncentivos"><div class="loading-spin"><div class="spinner-border spinner-border-sm"></div> Carregando…</div></div>
+      </div>
+      <div class="col-lg-6">
+        <div class="chart-wrap" style="height:360px"><canvas id="chIncentivos"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── CNES ─────────────────────────────────────────────────────────────── -->
+  <div class="tab-pane fade" id="tabCnes" role="tabpanel">
+    <div class="row justify-content-center">
+      <div class="col-md-6">
+        <div class="card border-warning">
+          <div class="card-header bg-warning text-dark">
+            <i class="bi bi-graph-up me-2"></i><strong>Evolução por Unidade (CNES)</strong>
+          </div>
+          <div class="card-body">
+            <p class="text-muted small">Histórico completo de uma unidade ao longo do tempo, identificada pelo CNES.</p>
+            <form method="get" action="{{ url_for('relatorio_comparativo_unidade') }}">
+              <div class="mb-3">
+                <label class="form-label fw-bold">CNES da Unidade</label>
+                <input type="text" name="cnes" class="form-control" placeholder="Ex: 2077263" required pattern="\d+">
+              </div>
+              <button type="submit" class="btn btn-warning w-100">
+                <i class="bi bi-arrow-right-circle me-1"></i>Gerar Relatório de Evolução
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── PERÍODO ──────────────────────────────────────────────────────────── -->
+  <div class="tab-pane fade" id="tabPeriodo" role="tabpanel">
+    <div class="row justify-content-center">
+      <div class="col-md-6">
+        <div class="card border-success">
+          <div class="card-header bg-success text-white">
+            <i class="bi bi-calendar-range me-2"></i><strong>Relatório por Período</strong>
+          </div>
+          <div class="card-body">
+            <p class="text-muted small">Todos os registros em um intervalo de competências.</p>
+            <form method="get" action="{{ url_for('relatorio_periodo') }}">
+              <div class="row g-2 mb-3">
+                <div class="col-12"><small class="fw-bold text-muted text-uppercase">De:</small></div>
+                <div class="col-6">
+                  <select name="ano_ini" class="form-select form-select-sm">
+                    {% for ano in anos_disponiveis %}
+                      <option value="{{ ano }}" {{ 'selected' if ano == ultimo.ano }}>{{ ano }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-6">
+                  <select name="mes_ini" class="form-select form-select-sm">
+                    {% for num, nome in meses.items() %}
+                      <option value="{{ num }}" {{ 'selected' if num == 1 }}>{{ nome }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-12"><small class="fw-bold text-muted text-uppercase">Até:</small></div>
+                <div class="col-6">
+                  <select name="ano_fim" class="form-select form-select-sm">
+                    {% for ano in anos_disponiveis %}
+                      <option value="{{ ano }}" {{ 'selected' if ano == ultimo.ano }}>{{ ano }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-6">
+                  <select name="mes_fim" class="form-select form-select-sm">
+                    {% for num, nome in meses.items() %}
+                      <option value="{{ num }}" {{ 'selected' if num == ultimo.mes }}>{{ nome }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </div>
+              <button type="submit" class="btn btn-success w-100">
+                <i class="bi bi-arrow-right-circle me-1"></i>Gerar Relatório por Período
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── EXPORTAR ─────────────────────────────────────────────────────────── -->
+  <div class="tab-pane fade" id="tabExportar" role="tabpanel">
+    <div class="row g-3 justify-content-center">
+      <div class="col-md-5">
+        <div class="card border-dark">
+          <div class="card-header bg-dark text-white">
+            <i class="bi bi-file-excel me-2"></i><strong>Exportar para Excel</strong>
+          </div>
+          <div class="card-body">
+            <p class="text-muted small">Exporta registros filtrados para planilha Excel formatada.</p>
+            <form method="get" action="{{ url_for('exportar_excel') }}">
+              <div class="row g-2 mb-3">
+                <div class="col-6">
+                  <label class="form-label small fw-bold">Ano</label>
+                  <select name="ano" class="form-select form-select-sm">
+                    <option value="">Todos</option>
+                    {% for ano in anos_disponiveis %}
+                      <option value="{{ ano }}" {{ 'selected' if ano == ultimo.ano }}>{{ ano }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-6">
+                  <label class="form-label small fw-bold">Mês</label>
+                  <select name="mes" class="form-select form-select-sm">
+                    <option value="">Todos</option>
+                    {% for num, nome in meses.items() %}
+                      <option value="{{ num }}" {{ 'selected' if num == ultimo.mes }}>{{ nome }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </div>
+              <button type="submit" class="btn btn-dark w-100">
+                <i class="bi bi-download me-1"></i>Baixar Excel
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-5">
+        <div class="card" style="border-color:var(--ses-azul)">
+          <div class="card-header text-white" style="background:var(--ses-azul)">
+            <i class="bi bi-search me-2"></i><strong>Pesquisa Completa</strong>
+          </div>
+          <div class="card-body d-flex flex-column">
+            <p class="text-muted small">Pesquisa avançada com todos os filtros e exportação individual.</p>
+            <a href="{{ url_for('pesquisa') }}" class="btn btn-ses mt-auto">
+              <i class="bi bi-arrow-right-circle me-1"></i>Ir para Pesquisa
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /tab-content -->
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const CORES = ['#1e3a5f','#2a7dd8','#e07b00','#1a7a4a','#dc3545','#6f42c1',
+               '#17a2b8','#fd7e14','#20c997','#6610f2','#e83e8c','#0dcaf0'];
+const CORES_P = CORES.map(c => c + 'cc');
+
+function moeda(v) {
+  if (v == null || v === '') return '—';
+  return 'R$ ' + Number(v).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+function moedaK(v) {
+  const n = Number(v) || 0;
+  if (n >= 1e9) return 'R$' + (n/1e9).toFixed(1) + 'B';
+  if (n >= 1e6) return 'R$' + (n/1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return 'R$' + (n/1e3).toFixed(0) + 'K';
+  return 'R$' + n.toFixed(0);
+}
+
+function getAnoMes() {
+  return { ano: document.getElementById('selAno').value, mes: document.getElementById('selMes').value };
+}
+
+let _charts = {};
+function destroyChart(id) { if (_charts[id]) { _charts[id].destroy(); delete _charts[id]; } }
+
+// ── DRS ───────────────────────────────────────────────────────────────────────
+async function loadDRS() {
+  const {ano, mes} = getAnoMes();
+  document.getElementById('tblDRS').innerHTML = '<div class="loading-spin"><div class="spinner-border spinner-border-sm"></div> Carregando…</div>';
+  const data = await fetch(`/api/graficos/drs?ano=${ano}&mes=${mes}`).then(r=>r.json());
+
+  const total = data.reduce((s,d) => s + (d.total_geral || d.total || 0), 0);
+  let html = `<div class="table-responsive"><table class="table table-hover table-sm tab-table mb-0">
+    <thead><tr><th>DRS</th><th class="num">Unidades</th><th class="num">Total</th><th class="num">% do Total</th></tr></thead><tbody>`;
+  data.forEach((d, i) => {
+    const tot = d.total_geral || d.total || 0;
+    const pct = total ? (tot/total*100).toFixed(1) : 0;
+    html += `<tr><td><span class="badge bg-primary badge-rank">${d.drs}</span></td>
+      <td class="num">${d.unidades}</td>
+      <td class="num fw-bold">${moeda(tot)}</td>
+      <td class="num"><small>${pct}%</small></td></tr>`;
+  });
+  html += `<tr class="table-secondary fw-bold"><td>Total</td><td class="num"></td><td class="num">${moeda(total)}</td><td class="num">100%</td></tr>`;
+  html += '</tbody></table></div>';
+  document.getElementById('tblDRS').innerHTML = html;
+
+  destroyChart('chDRS');
+  const ctx = document.getElementById('chDRS').getContext('2d');
+  _charts['chDRS'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: data.map(d => 'DRS ' + d.drs),
+      datasets: [{ label: 'Total', data: data.map(d => d.total_geral || d.total || 0),
+        backgroundColor: CORES_P, borderColor: CORES, borderWidth: 1.5, borderRadius: 5 }]
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: {display:false}, tooltip: {callbacks:{label: c=>moeda(c.raw)}} },
+      scales: { x: {ticks:{callback:moedaK}}, y: {grid:{display:false}} }
+    }
+  });
+}
+
+// ── TIPO ──────────────────────────────────────────────────────────────────────
+async function loadTipo() {
+  const {ano, mes} = getAnoMes();
+  document.getElementById('tblTipo').innerHTML = '<div class="loading-spin"><div class="spinner-border spinner-border-sm"></div> Carregando…</div>';
+  const data = await fetch(`/api/graficos/tipo?ano=${ano}&mes=${mes}`).then(r=>r.json());
+
+  const total = data.reduce((s,d) => s + (d.total||0), 0);
+  let html = `<div class="table-responsive"><table class="table table-hover table-sm tab-table mb-0">
+    <thead><tr><th>#</th><th>Tipo</th><th class="num">Unidades</th><th class="num">Total</th><th class="num">%</th></tr></thead><tbody>`;
+  data.forEach((d, i) => {
+    const pct = total ? (d.total/total*100).toFixed(1) : 0;
+    html += `<tr><td><small class="text-muted">${i+1}</small></td><td>${d.tipo||'—'}</td>
+      <td class="num">${d.unidades||'—'}</td>
+      <td class="num fw-bold">${moeda(d.total)}</td>
+      <td class="num"><small>${pct}%</small></td></tr>`;
+  });
+  html += '</tbody></table></div>';
+  document.getElementById('tblTipo').innerHTML = html;
+
+  destroyChart('chTipo');
+  const ctx = document.getElementById('chTipo').getContext('2d');
+  _charts['chTipo'] = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: data.map(d=>d.tipo),
+      datasets: [{data: data.map(d=>d.total), backgroundColor: CORES, borderWidth:2, borderColor:'#fff', hoverOffset:6}]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '55%',
+      plugins: {
+        legend: {position:'bottom', labels:{font:{size:10}, padding:8}},
+        tooltip: {callbacks:{label: c => c.label + ': ' + moeda(c.raw)}}
+      }
+    }
+  });
+}
+
+// ── UNIDADE ───────────────────────────────────────────────────────────────────
+async function loadUnidade() {
+  const {ano, mes} = getAnoMes();
+  document.getElementById('tblUnidade').innerHTML = '<div class="loading-spin"><div class="spinner-border spinner-border-sm"></div> Carregando…</div>';
+  const data = await fetch(`/api/relatorio/unidade?ano=${ano}&mes=${mes}`).then(r=>r.json());
+  const top = data.slice(0, 100);
+
+  let html = `<div class="table-responsive" style="max-height:380px;overflow-y:auto">
+    <table class="table table-hover table-sm tab-table mb-0">
+    <thead><tr><th>#</th><th>Unidade</th><th>CNES</th><th>Município</th><th>DRS</th><th class="num">Total AIH</th><th class="num">Total SIA</th><th class="num">Total Geral</th></tr></thead><tbody>`;
+  top.forEach((d, i) => {
+    html += `<tr>
+      <td><span class="badge ${i<3?'bg-warning text-dark':'bg-secondary'} badge-rank">${i+1}</span></td>
+      <td><small title="${d.unidade||''}">${(d.unidade||'—').substring(0,35)}${(d.unidade||'').length>35?'…':''}</small></td>
+      <td><code class="small">${d.cnes||'—'}</code></td>
+      <td><small>${(d.municipio||'—').substring(0,20)}</small></td>
+      <td><span class="badge bg-secondary">${d.drs||'—'}</span></td>
+      <td class="num">${moeda(d.total_aih)}</td>
+      <td class="num">${moeda(d.total_sia)}</td>
+      <td class="num fw-bold">${moeda(d.total_geral)}</td>
+    </tr>`;
+  });
+  html += '</tbody></table></div>';
+  if (data.length > 100) html += `<small class="text-muted d-block mt-1">Exibindo top 100 de ${data.length} unidades</small>`;
+  document.getElementById('tblUnidade').innerHTML = html;
+
+  const top15 = data.slice(0, 15);
+  destroyChart('chUnidade');
+  const ctx = document.getElementById('chUnidade').getContext('2d');
+  _charts['chUnidade'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: top15.map(d => (d.unidade||'').substring(0,20)),
+      datasets: [{ label: 'Total', data: top15.map(d=>d.total_geral),
+        backgroundColor: CORES_P, borderColor: CORES, borderWidth:1, borderRadius:4 }]
+    },
+    options: {
+      indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      plugins: {legend:{display:false}, tooltip:{callbacks:{label:c=>moeda(c.raw)}}},
+      scales: {x:{ticks:{callback:moedaK}}, y:{ticks:{font:{size:9}}, grid:{display:false}}}
+    }
+  });
+}
+
+// ── MUNICÍPIO ─────────────────────────────────────────────────────────────────
+async function loadMunicipio() {
+  const {ano, mes} = getAnoMes();
+  document.getElementById('tblMunicipio').innerHTML = '<div class="loading-spin"><div class="spinner-border spinner-border-sm"></div> Carregando…</div>';
+  const data = await fetch(`/api/relatorio/municipio?ano=${ano}&mes=${mes}`).then(r=>r.json());
+  const top = data.slice(0, 100);
+  const total = data.reduce((s,d) => s + (d.total_geral||0), 0);
+
+  let html = `<div class="table-responsive" style="max-height:380px;overflow-y:auto">
+    <table class="table table-hover table-sm tab-table mb-0">
+    <thead><tr><th>#</th><th>Município</th><th class="num">Unidades</th><th class="num">AIH</th><th class="num">SIA</th><th class="num">Total</th><th class="num">%</th></tr></thead><tbody>`;
+  top.forEach((d, i) => {
+    const pct = total ? (d.total_geral/total*100).toFixed(1) : 0;
+    html += `<tr>
+      <td><span class="badge ${i<3?'bg-warning text-dark':'bg-secondary'} badge-rank">${i+1}</span></td>
+      <td>${d.municipio||'—'}</td>
+      <td class="num">${d.unidades}</td>
+      <td class="num">${moeda(d.total_aih)}</td>
+      <td class="num">${moeda(d.total_sia)}</td>
+      <td class="num fw-bold">${moeda(d.total_geral)}</td>
+      <td class="num"><small>${pct}%</small></td>
+    </tr>`;
+  });
+  html += '</tbody></table></div>';
+  if (data.length > 100) html += `<small class="text-muted d-block mt-1">Exibindo top 100 de ${data.length} municípios</small>`;
+  document.getElementById('tblMunicipio').innerHTML = html;
+
+  const top15 = data.slice(0, 15);
+  destroyChart('chMunicipio');
+  const ctx = document.getElementById('chMunicipio').getContext('2d');
+  _charts['chMunicipio'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: top15.map(d => (d.municipio||'').substring(0,18)),
+      datasets: [{ label: 'Total', data: top15.map(d=>d.total_geral),
+        backgroundColor: CORES_P, borderColor: CORES, borderWidth:1, borderRadius:4 }]
+    },
+    options: {
+      indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      plugins: {legend:{display:false}, tooltip:{callbacks:{label:c=>moeda(c.raw)}}},
+      scales: {x:{ticks:{callback:moedaK}}, y:{ticks:{font:{size:9}}, grid:{display:false}}}
+    }
+  });
+}
+
+// ── FAEC ──────────────────────────────────────────────────────────────────────
+async function loadFaec() {
+  const {ano, mes} = getAnoMes();
+  document.getElementById('tblFaec').innerHTML = '<div class="loading-spin"><div class="spinner-border spinner-border-sm"></div> Carregando…</div>';
+  const data = await fetch(`/api/relatorio/fundo?ano=${ano}&mes=${mes}`).then(r=>r.json());
+
+  let html = `<div class="table-responsive"><table class="table table-hover table-sm tab-table mb-0">
+    <thead><tr>
+      <th>DRS</th>
+      <th class="num">AIH Físico</th>
+      <th class="num">AIH FAEC</th>
+      <th class="num">SIA FAEC</th>
+      <th class="num">Equip. Hemod.</th>
+      <th class="num">Lim. Complement.</th>
+      <th class="num">Total Geral</th>
+    </tr></thead><tbody>`;
+
+  let tots = {aih_fisico:0,aih_faec:0,sia_faec:0,equip_hemodialise:0,limite_complementacao:0,total:0};
+  data.forEach(d => {
+    ['aih_fisico','aih_faec','sia_faec','equip_hemodialise','limite_complementacao','total'].forEach(k => { tots[k] += d[k]||0; });
+    html += `<tr>
+      <td><span class="badge bg-primary">${d.drs}</span></td>
+      <td class="num">${moeda(d.aih_fisico)}</td>
+      <td class="num">${moeda(d.aih_faec)}</td>
+      <td class="num">${moeda(d.sia_faec)}</td>
+      <td class="num">${moeda(d.equip_hemodialise)}</td>
+      <td class="num">${moeda(d.limite_complementacao)}</td>
+      <td class="num fw-bold">${moeda(d.total)}</td>
+    </tr>`;
+  });
+  html += `<tr class="table-secondary fw-bold"><td>Total</td>
+    <td class="num">${moeda(tots.aih_fisico)}</td>
+    <td class="num">${moeda(tots.aih_faec)}</td>
+    <td class="num">${moeda(tots.sia_faec)}</td>
+    <td class="num">${moeda(tots.equip_hemodialise)}</td>
+    <td class="num">${moeda(tots.limite_complementacao)}</td>
+    <td class="num">${moeda(tots.total)}</td></tr>`;
+  html += '</tbody></table></div>';
+  document.getElementById('tblFaec').innerHTML = html;
+
+  destroyChart('chFaec');
+  const ctx = document.getElementById('chFaec').getContext('2d');
+  _charts['chFaec'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: data.map(d => 'DRS ' + d.drs),
+      datasets: [
+        {label:'AIH Físico',    data:data.map(d=>d.aih_fisico||0),          backgroundColor:'#1e3a5fcc', borderRadius:3},
+        {label:'AIH FAEC',      data:data.map(d=>d.aih_faec||0),            backgroundColor:'#2a7dd8cc', borderRadius:3},
+        {label:'SIA FAEC',      data:data.map(d=>d.sia_faec||0),            backgroundColor:'#1a7a4acc', borderRadius:3},
+        {label:'Equip. Hemod.', data:data.map(d=>d.equip_hemodialise||0),   backgroundColor:'#e07b00cc', borderRadius:3},
+        {label:'Lim. Compl.',   data:data.map(d=>d.limite_complementacao||0),backgroundColor:'#6f42c1cc', borderRadius:3},
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      scales: {x:{stacked:true, grid:{display:false}}, y:{stacked:true, ticks:{callback:moedaK}}},
+      plugins: {
+        legend:{position:'bottom', labels:{usePointStyle:true, font:{size:10}}},
+        tooltip:{callbacks:{label: c=>c.dataset.label+': '+moeda(c.raw)}}
+      }
+    }
+  });
+}
+
+// ── MAC ───────────────────────────────────────────────────────────────────────
+async function loadMac() {
+  const {ano, mes} = getAnoMes();
+  document.getElementById('tblMac').innerHTML = '<div class="loading-spin"><div class="spinner-border spinner-border-sm"></div> Carregando…</div>';
+  const data = await fetch(`/api/relatorio/fundo?ano=${ano}&mes=${mes}`).then(r=>r.json());
+
+  let html = `<div class="table-responsive"><table class="table table-hover table-sm tab-table mb-0">
+    <thead><tr>
+      <th>DRS</th>
+      <th class="num">AIH MC</th>
+      <th class="num">AIH AC</th>
+      <th class="num">Total AIH</th>
+      <th class="num">SIA MC</th>
+      <th class="num">SIA AC</th>
+      <th class="num">Total SIA</th>
+      <th class="num">Total MAC</th>
+    </tr></thead><tbody>`;
+
+  let tots = {aih_mc:0,aih_ac:0,sia_mc:0,sia_ac:0};
+  data.forEach(d => {
+    ['aih_mc','aih_ac','sia_mc','sia_ac'].forEach(k => { tots[k] += d[k]||0; });
+    const taih = (d.aih_mc||0) + (d.aih_ac||0);
+    const tsia = (d.sia_mc||0) + (d.sia_ac||0);
+    html += `<tr>
+      <td><span class="badge bg-primary">${d.drs}</span></td>
+      <td class="num">${moeda(d.aih_mc)}</td>
+      <td class="num">${moeda(d.aih_ac)}</td>
+      <td class="num text-primary fw-bold">${moeda(taih)}</td>
+      <td class="num">${moeda(d.sia_mc)}</td>
+      <td class="num">${moeda(d.sia_ac)}</td>
+      <td class="num text-success fw-bold">${moeda(tsia)}</td>
+      <td class="num fw-bold">${moeda(taih+tsia)}</td>
+    </tr>`;
+  });
+  const taih = tots.aih_mc + tots.aih_ac;
+  const tsia = tots.sia_mc + tots.sia_ac;
+  html += `<tr class="table-secondary fw-bold"><td>Total</td>
+    <td class="num">${moeda(tots.aih_mc)}</td><td class="num">${moeda(tots.aih_ac)}</td>
+    <td class="num text-primary">${moeda(taih)}</td>
+    <td class="num">${moeda(tots.sia_mc)}</td><td class="num">${moeda(tots.sia_ac)}</td>
+    <td class="num text-success">${moeda(tsia)}</td>
+    <td class="num">${moeda(taih+tsia)}</td></tr>`;
+  html += '</tbody></table></div>';
+  document.getElementById('tblMac').innerHTML = html;
+
+  destroyChart('chMac');
+  const ctx = document.getElementById('chMac').getContext('2d');
+  _charts['chMac'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: data.map(d => 'DRS ' + d.drs),
+      datasets: [
+        {label:'AIH MC', data:data.map(d=>d.aih_mc||0), backgroundColor:'#1e3a5fcc', borderRadius:3},
+        {label:'AIH AC', data:data.map(d=>d.aih_ac||0), backgroundColor:'#2a7dd8cc', borderRadius:3},
+        {label:'SIA MC', data:data.map(d=>d.sia_mc||0), backgroundColor:'#1a7a4acc', borderRadius:3},
+        {label:'SIA AC', data:data.map(d=>d.sia_ac||0), backgroundColor:'#20c997cc', borderRadius:3},
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      scales: {x:{stacked:true, grid:{display:false}}, y:{stacked:true, ticks:{callback:moedaK}}},
+      plugins: {
+        legend:{position:'bottom', labels:{usePointStyle:true, font:{size:10}}},
+        tooltip:{callbacks:{label: c=>c.dataset.label+': '+moeda(c.raw)}}
+      }
+    }
+  });
+}
+
+// ── INCENTIVOS ────────────────────────────────────────────────────────────────
+async function loadIncentivos() {
+  const {ano, mes} = getAnoMes();
+  document.getElementById('tblIncentivos').innerHTML = '<div class="loading-spin"><div class="spinner-border spinner-border-sm"></div> Carregando…</div>';
+  const data = await fetch(`/api/relatorio/incentivos?ano=${ano}&mes=${mes}`).then(r=>r.json());
+  const maxV = Math.max(...data.map(d=>d.total||0), 1);
+  const total = data.reduce((s,d)=>s+(d.total||0), 0);
+
+  let html = `<div class="table-responsive" style="max-height:400px;overflow-y:auto">
+    <table class="table table-hover table-sm tab-table mb-0">
+    <thead><tr><th>Incentivo</th><th class="num">Total</th><th class="num">%</th></tr></thead><tbody>`;
+  const sorted = [...data].sort((a,b) => (b.total||0) - (a.total||0));
+  sorted.forEach(d => {
+    const pct = total ? (d.total/total*100).toFixed(1) : 0;
+    const barW = maxV ? Math.round(d.total/maxV*100) : 0;
+    html += `<tr>
+      <td>${d.label}</td>
+      <td class="num fw-bold">${moeda(d.total)}</td>
+      <td class="num"><small>${pct}%</small></td>
+    </tr>`;
+  });
+  html += `<tr class="table-secondary fw-bold"><td>Total</td><td class="num">${moeda(total)}</td><td class="num">100%</td></tr>`;
+  html += '</tbody></table></div>';
+  document.getElementById('tblIncentivos').innerHTML = html;
+
+  destroyChart('chIncentivos');
+  const ctx = document.getElementById('chIncentivos').getContext('2d');
+  _charts['chIncentivos'] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: sorted.map(d=>d.label),
+      datasets: [{label:'Total', data:sorted.map(d=>d.total||0),
+        backgroundColor: sorted.map((_,i)=>CORES[i%CORES.length]+'cc'),
+        borderColor: sorted.map((_,i)=>CORES[i%CORES.length]),
+        borderWidth:1.5, borderRadius:4}]
+    },
+    options: {
+      indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>moeda(c.raw)}}},
+      scales:{x:{ticks:{callback:moedaK}}, y:{ticks:{font:{size:10}}, grid:{display:false}}}
+    }
+  });
+}
+
+// ── Recarga via seletor de período ────────────────────────────────────────────
+function recarregarAba() {
+  const aba = document.querySelector('#relTabs .nav-link.active')?.getAttribute('href');
+  if (aba === '#tabDRS') loadDRS();
+  else if (aba === '#tabTipo') loadTipo();
+  else if (aba === '#tabUnidade') loadUnidade();
+  else if (aba === '#tabMunicipio') loadMunicipio();
+  else if (aba === '#tabFaec') loadFaec();
+  else if (aba === '#tabMac') loadMac();
+  else if (aba === '#tabIncentivos') loadIncentivos();
+}
+
+// ── Carregar tab ao clicar ─────────────────────────────────────────────────────
+document.querySelectorAll('#relTabs [data-bs-toggle="tab"]').forEach(tab => {
+  tab.addEventListener('shown.bs.tab', e => {
+    const aba = e.target.getAttribute('href');
+    if (aba === '#tabDRS') loadDRS();
+    else if (aba === '#tabTipo') loadTipo();
+    else if (aba === '#tabUnidade') loadUnidade();
+    else if (aba === '#tabMunicipio') loadMunicipio();
+    else if (aba === '#tabFaec') loadFaec();
+    else if (aba === '#tabMac') loadMac();
+    else if (aba === '#tabIncentivos') loadIncentivos();
+  });
+});
+
+// Carrega a aba inicial
+loadDRS();
+</script>
 {% endblock %}

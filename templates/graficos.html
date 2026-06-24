@@ -103,15 +103,60 @@
   </div>
 </div>
 
-<!-- Linha 4: Evolução de incentivos específicos -->
+<!-- Linha 4: Incentivos reais -->
+<div class="row g-3 mb-3">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header bg-white">
+        <strong><i class="bi bi-award me-2" style="color:#6f42c1"></i>Detalhamento de Incentivos — {{ mes_sel | mes_nome }}/{{ ano_sel }}</strong>
+      </div>
+      <div class="card-body" style="position:relative;height:320px">
+        <canvas id="chartIncentivos"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Linha 5: Ranking por Município + Composição MAC -->
+<div class="row g-3 mb-3">
+  <div class="col-xl-7">
+    <div class="card h-100">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <strong><i class="bi bi-geo-alt text-danger me-2"></i>Top Municípios — {{ mes_sel | mes_nome }}/{{ ano_sel }}</strong>
+        <select id="munLimite" class="form-select form-select-sm w-auto" onchange="renderMunicipio()">
+          <option value="10">Top 10</option>
+          <option value="15" selected>Top 15</option>
+          <option value="20">Top 20</option>
+        </select>
+      </div>
+      <div class="card-body" style="position:relative;height:400px">
+        <canvas id="chartMunicipio"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-5">
+    <div class="card h-100">
+      <div class="card-header bg-white">
+        <strong><i class="bi bi-bar-chart-steps text-info me-2"></i>Composição MAC — AIH vs SIA</strong>
+        <span class="text-muted small ms-1">{{ mes_sel | mes_nome }}/{{ ano_sel }}</span>
+      </div>
+      <div class="card-body" style="position:relative;height:400px">
+        <canvas id="chartMac"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Linha 6: FAEC por DRS -->
 <div class="row g-3">
   <div class="col-12">
     <div class="card">
       <div class="card-header bg-white">
-        <strong><i class="bi bi-award text-purple me-2"></i>Detalhamento de Incentivos — {{ mes_sel | mes_nome }}/{{ ano_sel }}</strong>
+        <strong><i class="bi bi-layers me-2 text-success"></i>FAEC por DRS — Fundo de Ações Estratégicas e Compensação</strong>
+        <span class="text-muted small ms-1">{{ mes_sel | mes_nome }}/{{ ano_sel }}</span>
       </div>
-      <div class="card-body" style="position:relative;height:280px">
-        <canvas id="chartIncentivos"></canvas>
+      <div class="card-body" style="position:relative;height:300px">
+        <canvas id="chartFaec"></canvas>
       </div>
     </div>
   </div>
@@ -293,32 +338,131 @@ async function renderCompAnual() {
   });
 }
 
-// ── 6. Incentivos detalhados ───────────────────────────────────────────────────
+// ── 6. Incentivos detalhados (dados reais) ────────────────────────────────────
 async function renderIncentivos() {
-  const data = await fetchJSON(`/api/graficos/drs?ano=${ANO_SEL}&mes=${MES_SEL}`);
-  // Placeholder: mostra DRS como agrupamento de incentivos
+  const data = await fetchJSON(`/api/relatorio/incentivos?ano=${ANO_SEL}&mes=${MES_SEL}`);
+  const sorted = [...data].sort((a,b) => (b.total||0) - (a.total||0)).filter(d => (d.total||0) > 0);
   if (chartInc) chartInc.destroy();
-
-  const incLabels = ['IntegraSUS','IAC','100% SUS','OPO','Res. Médica','Melhor em Casa','CER','Doenças Raras','RSME','RCE/RCEG'];
-  const incVals   = Array(incLabels.length).fill(0).map(() => Math.random() * 5e6); // placeholder visual
-
   chartInc = new Chart(document.getElementById('chartIncentivos').getContext('2d'), {
     type: 'bar',
     data: {
-      labels: incLabels,
-      datasets: [{ label: 'Total Incentivo (R$)', data: incVals,
-        backgroundColor: CORES.map(c => c + 'bb'), borderColor: CORES,
+      labels: sorted.map(d => d.label),
+      datasets: [{ label: 'Total Incentivo (R$)', data: sorted.map(d => d.total||0),
+        backgroundColor: CORES.map(c => c + 'cc'), borderColor: CORES,
         borderWidth: 1.5, borderRadius: 6 }]
     },
     options: {
-      responsive: true, maintainAspectRatio: false,
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => moeda(c.raw) } } },
       scales: {
-        x: { grid: { display: false } },
-        y: { ticks: { callback: v => 'R$'+(v/1e6).toFixed(1)+'M' }, grid: { color: 'rgba(0,0,0,0.05)' } }
+        x: { ticks: { callback: v => 'R$'+(v/1e6).toFixed(1)+'M' }, grid: { color: 'rgba(0,0,0,0.05)' } },
+        y: { ticks: { font: { size: 10 } }, grid: { display: false } }
       }
     }
   });
+}
+
+// ── 7. Ranking por Município ──────────────────────────────────────────────────
+let munData = [];
+let chartMun, chartMacChart, chartFaecChart;
+
+async function renderMunicipio() {
+  const limite = parseInt(document.getElementById('munLimite').value);
+  if (!munData.length) {
+    munData = await fetchJSON(`/api/relatorio/municipio?ano=${ANO_SEL}&mes=${MES_SEL}`);
+  }
+  const top = munData.slice(0, limite);
+  if (chartMun) chartMun.destroy();
+  chartMun = new Chart(document.getElementById('chartMunicipio').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: top.map(d => (d.municipio||'').substring(0,22)),
+      datasets: [{
+        label: 'Total (R$)', data: top.map(d => d.total_geral||0),
+        backgroundColor: top.map((_,i) => CORES[i % CORES.length] + 'bb'),
+        borderColor:     top.map((_,i) => CORES[i % CORES.length]),
+        borderWidth: 1, borderRadius: 4, borderSkipped: false
+      }]
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: {
+          label: c => moeda(c.raw),
+          afterLabel: c => top[c.dataIndex].unidades + ' unidades'
+        }}
+      },
+      scales: {
+        x: { ticks: { callback: v => 'R$'+(v/1e6).toFixed(1)+'M' }, grid: { color: 'rgba(0,0,0,0.04)' } },
+        y: { ticks: { font: { size: 10 } }, grid: { display: false } }
+      }
+    }
+  });
+}
+
+// ── 8. Composição MAC por DRS ─────────────────────────────────────────────────
+async function renderMac() {
+  const data = await fetchJSON(`/api/relatorio/fundo?ano=${ANO_SEL}&mes=${MES_SEL}`);
+  if (chartMacChart) chartMacChart.destroy();
+  chartMacChart = new Chart(document.getElementById('chartMac').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: data.map(d => 'DRS ' + d.drs),
+      datasets: [
+        { label: 'AIH MC', data: data.map(d => d.aih_mc||0), backgroundColor: '#1e3a5fcc', borderRadius: 3 },
+        { label: 'AIH AC', data: data.map(d => d.aih_ac||0), backgroundColor: '#2a7dd8cc', borderRadius: 3 },
+        { label: 'SIA MC', data: data.map(d => d.sia_mc||0), backgroundColor: '#1a7a4acc', borderRadius: 3 },
+        { label: 'SIA AC', data: data.map(d => d.sia_ac||0), backgroundColor: '#20c997cc', borderRadius: 3 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        x: { stacked: true, grid: { display: false } },
+        y: { stacked: true, ticks: { callback: v => 'R$'+(v/1e6).toFixed(0)+'M' } }
+      },
+      plugins: {
+        legend: { position: 'bottom', labels: { usePointStyle: true, font: { size: 11 } } },
+        tooltip: { callbacks: { label: c => c.dataset.label + ': ' + moeda(c.raw) } }
+      }
+    }
+  });
+}
+
+// ── 9. FAEC por DRS ───────────────────────────────────────────────────────────
+async function renderFaec() {
+  const data = await fetchJSON(`/api/relatorio/fundo?ano=${ANO_SEL}&mes=${MES_SEL}`);
+  if (chartFaecChart) chartFaecChart.destroy();
+  chartFaecChart = new Chart(document.getElementById('chartFaec').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: data.map(d => 'DRS ' + d.drs),
+      datasets: [
+        { label: 'AIH Físico',    data: data.map(d => d.aih_fisico||0),           backgroundColor: '#1e3a5fcc', borderRadius: 3 },
+        { label: 'AIH FAEC',      data: data.map(d => d.aih_faec||0),             backgroundColor: '#2a7dd8cc', borderRadius: 3 },
+        { label: 'SIA FAEC',      data: data.map(d => d.sia_faec||0),             backgroundColor: '#1a7a4acc', borderRadius: 3 },
+        { label: 'Equip. Hemod.', data: data.map(d => d.equip_hemodialise||0),    backgroundColor: '#e07b00cc', borderRadius: 3 },
+        { label: 'Lim. Compl.',   data: data.map(d => d.limite_complementacao||0), backgroundColor: '#6f42c1cc', borderRadius: 3 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: {
+        x: { stacked: true, grid: { display: false } },
+        y: { stacked: true, ticks: { callback: v => 'R$'+(v/1e6).toFixed(0)+'M' } }
+      },
+      plugins: {
+        legend: { position: 'bottom', labels: { usePointStyle: true, font: { size: 11 } } },
+        tooltip: { callbacks: { label: c => c.dataset.label + ': ' + moeda(c.raw) } }
+      }
+    }
+  });
+}
+
+function moeda(v) {
+  if (v == null || v === '') return '—';
+  return 'R$ ' + Number(v).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
@@ -328,5 +472,8 @@ renderTop();
 renderTipo();
 renderCompAnual();
 renderIncentivos();
+renderMunicipio();
+renderMac();
+renderFaec();
 </script>
 {% endblock %}

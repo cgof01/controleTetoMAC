@@ -383,6 +383,147 @@ def grafico_por_tipo(ano, mes):
         conn.close()
         return [dict(r) for r in rows]
 
+def relatorio_por_unidade(ano, mes):
+    """Ranking de unidades por total no período."""
+    excl = "('TOTAL','SUBTOTAL','TOTAL GERAL','GERAL')"
+    if USE_SUPABASE:
+        r = get_sb().table('teto_mac').select(
+            'unidade,cnes,municipio,drs,aih_mc,aih_ac,sia_mc,sia_ac,total_mc_ac_incentivos'
+        ).eq('ano', ano).eq('mes', mes).order('total_mc_ac_incentivos', desc=True).limit(1000).execute()
+        data = r.data or []
+        seen = {}
+        for row in data:
+            un = (row.get('unidade') or '').strip().upper()
+            if un in ('TOTAL', 'SUBTOTAL', 'TOTAL GERAL', 'GERAL'):
+                continue
+            key = (row.get('cnes') or '', row.get('unidade') or '')
+            if key not in seen:
+                seen[key] = {'unidade': row.get('unidade', ''), 'cnes': row.get('cnes', ''),
+                             'municipio': row.get('municipio', ''), 'drs': row.get('drs', 0),
+                             'total_aih': 0.0, 'total_sia': 0.0, 'total_geral': 0.0}
+            seen[key]['total_aih'] += (row.get('aih_mc') or 0) + (row.get('aih_ac') or 0)
+            seen[key]['total_sia'] += (row.get('sia_mc') or 0) + (row.get('sia_ac') or 0)
+            seen[key]['total_geral'] += row.get('total_mc_ac_incentivos') or 0
+        return sorted(seen.values(), key=lambda x: x['total_geral'], reverse=True)
+    else:
+        conn = get_db()
+        rows = conn.execute(f"""
+            SELECT unidade, cnes, municipio, CAST(drs AS INTEGER) as drs,
+                SUM(aih_mc + aih_ac) as total_aih, SUM(sia_mc + sia_ac) as total_sia,
+                SUM(total_mc_ac_incentivos) as total_geral
+            FROM teto_mac WHERE ano=? AND mes=?
+              AND UPPER(TRIM(COALESCE(unidade,''))) NOT IN {excl}
+            GROUP BY cnes, unidade ORDER BY total_geral DESC
+        """, (ano, mes)).fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+
+
+def relatorio_por_municipio(ano, mes):
+    """Totais agrupados por município."""
+    if USE_SUPABASE:
+        r = get_sb().table('teto_mac').select(
+            'municipio,aih_mc,aih_ac,sia_mc,sia_ac,total_mc_ac_incentivos'
+        ).eq('ano', ano).eq('mes', mes).execute()
+        data = r.data or []
+        seen = {}
+        for row in data:
+            mun = (row.get('municipio') or 'Não Informado').strip()
+            if mun not in seen:
+                seen[mun] = {'municipio': mun, 'unidades': 0,
+                             'total_aih': 0.0, 'total_sia': 0.0, 'total_geral': 0.0}
+            seen[mun]['unidades'] += 1
+            seen[mun]['total_aih'] += (row.get('aih_mc') or 0) + (row.get('aih_ac') or 0)
+            seen[mun]['total_sia'] += (row.get('sia_mc') or 0) + (row.get('sia_ac') or 0)
+            seen[mun]['total_geral'] += row.get('total_mc_ac_incentivos') or 0
+        return sorted(seen.values(), key=lambda x: x['total_geral'], reverse=True)
+    else:
+        conn = get_db()
+        rows = conn.execute("""
+            SELECT COALESCE(NULLIF(TRIM(municipio),''), 'Não Informado') as municipio,
+                COUNT(*) as unidades,
+                SUM(aih_mc + aih_ac) as total_aih,
+                SUM(sia_mc + sia_ac) as total_sia,
+                SUM(total_mc_ac_incentivos) as total_geral
+            FROM teto_mac WHERE ano=? AND mes=?
+            GROUP BY COALESCE(NULLIF(TRIM(municipio),''), 'Não Informado')
+            ORDER BY total_geral DESC
+        """, (ano, mes)).fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+
+
+def relatorio_fundo(ano, mes):
+    """Componentes FAEC + MAC agrupados por DRS."""
+    if USE_SUPABASE:
+        r = get_sb().table('teto_mac').select(
+            'drs,aih_fisico,aih_faec,sia_faec,equip_hemodialise,limite_complementacao,'
+            'aih_mc,aih_ac,sia_mc,sia_ac,total_mc_ac_incentivos'
+        ).eq('ano', ano).eq('mes', mes).execute()
+        data = r.data or []
+        seen = {}
+        for row in data:
+            drs = int(row.get('drs') or 0)
+            if drs not in seen:
+                seen[drs] = {k: 0.0 for k in ['aih_fisico','aih_faec','sia_faec',
+                             'equip_hemodialise','limite_complementacao',
+                             'aih_mc','aih_ac','sia_mc','sia_ac','total']}
+                seen[drs]['drs'] = drs
+            for k in ['aih_fisico','aih_faec','sia_faec','equip_hemodialise',
+                      'limite_complementacao','aih_mc','aih_ac','sia_mc','sia_ac']:
+                seen[drs][k] += row.get(k) or 0
+            seen[drs]['total'] += row.get('total_mc_ac_incentivos') or 0
+        return sorted(seen.values(), key=lambda x: x['drs'])
+    else:
+        conn = get_db()
+        rows = conn.execute("""
+            SELECT CAST(drs AS INTEGER) as drs,
+                SUM(aih_fisico) as aih_fisico, SUM(aih_faec) as aih_faec,
+                SUM(sia_faec) as sia_faec, SUM(equip_hemodialise) as equip_hemodialise,
+                SUM(limite_complementacao) as limite_complementacao,
+                SUM(aih_mc) as aih_mc, SUM(aih_ac) as aih_ac,
+                SUM(sia_mc) as sia_mc, SUM(sia_ac) as sia_ac,
+                SUM(total_mc_ac_incentivos) as total
+            FROM teto_mac WHERE ano=? AND mes=? AND drs IS NOT NULL
+            GROUP BY CAST(drs AS INTEGER) ORDER BY CAST(drs AS INTEGER)
+        """, (ano, mes)).fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+
+
+def relatorio_incentivos(ano, mes):
+    """Totais de cada incentivo individual."""
+    INCENTIVOS = [
+        ('integrasus','IntegraSUS'), ('iac','IAC'), ('sus_100','100% SUS'),
+        ('opo','OPO'), ('rede_viver_sem_limite','Rede Viver Sem Limite'),
+        ('rede_brasil_miseria','Rede Brasil Sem Miséria'), ('rsme','RSME'),
+        ('rce_rceg','RCE/RCEG'), ('rau_hosp_sos','RAU/Hosp. SOS'),
+        ('rca_rcan','RCA/RCAN'), ('iapi','IAPI'), ('residencia_medica','Residência Médica'),
+        ('melhor_em_casa','Melhor em Casa'), ('cer','CER'),
+        ('doencas_raras','Doenças Raras'), ('oficina_ortopedica','Oficina Ortopédica'),
+        ('ihac','IHAC'),
+    ]
+    if USE_SUPABASE:
+        cols = ','.join(k for k, _ in INCENTIVOS)
+        r = get_sb().table('teto_mac').select(cols).eq('ano', ano).eq('mes', mes).execute()
+        data = r.data or []
+        totais = {k: 0.0 for k, _ in INCENTIVOS}
+        for row in data:
+            for k, _ in INCENTIVOS:
+                totais[k] += row.get(k) or 0
+        return [{'campo': k, 'label': lbl, 'total': totais[k]} for k, lbl in INCENTIVOS]
+    else:
+        conn = get_db()
+        sel = ', '.join(f'SUM(COALESCE({k},0)) as {k}' for k, _ in INCENTIVOS)
+        row = conn.execute(f"SELECT {sel} FROM teto_mac WHERE ano=? AND mes=?",
+                          (ano, mes)).fetchone()
+        conn.close()
+        if not row:
+            return []
+        r = dict(row)
+        return [{'campo': k, 'label': lbl, 'total': r.get(k) or 0} for k, lbl in INCENTIVOS]
+
+
 def relatorio_resumo_drs(ano, mes):
     if USE_SUPABASE:
         r = get_sb().rpc('get_resumo_drs', {'p_ano': ano, 'p_mes': mes}).execute()

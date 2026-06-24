@@ -892,6 +892,34 @@ def api_kpis():
     mes = request.args.get('mes', type=int)
     return jsonify(db.dashboard_kpis(ano, mes))
 
+@app.route('/api/relatorio/unidade')
+@login_required
+def api_relatorio_unidade():
+    ano = request.args.get('ano', type=int)
+    mes = request.args.get('mes', type=int)
+    return jsonify(db.relatorio_por_unidade(ano, mes))
+
+@app.route('/api/relatorio/municipio')
+@login_required
+def api_relatorio_municipio():
+    ano = request.args.get('ano', type=int)
+    mes = request.args.get('mes', type=int)
+    return jsonify(db.relatorio_por_municipio(ano, mes))
+
+@app.route('/api/relatorio/fundo')
+@login_required
+def api_relatorio_fundo():
+    ano = request.args.get('ano', type=int)
+    mes = request.args.get('mes', type=int)
+    return jsonify(db.relatorio_fundo(ano, mes))
+
+@app.route('/api/relatorio/incentivos')
+@login_required
+def api_relatorio_incentivos():
+    ano = request.args.get('ano', type=int)
+    mes = request.args.get('mes', type=int)
+    return jsonify(db.relatorio_incentivos(ano, mes))
+
 # ── Gráficos dedicados ────────────────────────────────────────────────────────
 
 @app.route('/graficos')
