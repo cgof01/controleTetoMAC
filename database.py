@@ -824,14 +824,33 @@ def detalhamento_registros(ano, mes, drs=None, tipo=None, busca=None, page=1, pe
         params.extend([f'%{busca}%', f'%{busca}%', f'%{busca}%'])
     # Filtros de coluna adicionais (cf_*)
     if col_filters:
-        for col, val in col_filters.items():
-            if col in _SORT_ALLOW and val:
-                try:
-                    float(val)
-                    where.append(f'CAST({col} AS REAL) = ?')
-                    params.append(float(val))
-                except ValueError:
-                    where.append(f'LOWER({col}) LIKE ?')
+        for key, val in col_filters.items():
+            if not val:
+                continue
+            if key.endswith('__gte'):
+                col = key[:-5]
+                if col in _SORT_ALLOW:
+                    try:
+                        where.append(f'CAST({col} AS REAL) >= ?')
+                        params.append(float(val))
+                    except ValueError:
+                        pass
+            elif key.endswith('__lte'):
+                col = key[:-5]
+                if col in _SORT_ALLOW:
+                    try:
+                        where.append(f'CAST({col} AS REAL) <= ?')
+                        params.append(float(val))
+                    except ValueError:
+                        pass
+            elif key in _SORT_ALLOW:
+                if '|' in val:
+                    vals = [v.strip() for v in val.split('|') if v.strip()]
+                    placeholders = ','.join(['?' for _ in vals])
+                    where.append(f'{key} IN ({placeholders})')
+                    params.extend(vals)
+                else:
+                    where.append(f'LOWER({key}) LIKE ?')
                     params.append(f'%{val.lower()}%')
     ws = ' AND '.join(where)
 
@@ -861,6 +880,27 @@ def detalhamento_registros(ano, mes, drs=None, tipo=None, busca=None, page=1, pe
         ).fetchall()
         conn.close()
         return [dict(r) for r in rows], total
+
+def detalhamento_valores_unicos(col, ano, mes):
+    """Retorna lista de valores únicos de uma coluna para o filtro Excel."""
+    if col not in _SORT_ALLOW:
+        return []
+    if USE_SUPABASE:
+        r = get_sb().table('teto_mac').select(col).eq('ano', ano).eq('mes', mes).execute()
+        vals = sorted(set(
+            str(row[col]) for row in (r.data or [])
+            if row.get(col) is not None and str(row.get(col, '')).strip() != ''
+        ), key=lambda x: (float(x) if x.replace('.','',1).replace('-','',1).isdigit() else x.lower()))
+        return vals
+    conn = get_db()
+    rows = conn.execute(
+        f"SELECT DISTINCT CAST({col} AS TEXT) AS v FROM teto_mac "
+        f"WHERE ano=? AND mes=? AND {col} IS NOT NULL AND TRIM(CAST({col} AS TEXT))!='' "
+        f"ORDER BY {col}",
+        (ano, mes)
+    ).fetchall()
+    conn.close()
+    return [r[0] for r in rows if r[0] is not None]
 
 def detalhamento_tipos(ano, mes):
     if USE_SUPABASE:

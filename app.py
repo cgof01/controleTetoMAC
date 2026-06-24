@@ -936,7 +936,11 @@ def api_detalhamento_registros():
     per_page = min(request.args.get('per_page', 50, type=int), 200)
     sort_col = request.args.get('sort', 'drs').strip()
     sort_dir = request.args.get('sort_dir', 'asc').strip()
-    col_filters = {k[3:]: v for k, v in request.args.items() if k.startswith('cf_') and v.strip()}
+    col_filters = {}
+    for k, v in request.args.items():
+        if not v.strip(): continue
+        if k.startswith('cf_'):
+            col_filters[k[3:]] = v.strip()
     if not ano or not mes:
         return jsonify({'registros': [], 'total': 0})
     regs, total = db.detalhamento_registros(
@@ -944,6 +948,17 @@ def api_detalhamento_registros():
         col_filters or None
     )
     return jsonify({'registros': regs, 'total': total, 'page': page, 'per_page': per_page})
+
+@app.route('/api/detalhamento/valores-unicos')
+@login_required
+def api_detalhamento_valores_unicos():
+    col = request.args.get('col', '').strip()
+    ano = request.args.get('ano', type=int)
+    mes = request.args.get('mes', type=int)
+    if not col or not ano or not mes:
+        return jsonify([])
+    vals = db.detalhamento_valores_unicos(col, ano, mes)
+    return jsonify(vals)
 
 @app.route('/detalhamento/exportar')
 @login_required
