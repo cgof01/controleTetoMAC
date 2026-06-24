@@ -644,7 +644,7 @@ def importar():
                 try:
                     ano = request.form.get('ano', type=int)
                     mes = request.form.get('mes', type=int)
-                    res = importar_arquivo_xls(tmp.name, ano, mes, substituir)
+                    res = importar_arquivo_xls(tmp.name, ano, mes, substituir, nome_original=arquivo.filename)
                     res['arquivo'] = arquivo.filename
                     flash(f'Arquivo "{arquivo.filename}": {res["importados"]} registros importados de {res["total"]} ({res["pulados"]} pulados, {res["erros"]} erros)', 'success' if res['erros'] == 0 else 'warning')
                     return render_template('importar.html',

@@ -159,16 +159,17 @@ def val_str(v):
         s = s[:-2]
     return s
 
-def importar_arquivo_xls(filepath, ano=None, mes=None, substituir=False):
+def importar_arquivo_xls(filepath, ano=None, mes=None, substituir=False, nome_original=None):
     resultado = {
-        'arquivo': os.path.basename(filepath),
+        'arquivo': nome_original or os.path.basename(filepath),
         'ano': ano, 'mes': mes,
         'total': 0, 'importados': 0, 'erros': 0,
         'pulados': 0, 'mensagens': []
     }
 
     if ano is None or mes is None:
-        ano_det, mes_det = extrair_ano_mes_do_nome(filepath)
+        nome_para_detect = nome_original or filepath
+        ano_det, mes_det = extrair_ano_mes_do_nome(nome_para_detect)
         if ano is None:
             ano = ano_det
         if mes is None:
