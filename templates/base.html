@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Teto MAC - SES-SP{% endblock %}</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/brasao.png') }}">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+  <style>
+    :root {
+      --ses-azul: #1e3a5f;
+      --ses-azul-claro: #2a5298;
+      --ses-verde: #1a7a4a;
+      --ses-laranja: #e07b00;
+    }
+    body { background: #f0f4f8; font-family: 'Segoe UI', sans-serif; }
+    .navbar { background: linear-gradient(135deg, var(--ses-azul) 0%, var(--ses-azul-claro) 100%); box-shadow: 0 2px 10px rgba(0,0,0,0.3); min-height: 64px; padding: 0; }
+    .navbar .container-fluid { padding: 0; }
+    .navbar-brand { font-weight: 700; font-size: 0.82rem; letter-spacing: 0.2px; line-height: 1.25; padding: 0; margin: 0; }
+    .navbar-brand img { height: 64px; width: auto; display: block; }
+    .navbar-texto { font-size: 0.92rem; font-weight: 700; color: #fff; letter-spacing: 0.3px; line-height: 1.3; white-space: nowrap; }
+    .sidebar { min-height: calc(100vh - 56px); background: #fff; border-right: 1px solid #dee2e6; box-shadow: 2px 0 5px rgba(0,0,0,0.05); }
+    .sidebar .nav-link { color: #495057; padding: 0.6rem 1rem; border-radius: 6px; margin: 2px 8px; transition: all 0.2s; }
+    .sidebar .nav-link:hover, .sidebar .nav-link.active { background: var(--ses-azul); color: white; }
+    .sidebar .nav-link i { width: 20px; }
+    .sidebar-heading { font-size: 0.7rem; font-weight: 700; color: #6c757d; text-transform: uppercase; letter-spacing: 1px; padding: 0.5rem 1rem; margin-top: 0.5rem; }
+    .card { border: none; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+    .card-header { border-radius: 12px 12px 0 0 !important; font-weight: 600; }
+    .kpi-card { border-left: 4px solid var(--ses-azul); }
+    .kpi-card.verde { border-left-color: var(--ses-verde); }
+    .kpi-card.laranja { border-left-color: var(--ses-laranja); }
+    .kpi-card.roxo { border-left-color: #6f42c1; }
+    .kpi-valor { font-size: 1.6rem; font-weight: 700; color: var(--ses-azul); }
+    .kpi-label { font-size: 0.8rem; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; }
+    .kpi-icon { font-size: 2rem; opacity: 0.2; }
+    .badge-drs { background: var(--ses-azul); font-size: 0.75rem; }
+    .table-hover tbody tr:hover { background-color: #e8f0fe; }
+    .btn-ses { background: var(--ses-azul); border-color: var(--ses-azul); color: white; }
+    .btn-ses:hover { background: var(--ses-azul-claro); color: white; }
+    .page-header { background: linear-gradient(135deg, var(--ses-azul) 0%, var(--ses-azul-claro) 100%); color: white; padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem; }
+    .breadcrumb-item.active { color: rgba(255,255,255,0.8); }
+    .breadcrumb-item a { color: rgba(255,255,255,0.9); text-decoration: none; }
+    .breadcrumb-item + .breadcrumb-item::before { color: rgba(255,255,255,0.6); }
+    .num-moeda { font-family: 'Courier New', monospace; text-align: right; white-space: nowrap; }
+    footer { background: var(--ses-azul); color: rgba(255,255,255,0.7); font-size: 0.8rem; padding: 0.8rem 0; }
+    .flash-container { position: fixed; top: 70px; right: 20px; z-index: 9999; min-width: 300px; }
+    @media print {
+      .sidebar, .navbar, .no-print, footer { display: none !important; }
+      .main-content { margin: 0 !important; }
+    }
+  </style>
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+  <!-- Navbar -->
+  <nav class="navbar navbar-dark navbar-expand-lg sticky-top">
+    <div class="container-fluid">
+      <a class="navbar-brand d-flex align-items-center" href="/">
+        <img src="{{ url_for('static', filename='img/logo1.png') }}" alt="Logo SES-SP">
+      </a>
+      <span class="navbar-texto ms-3 d-none d-md-block">
+        COORDENADORIA DE GESTÃO ORÇAMENTÁRIA E FINANCEIRA — GCSS
+      </span>
+      <div class="d-flex gap-2 ms-auto align-items-center pe-3">
+        {% if session.get('usuario_id') %}
+        <span class="text-white-50 small d-none d-md-inline">
+          <i class="bi bi-person-circle me-1"></i>{{ session.get('usuario_nome', 'Usuário') }}
+        </span>
+        {% endif %}
+      </div>
+    </div>
+  </nav>
+
+  <div class="container-fluid">
+    <div class="row">
+      <!-- Sidebar -->
+      <div class="col-lg-2 col-md-3 sidebar py-3 d-none d-md-block">
+        <div class="sidebar-heading">Principal</div>
+        <nav class="nav flex-column">
+          <a class="nav-link {{ 'active' if request.endpoint == 'dashboard' }}" href="{{ url_for('dashboard') }}">
+            <i class="bi bi-speedometer2"></i> Dashboard
+          </a>
+          <a class="nav-link {{ 'active' if request.endpoint == 'pesquisa' }}" href="{{ url_for('pesquisa') }}">
+            <i class="bi bi-search"></i> Pesquisar
+          </a>
+          <a class="nav-link {{ 'active' if request.endpoint == 'inserir' }}" href="{{ url_for('inserir') }}">
+            <i class="bi bi-plus-square"></i> Inserir
+          </a>
+          <a class="nav-link {{ 'active' if request.endpoint == 'graficos' }}" href="{{ url_for('graficos') }}">
+            <i class="bi bi-bar-chart-line"></i> Gráficos
+          </a>
+        </nav>
+        <div class="sidebar-heading mt-2">Relatórios</div>
+        <nav class="nav flex-column">
+          <a class="nav-link {{ 'active' if request.endpoint == 'relatorios' }}" href="{{ url_for('relatorios') }}">
+            <i class="bi bi-file-earmark-text"></i> Relatórios
+          </a>
+          <a class="nav-link" href="{{ url_for('relatorio_resumo_drs') }}">
+            <i class="bi bi-diagram-3"></i> Resumo DRS
+          </a>
+          <a class="nav-link" href="{{ url_for('relatorio_comparativo_unidade') }}">
+            <i class="bi bi-graph-up"></i> Por Unidade
+          </a>
+        </nav>
+        <div class="sidebar-heading mt-2">Administração</div>
+        <nav class="nav flex-column">
+          <a class="nav-link {{ 'active' if request.endpoint == 'importar' }}" href="{{ url_for('importar') }}">
+            <i class="bi bi-cloud-upload"></i> Importar XLS
+          </a>
+          {% if session.get('usuario_perfil') == 'admin' %}
+          <a class="nav-link {{ 'active' if request.endpoint == 'usuarios' }}" href="{{ url_for('usuarios') }}">
+            <i class="bi bi-people"></i> Usuários
+          </a>
+          {% endif %}
+          <a class="nav-link {{ 'active' if request.endpoint == 'alterar_senha' }}" href="{{ url_for('alterar_senha') }}">
+            <i class="bi bi-key"></i> Alterar Senha
+          </a>
+          <a class="nav-link text-danger" href="{{ url_for('logout') }}">
+            <i class="bi bi-box-arrow-right"></i> Sair
+          </a>
+        </nav>
+      </div>
+
+      <!-- Conteúdo principal -->
+      <div class="col-lg-10 col-md-9 main-content py-3 px-4">
+        <!-- Flash messages -->
+        <div class="flash-container">
+          {% with messages = get_flashed_messages(with_categories=true) %}
+            {% for category, message in messages %}
+              <div class="alert alert-{{ category }} alert-dismissible fade show shadow" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+              </div>
+            {% endfor %}
+          {% endwith %}
+        </div>
+
+        {% block content %}{% endblock %}
+      </div>
+    </div>
+  </div>
+
+  <footer class="text-center mt-3">
+    <div class="container">
+      Secretaria de Estado da Saúde de SP — CGOF/GCSS — Sistema de Controle de Teto MAC &nbsp;|&nbsp; {{ now().year if now is defined else '2026' }}
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script>
+    // Auto-dismiss alerts
+    setTimeout(() => {
+      document.querySelectorAll('.alert').forEach(a => {
+        bootstrap.Alert.getOrCreateInstance(a)?.close();
+      });
+    }, 5000);
+
+    function moeda(v) {
+      if (!v) return 'R$ 0,00';
+      return 'R$ ' + parseFloat(v).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    }
+    function numBR(v) {
+      if (!v) return '0';
+      return parseInt(v).toLocaleString('pt-BR');
+    }
+  </script>
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

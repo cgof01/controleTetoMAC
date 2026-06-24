@@ -1,0 +1,378 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Teto MAC{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <div>
+    <h4 class="mb-0 fw-bold"><i class="bi bi-speedometer2 me-2"></i>Dashboard</h4>
+    <small class="opacity-75">
+      {% if todos_anos %}Visão consolidada — todos os períodos
+      {% else %}{{ mes_sel | mes_nome }} / {{ ano_sel }} — Teto MAC SES-SP{% endif %}
+    </small>
+  </div>
+  <form class="d-flex gap-2 align-items-center flex-wrap" method="get" id="frmFiltro">
+    <select name="ano" class="form-select form-select-sm" style="width:130px" onchange="this.form.submit()">
+      <option value="0" {{ 'selected' if todos_anos }}>Todos os anos</option>
+      {% for ano in anos_disponiveis %}
+        <option value="{{ ano }}" {{ 'selected' if ano == ano_sel and not todos_anos }}>{{ ano }}</option>
+      {% endfor %}
+    </select>
+    <select name="mes" class="form-select form-select-sm" style="width:130px" onchange="this.form.submit()" id="selMes"
+      {{ 'disabled' if todos_anos }}>
+      {% if todos_anos %}<option>— todos —</option>{% else %}
+      {% for num, nome in meses.items() %}
+        <option value="{{ num }}" {{ 'selected' if num == mes_sel }}>{{ nome }}</option>
+      {% endfor %}{% endif %}
+    </select>
+  </form>
+</div>
+
+<!-- KPIs -->
+<div class="row g-3 mb-3">
+  {% set total_atual = kpis.total_geral or 0 %}
+  {% set total_ant   = kpi_anterior.total_geral or 0 %}
+  {% set var_pct = ((total_atual - total_ant) / total_ant * 100) if total_ant > 0 else 0 %}
+
+  <div class="col-xl-3 col-md-6">
+    <div class="card kpi-card h-100">
+      <div class="card-body d-flex justify-content-between align-items-center">
+        <div>
+          <div class="kpi-label">Total MC+AC+Incentivos</div>
+          <div class="kpi-valor">{{ kpis.total_geral | moeda }}</div>
+          <small class="text-muted">{% if todos_anos %}Acumulado total{% else %}{{ mes_sel | mes_nome }} / {{ ano_sel }}{% endif %}</small>
+          {% if not todos_anos and var_pct != 0 %}
+          <div class="mt-1">
+            <span class="badge {{ 'bg-success' if var_pct >= 0 else 'bg-danger' }}">
+              <i class="bi bi-arrow-{{ 'up' if var_pct >= 0 else 'down' }}"></i>
+              {{ "%.1f"|format(var_pct|abs) }}% vs mês ant.
+            </span>
+          </div>
+          {% endif %}
+        </div>
+        <i class="bi bi-currency-dollar kpi-icon text-primary"></i>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-3 col-md-6">
+    <div class="card kpi-card verde h-100">
+      <div class="card-body d-flex justify-content-between align-items-center">
+        <div>
+          <div class="kpi-label">Total Teto MAC</div>
+          <div class="kpi-valor" style="color:var(--ses-verde)">{{ kpis.total_teto_mac | moeda }}</div>
+          <small class="text-muted">{% if todos_anos %}Soma todos os períodos{% else %}AIH + SIA (MAC){% endif %}</small>
+        </div>
+        <i class="bi bi-graph-up kpi-icon text-success"></i>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-3 col-md-6">
+    <div class="card kpi-card laranja h-100">
+      <div class="card-body d-flex justify-content-between align-items-center">
+        <div>
+          <div class="kpi-label">{% if todos_anos %}Unidades Únicas{% else %}Total Unidades{% endif %}</div>
+          <div class="kpi-valor" style="color:var(--ses-laranja)">
+            {% if todos_anos %}{{ stats.total_unidades or 0 }}{% else %}{{ kpis.total_unidades or 0 }}{% endif %}
+          </div>
+          <small class="text-muted">Estabelecimentos{% if todos_anos %} — {{ stats.total_municipios }} municípios{% endif %}</small>
+        </div>
+        <i class="bi bi-hospital kpi-icon text-warning"></i>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-3 col-md-6">
+    <div class="card kpi-card roxo h-100">
+      <div class="card-body d-flex justify-content-between align-items-center">
+        <div>
+          <div class="kpi-label">{% if todos_anos %}Total Registros{% else %}Total Incentivos{% endif %}</div>
+          <div class="kpi-valor" style="color:#6f42c1">
+            {% if todos_anos %}{{ stats.total_registros | default(0) | int }}{% else %}{{ kpis.total_incentivos | moeda }}{% endif %}
+          </div>
+          <small class="text-muted">{% if todos_anos %}{{ stats.ano_min }}–{{ stats.ano_max }} · {{ stats.total_competencias }} competências{% else %}Todos os incentivos{% endif %}</small>
+        </div>
+        <i class="bi bi-{{ 'archive' if todos_anos else 'award' }} kpi-icon text-purple"></i>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Stats gerais -->
+<div class="row g-3 mb-3">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-body py-2">
+        <div class="row text-center g-2">
+          <div class="col">
+            <div class="fw-bold text-primary fs-5">{{ stats.total_registros | default(0) | int }}</div>
+            <div class="text-muted small">Total Registros</div>
+          </div>
+          <div class="col border-start">
+            <div class="fw-bold text-success fs-5">{{ stats.total_unidades | default(0) }}</div>
+            <div class="text-muted small">Unidades Únicas</div>
+          </div>
+          <div class="col border-start">
+            <div class="fw-bold text-warning fs-5">{{ stats.total_municipios | default(0) }}</div>
+            <div class="text-muted small">Municípios</div>
+          </div>
+          <div class="col border-start">
+            <div class="fw-bold text-danger fs-5">{{ stats.total_drs | default(0) }}</div>
+            <div class="text-muted small">DRS</div>
+          </div>
+          <div class="col border-start">
+            <div class="fw-bold text-info fs-5">{{ stats.total_competencias | default(0) }}</div>
+            <div class="text-muted small">Competências</div>
+          </div>
+          <div class="col border-start">
+            <div class="fw-bold fs-5" style="color:var(--ses-azul)">{{ stats.ano_min | default('—') }}–{{ stats.ano_max | default('—') }}</div>
+            <div class="text-muted small">Período</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Gráfico Evolução (full width) -->
+<div class="row g-3 mb-3">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span><i class="bi bi-graph-up-arrow text-primary me-2"></i><strong>Evolução Mensal — Total MC+AC+Incentivos</strong></span>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <div class="form-check form-check-inline mb-0">
+            <input class="form-check-input" type="checkbox" id="chkTodos" checked onchange="toggleTodos(this)">
+            <label class="form-check-label small fw-bold" for="chkTodos">Todos</label>
+          </div>
+          <div class="vr"></div>
+          {% for ano in anos_disponiveis %}
+          <div class="form-check form-check-inline mb-0">
+            <input class="form-check-input ano-check" type="checkbox" value="{{ ano }}" id="chk{{ ano }}" checked onchange="sincTodos()">
+            <label class="form-check-label small" for="chk{{ ano }}">{{ ano }}</label>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="card-body p-2" style="position:relative;height:300px">
+        <canvas id="chartEvolucao"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if not todos_anos %}
+<!-- DRS + Tipo (só quando período específico selecionado) -->
+<div class="row g-3 mb-3">
+  <div class="col-xl-8">
+    <div class="card h-100">
+      <div class="card-header bg-white">
+        <i class="bi bi-bar-chart text-success me-2"></i><strong>Total por DRS</strong>
+        <span class="text-muted small ms-1">{{ mes_sel | mes_nome }}/{{ ano_sel }}</span>
+        <a href="{{ url_for('graficos', ano=ano_sel, mes=mes_sel) }}" class="btn btn-sm btn-outline-secondary float-end">
+          <i class="bi bi-zoom-in"></i> Detalhes
+        </a>
+      </div>
+      <div class="card-body"><canvas id="chartDRS" height="110"></canvas></div>
+    </div>
+  </div>
+  <div class="col-xl-4">
+    <div class="card h-100">
+      <div class="card-header bg-white">
+        <i class="bi bi-pie-chart text-warning me-2"></i><strong>Distribuição por Tipo</strong>
+        <span class="text-muted small ms-1">{{ mes_sel | mes_nome }}/{{ ano_sel }}</span>
+      </div>
+      <div class="card-body d-flex align-items-center justify-content-center">
+        <canvas id="chartTipo" height="160"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Top unidades -->
+<div class="row g-3 mb-3">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header bg-white d-flex justify-content-between">
+        <span><i class="bi bi-trophy text-danger me-2"></i><strong>Top 15 Unidades — {{ mes_sel | mes_nome }}/{{ ano_sel }}</strong></span>
+        <a href="{{ url_for('graficos', ano=ano_sel, mes=mes_sel) }}" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-zoom-in"></i> Análise completa
+        </a>
+      </div>
+      <div class="card-body p-0" style="max-height:320px;overflow-y:auto">
+        <table class="table table-sm table-hover mb-0">
+          <thead class="table-dark sticky-top">
+            <tr><th>#</th><th>Unidade</th><th class="text-end">Total</th><th>Participação</th></tr>
+          </thead>
+          <tbody id="tbodyTop">
+            <tr><td colspan="4" class="text-center text-muted small">Carregando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Acesso rápido -->
+<div class="row g-3">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header bg-white"><strong><i class="bi bi-lightning-charge me-2 text-warning"></i>Acesso Rápido</strong></div>
+      <div class="card-body">
+        <div class="row g-2">
+          {% if not todos_anos %}
+          <div class="col-auto"><a href="{{ url_for('pesquisa', ano=ano_sel, mes=mes_sel) }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-search me-1"></i>Pesquisar {{ mes_sel | mes_nome }}/{{ ano_sel }}</a></div>
+          <div class="col-auto"><a href="{{ url_for('relatorio_resumo_drs', ano=ano_sel, mes=mes_sel) }}" class="btn btn-outline-success btn-sm"><i class="bi bi-table me-1"></i>Resumo DRS</a></div>
+          <div class="col-auto"><a href="{{ url_for('exportar_excel', ano=ano_sel, mes=mes_sel) }}" class="btn btn-outline-warning btn-sm"><i class="bi bi-file-excel me-1"></i>Exportar Excel</a></div>
+          {% endif %}
+          <div class="col-auto"><a href="{{ url_for('importar') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-cloud-upload me-1"></i>Importar Planilha</a></div>
+          <div class="col-auto"><a href="{{ url_for('graficos') }}" class="btn btn-outline-info btn-sm"><i class="bi bi-bar-chart-line me-1"></i>Análises Detalhadas</a></div>
+          <div class="col-auto"><a href="{{ url_for('pesquisa') }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-search me-1"></i>Pesquisa Geral</a></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const EVOLUCAO = {{ evolucao_json | safe }};
+const DRS_DATA  = {{ drs_json | safe }};
+const TIPO_DATA = {{ tipo_json | safe }};
+const TOP_DATA  = {{ top_json | safe }};
+const TODOS_ANOS = {{ 'true' if todos_anos else 'false' }};
+
+const PALETA = {
+  2022: '#1e3a5f', 2023: '#2a7dd8', 2024: '#e07b00',
+  2025: '#1a7a4a', 2026: '#dc3545', 2027: '#6f42c1'
+};
+const CORES = ['#1e3a5f','#2a7dd8','#e07b00','#1a7a4a','#dc3545','#6f42c1','#17a2b8','#fd7e14'];
+const MESES_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+const MESES_FULL = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+// ── Evolução ──────────────────────────────────────────────────────────────────
+function renderEvolucao(anosVisiveis) {
+  const ctx = document.getElementById('chartEvolucao').getContext('2d');
+  if (window._ev) window._ev.destroy();
+
+  const todosAnos = [...new Set(EVOLUCAO.map(d => d.ano))].sort();
+  const datasets = todosAnos.filter(a => anosVisiveis.includes(a)).map((ano, i) => {
+    const cor = PALETA[ano] || CORES[i % CORES.length];
+    const dadosAno = EVOLUCAO.filter(d => d.ano === ano);
+    return {
+      label: String(ano),
+      data: MESES_PT.map((_, mi) => { const d = dadosAno.find(x => x.mes === mi+1); return d ? d.total : null; }),
+      borderColor: cor, backgroundColor: cor + '18',
+      fill: true, tension: 0.4, borderWidth: 2.5,
+      pointRadius: 4, pointHoverRadius: 7,
+      pointBackgroundColor: cor, pointBorderColor: '#fff', pointBorderWidth: 2,
+      spanGaps: true
+    };
+  });
+
+  window._ev = new Chart(ctx, {
+    type: 'line',
+    data: { labels: MESES_PT, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'top', labels: { usePointStyle: true, pointStyle: 'circle', padding: 16, font: { size: 12 } } },
+        tooltip: {
+          backgroundColor: 'rgba(15,25,50,0.92)',
+          titleFont: { size: 13, weight: 'bold' }, bodyFont: { size: 12 }, padding: 12,
+          callbacks: { label: c => '  ' + c.dataset.label + ': ' + moeda(c.raw) }
+        }
+      },
+      scales: {
+        x: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { font: { size: 11 } } },
+        y: {
+          grid: { color: 'rgba(0,0,0,0.06)' },
+          ticks: { font: { size: 11 }, callback: v => v >= 1e9 ? 'R$'+(v/1e9).toFixed(1)+'B' : 'R$'+(v/1e6).toFixed(0)+'M' },
+          beginAtZero: false
+        }
+      }
+    }
+  });
+}
+
+function toggleTodos(cb) {
+  document.querySelectorAll('.ano-check').forEach(c => c.checked = cb.checked);
+  atualizarEv();
+}
+function sincTodos() {
+  const total  = document.querySelectorAll('.ano-check').length;
+  const marcados = document.querySelectorAll('.ano-check:checked').length;
+  const chkT = document.getElementById('chkTodos');
+  chkT.checked = total === marcados;
+  chkT.indeterminate = marcados > 0 && marcados < total;
+  atualizarEv();
+}
+function atualizarEv() {
+  renderEvolucao([...document.querySelectorAll('.ano-check:checked')].map(c => parseInt(c.value)));
+}
+
+renderEvolucao([...document.querySelectorAll('.ano-check:checked')].map(c => parseInt(c.value)));
+
+{% if not todos_anos %}
+// ── DRS ────────────────────────────────────────────────────────────────────────
+if (DRS_DATA.length) {
+  new Chart(document.getElementById('chartDRS').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: DRS_DATA.map(d => 'DRS ' + d.drs),
+      datasets: [{ label: 'Total (R$)', data: DRS_DATA.map(d => d.total),
+        backgroundColor: DRS_DATA.map((_, i) => CORES[i % CORES.length]),
+        borderRadius: 6, borderSkipped: false }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: true,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => moeda(c.raw) + ' | ' + DRS_DATA[c.dataIndex].unidades + ' unid.' } } },
+      scales: { x: { grid: { display: false } }, y: { ticks: { callback: v => 'R$'+(v/1e6).toFixed(0)+'M' } } }
+    }
+  });
+}
+
+// ── Tipo ────────────────────────────────────────────────────────────────────────
+if (TIPO_DATA.length) {
+  new Chart(document.getElementById('chartTipo').getContext('2d'), {
+    type: 'doughnut',
+    data: {
+      labels: TIPO_DATA.map(d => d.tipo),
+      datasets: [{ data: TIPO_DATA.map(d => d.total),
+        backgroundColor: CORES, borderWidth: 3, borderColor: '#fff', hoverOffset: 8 }]
+    },
+    options: {
+      responsive: true, cutout: '60%',
+      plugins: {
+        legend: { position: 'bottom', labels: { usePointStyle: true, padding: 14, font: { size: 11 } } },
+        tooltip: { callbacks: { label: c => c.label + ': ' + moeda(c.raw) } }
+      }
+    }
+  });
+}
+
+// ── Top Unidades ───────────────────────────────────────────────────────────────
+const tbody = document.getElementById('tbodyTop');
+tbody.innerHTML = '';
+const total1 = TOP_DATA[0]?.total || 1;
+TOP_DATA.forEach((d, i) => {
+  const pct = (d.total / total1 * 100).toFixed(1);
+  const medalha = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '';
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td class="text-center fw-bold small">${medalha || (i+1)}</td>
+    <td><small class="text-truncate d-block" style="max-width:380px" title="${d.unidade}">${d.unidade}</small>
+      <div class="progress mt-1" style="height:3px">
+        <div class="progress-bar" style="width:${pct}%;background:${CORES[i%CORES.length]}"></div>
+      </div>
+    </td>
+    <td class="text-end num-moeda small fw-bold">${moeda(d.total)}</td>
+    <td class="text-center small text-muted">${pct}%</td>`;
+  tbody.appendChild(tr);
+});
+{% endif %}
+</script>
+{% endblock %}

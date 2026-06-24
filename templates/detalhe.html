@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+{% block title %}{{ registro.unidade }} — Teto MAC{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-2">
+  <div>
+    <h5 class="mb-0 fw-bold"><i class="bi bi-hospital me-2"></i>{{ registro.unidade or '—' }}</h5>
+    <small class="opacity-75">
+      {{ registro.mes | mes_nome }} / {{ registro.ano }} &nbsp;·&nbsp;
+      DRS {{ registro.drs | int if registro.drs else '—' }} &nbsp;·&nbsp;
+      {{ registro.municipio }} &nbsp;·&nbsp;
+      CNES: {{ registro.cnes }}
+    </small>
+  </div>
+  <div class="d-flex gap-2 no-print">
+    <a href="{{ url_for('editar', id=registro.id) }}" class="btn btn-warning btn-sm">
+      <i class="bi bi-pencil me-1"></i>Editar
+    </a>
+    <button onclick="window.print()" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-printer me-1"></i>Imprimir
+    </button>
+    <a href="{{ url_for('pesquisa') }}" class="btn btn-outline-light btn-sm">
+      <i class="bi bi-arrow-left me-1"></i>Voltar
+    </a>
+  </div>
+</div>
+
+<!-- Identificação -->
+<div class="row g-3 mb-3">
+  <div class="col-md-8">
+    <div class="card h-100">
+      <div class="card-header bg-primary text-white"><strong><i class="bi bi-info-circle me-2"></i>Dados da Unidade</strong></div>
+      <div class="card-body">
+        <div class="row g-2">
+          {% macro info(label, val, bold=false) %}
+            <div class="col-md-6">
+              <div class="small text-muted">{{ label }}</div>
+              <div class="{{ 'fw-bold' if bold else '' }}">{{ val or '—' }}</div>
+            </div>
+          {% endmacro %}
+          {{ info('Nome', registro.unidade, true) }}
+          {{ info('Município', registro.municipio) }}
+          {{ info('CNES', registro.cnes) }}
+          {{ info('CNPJ', registro.cnpj) }}
+          {{ info('DRS', registro.drs | int if registro.drs else None) }}
+          {{ info('Tipo', registro.tipo) }}
+          {{ info('Hospital Universitário', registro.hu) }}
+          {{ info('Competência', (registro.mes | mes_nome) ~ ' / ' ~ registro.ano) }}
+          {% if registro.arquivo_origem %}
+            {{ info('Arquivo Origem', registro.arquivo_origem) }}
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card h-100">
+      <div class="card-header" style="background:var(--ses-azul);color:white"><strong><i class="bi bi-currency-dollar me-2"></i>Total Geral</strong></div>
+      <div class="card-body text-center d-flex flex-column justify-content-center">
+        <div class="text-muted small mb-1">Total MC + AC + Incentivos</div>
+        <div class="fs-3 fw-bold text-primary">{{ registro.total_mc_ac_incentivos | moeda }}</div>
+        <hr>
+        <div class="row text-center">
+          <div class="col-6">
+            <div class="small text-muted">Teto MAC</div>
+            <div class="fw-bold">{{ (registro.teto_mac or registro.total_teto_mac) | moeda }}</div>
+          </div>
+          <div class="col-6">
+            <div class="small text-muted">AIH Físico</div>
+            <div class="fw-bold">{{ registro.aih_fisico | int if registro.aih_fisico else 0 }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- AIH e SIA -->
+<div class="row g-3 mb-3">
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header bg-success text-white"><strong><i class="bi bi-cash me-2"></i>AIH — Internações</strong></div>
+      <div class="card-body">
+        <table class="table table-sm">
+          <tr><td>AIH Físico</td><td class="text-end num-moeda">{{ registro.aih_fisico | moeda }}</td></tr>
+          <tr><td>AIH FAEC</td><td class="text-end num-moeda">{{ registro.aih_faec | moeda }}</td></tr>
+          <tr><td>AIH MC (Média Complexidade)</td><td class="text-end num-moeda">{{ registro.aih_mc | moeda }}</td></tr>
+          <tr><td>AIH AC (Alta Complexidade)</td><td class="text-end num-moeda">{{ registro.aih_ac | moeda }}</td></tr>
+          <tr class="table-active fw-bold"><td>AIH Total</td><td class="text-end num-moeda">{{ registro.aih_total | moeda }}</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header bg-info text-white"><strong><i class="bi bi-clipboard me-2"></i>SIA — Ambulatório</strong></div>
+      <div class="card-body">
+        <table class="table table-sm">
+          <tr><td>SIA FAEC</td><td class="text-end num-moeda">{{ registro.sia_faec | moeda }}</td></tr>
+          <tr><td>SIA MC (Média Complexidade)</td><td class="text-end num-moeda">{{ registro.sia_mc | moeda }}</td></tr>
+          <tr><td>SIA AC (Alta Complexidade)</td><td class="text-end num-moeda">{{ registro.sia_ac | moeda }}</td></tr>
+          <tr><td>Equip. Hemodiálise (DRC)</td><td class="text-end num-moeda">{{ registro.equip_hemodialise | moeda }}</td></tr>
+          <tr><td>Limite Compl. Tabela SUS</td><td class="text-end num-moeda">{{ registro.limite_complementacao | moeda }}</td></tr>
+          <tr class="table-active fw-bold"><td>SIA Total</td><td class="text-end num-moeda">{{ registro.sia_total | moeda }}</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Incentivos -->
+<div class="card mb-3">
+  <div class="card-header bg-warning text-dark"><strong><i class="bi bi-award me-2"></i>Incentivos</strong></div>
+  <div class="card-body">
+    <div class="row g-2">
+      {% set incentivos = [
+        ('IntegraSUS', registro.integrasus),
+        ('IAC', registro.iac),
+        ('100% SUS', registro.sus_100),
+        ('OPO', registro.opo),
+        ('Rede Viver Sem Limite', registro.rede_viver_sem_limite),
+        ('Rede Brasil Sem Miséria', registro.rede_brasil_miseria),
+        ('RSME', registro.rsme),
+        ('RCE/RCEG', registro.rce_rceg),
+        ('RAU/HOSP SOS', registro.rau_hosp_sos),
+        ('RCA/RCAN', registro.rca_rcan),
+        ('IAPI', registro.iapi),
+        ('Residência Médica', registro.residencia_medica),
+        ('Melhor em Casa', registro.melhor_em_casa),
+        ('CER', registro.cer),
+        ('Doenças Raras', registro.doencas_raras),
+        ('Oficina Ortopédica', registro.oficina_ortopedica),
+        ('IHAC', registro.ihac),
+      ] %}
+      {% for nome, val in incentivos %}
+        {% if val and val > 0 %}
+          <div class="col-md-3 col-6">
+            <div class="d-flex justify-content-between border-bottom pb-1 mb-1">
+              <small class="text-muted">{{ nome }}</small>
+              <small class="fw-bold num-moeda">{{ val | moeda }}</small>
+            </div>
+          </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+    {% set total_inc = (registro.integrasus or 0) + (registro.iac or 0) + (registro.sus_100 or 0) +
+       (registro.opo or 0) + (registro.rede_viver_sem_limite or 0) + (registro.rsme or 0) %}
+    {% if total_inc == 0 %}
+      <p class="text-muted text-center mb-0"><i class="bi bi-dash-circle me-1"></i>Sem incentivos nesta competência</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Histórico evolução -->
+{% if historico %}
+<div class="card mb-3 no-print">
+  <div class="card-header bg-white d-flex justify-content-between">
+    <strong><i class="bi bi-graph-up text-primary me-2"></i>Evolução Histórica da Unidade</strong>
+    <a href="{{ url_for('relatorio_comparativo_unidade', cnes=registro.cnes) }}" class="btn btn-outline-primary btn-sm">
+      <i class="bi bi-arrow-right me-1"></i>Ver completo
+    </a>
+  </div>
+  <div class="card-body">
+    <canvas id="chartHistorico" height="60"></canvas>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{% if historico %}
+<script>
+const HIST = {{ historico_json | safe }};
+const ctx = document.getElementById('chartHistorico').getContext('2d');
+new Chart(ctx, {
+  type: 'line',
+  data: {
+    labels: HIST.map(d => d.label),
+    datasets: [{
+      label: 'Total MC+AC+Incentivos',
+      data: HIST.map(d => d.total),
+      borderColor: '#1e3a5f',
+      backgroundColor: '#1e3a5f20',
+      fill: true, tension: 0.3, borderWidth: 2,
+      pointRadius: 4
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: { label: ctx => moeda(ctx.raw) } }
+    },
+    scales: { y: { ticks: { callback: v => 'R$ ' + (v/1e6).toFixed(2) + 'M' } } }
+  }
+});
+</script>
+{% endif %}
+{% endblock %}

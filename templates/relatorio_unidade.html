@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}Evolução por Unidade — Teto MAC{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center no-print flex-wrap gap-2">
+  <div>
+    <h4 class="mb-0 fw-bold"><i class="bi bi-graph-up me-2"></i>Evolução por Unidade</h4>
+    {% if unidade_nome %}
+      <small class="opacity-75">{{ unidade_nome }} — CNES: {{ cnes }}</small>
+    {% endif %}
+  </div>
+  <div class="d-flex gap-2">
+    {% if dados %}
+      <a href="{{ url_for('exportar_excel', cnes=cnes) }}" class="btn btn-success btn-sm">
+        <i class="bi bi-file-excel me-1"></i>Excel
+      </a>
+    {% endif %}
+    <a href="{{ url_for('relatorios') }}" class="btn btn-outline-light btn-sm"><i class="bi bi-arrow-left me-1"></i>Voltar</a>
+  </div>
+</div>
+
+{% if not cnes %}
+<div class="card">
+  <div class="card-body text-center py-5">
+    <i class="bi bi-search fs-1 text-muted mb-3 d-block"></i>
+    <h5 class="text-muted">Digite o CNES da unidade para ver seu histórico</h5>
+    <form method="get" class="d-flex justify-content-center gap-2 mt-3">
+      <input type="text" name="cnes" class="form-control w-auto" placeholder="CNES da unidade" required>
+      <button type="submit" class="btn btn-ses">Buscar</button>
+    </form>
+  </div>
+</div>
+{% elif not dados %}
+<div class="alert alert-warning"><i class="bi bi-exclamation-triangle me-2"></i>Nenhum dado encontrado para o CNES: <strong>{{ cnes }}</strong></div>
+{% else %}
+
+<!-- Gráficos -->
+<div class="row g-3 mb-3">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header bg-white"><strong><i class="bi bi-graph-up text-primary me-2"></i>Total MC+AC+Incentivos — Evolução Histórica</strong></div>
+      <div class="card-body"><canvas id="chartTotal" height="60"></canvas></div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-header bg-white"><strong><i class="bi bi-cash me-2"></i>AIH vs SIA</strong></div>
+      <div class="card-body"><canvas id="chartAIHvsSIA" height="100"></canvas></div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-header bg-white"><strong><i class="bi bi-award me-2"></i>Incentivos Principais</strong></div>
+      <div class="card-body"><canvas id="chartInc" height="100"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- Tabela -->
+<div class="card">
+  <div class="card-header bg-white">
+    <strong><i class="bi bi-table me-2 text-success"></i>Dados Históricos — {{ unidade_nome }}</strong>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover table-bordered table-sm mb-0">
+        <thead class="table-dark">
+          <tr>
+            <th>Mês/Ano</th>
+            <th class="text-end">AIH MC</th>
+            <th class="text-end">AIH AC</th>
+            <th class="text-end">SIA MC</th>
+            <th class="text-end">SIA AC</th>
+            <th class="text-end">Teto</th>
+            <th class="text-end">IntegraSUS</th>
+            <th class="text-end">IAC</th>
+            <th class="text-end">100% SUS</th>
+            <th class="text-end fw-bold">Total</th>
+            <th>Var %</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% set ns = namespace(prev=0) %}
+          {% for r in dados %}
+          {% set total = r.total or 0 %}
+          {% if ns.prev > 0 %}
+            {% set var = ((total - ns.prev) / ns.prev * 100) %}
+          {% else %}
+            {% set var = 0 %}
+          {% endif %}
+          <tr>
+            <td><span class="badge badge-drs">{{ (r.mes | mes_nome)[:3] }}/{{ r.ano }}</span></td>
+            <td class="num-moeda small">{{ r.aih_mc | moeda }}</td>
+            <td class="num-moeda small">{{ r.aih_ac | moeda }}</td>
+            <td class="num-moeda small">{{ r.sia_mc | moeda }}</td>
+            <td class="num-moeda small">{{ r.sia_ac | moeda }}</td>
+            <td class="num-moeda small fw-bold">{{ r.teto | moeda }}</td>
+            <td class="num-moeda small">{{ r.integrasus | moeda }}</td>
+            <td class="num-moeda small">{{ r.iac | moeda }}</td>
+            <td class="num-moeda small">{{ r.sus_100 | moeda }}</td>
+            <td class="num-moeda fw-bold text-primary">{{ total | moeda }}</td>
+            <td>
+              {% if var != 0 %}
+                <span class="badge {{ 'bg-success' if var >= 0 else 'bg-danger' }} small">
+                  {{ '+' if var >= 0 else '' }}{{ "%.1f"|format(var) }}%
+                </span>
+              {% endif %}
+            </td>
+          </tr>
+          {% set ns.prev = total %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{% if dados %}
+<script>
+const HIST = {{ historico_json | safe }};
+const labels = HIST.map(d => d.label);
+
+// Total
+new Chart(document.getElementById('chartTotal').getContext('2d'), {
+  type: 'line',
+  data: {
+    labels,
+    datasets: [{
+      label: 'Total MC+AC+Inc.',
+      data: HIST.map(d => d.total),
+      borderColor: '#1e3a5f', backgroundColor: '#1e3a5f20',
+      fill: true, tension: 0.3, borderWidth: 2, pointRadius: 4
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => moeda(c.raw) } } },
+    scales: { y: { ticks: { callback: v => 'R$ ' + (v/1e6).toFixed(2) + 'M' } } }
+  }
+});
+
+// AIH vs SIA
+new Chart(document.getElementById('chartAIHvsSIA').getContext('2d'), {
+  type: 'bar',
+  data: {
+    labels,
+    datasets: [
+      { label: 'AIH', data: HIST.map(d => d.aih), backgroundColor: '#1e3a5f', borderRadius: 4 },
+      { label: 'SIA', data: HIST.map(d => d.sia), backgroundColor: '#2a5298', borderRadius: 4 }
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: { tooltip: { callbacks: { label: c => c.dataset.label + ': ' + moeda(c.raw) } } },
+    scales: { x: { stacked: false }, y: { ticks: { callback: v => 'R$ ' + (v/1e6).toFixed(1) + 'M' } } }
+  }
+});
+</script>
+{% endif %}
+{% endblock %}

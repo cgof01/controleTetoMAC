@@ -1,0 +1,671 @@
+"""
+database.py — Camada de dados usando Supabase (HTTPS/REST)
+Fallback automático para SQLite em desenvolvimento.
+"""
+import os
+from config import SUPABASE_URL, SUPABASE_KEY, USE_SUPABASE
+
+MESES = {
+    1: 'Janeiro', 2: 'Fevereiro', 3: 'Março', 4: 'Abril',
+    5: 'Maio', 6: 'Junho', 7: 'Julho', 8: 'Agosto',
+    9: 'Setembro', 10: 'Outubro', 11: 'Novembro', 12: 'Dezembro'
+}
+MESES_PT = {v.upper(): k for k, v in MESES.items()}
+MESES_PT.update({v: k for k, v in MESES.items()})
+
+# ── Backend ────────────────────────────────────────────────────────────────────
+
+if USE_SUPABASE:
+    import httpx as _httpx
+    _orig_httpx_init = _httpx.Client.__init__
+    def _httpx_no_ssl(self, *args, **kwargs):
+        kwargs['verify'] = False
+        _orig_httpx_init(self, *args, **kwargs)
+    _httpx.Client.__init__ = _httpx_no_ssl
+
+    from supabase import create_client
+    _sb = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+    def get_sb():
+        return _sb
+
+    def init_db():
+        pass  # tabelas criadas via schema_supabase.sql no dashboard
+
+else:
+    import sqlite3
+    DB_PATH = os.path.join(os.path.dirname(__file__), 'teto_mac.db')
+
+    def get_db():
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL")
+        return conn
+
+    def init_db():
+        _init_sqlite()
+
+# ── Utilitários ────────────────────────────────────────────────────────────────
+
+def _clean(row):
+    """Normaliza None para 0 em campos numéricos."""
+    if not row:
+        return row
+    num_fields = {
+        'drs','aih_fisico','aih_faec','sia_faec','equip_hemodialise',
+        'limite_complementacao','aih_mc','aih_ac','aih_total','sia_mc','sia_ac',
+        'sia_total','teto_global','teto_mc','teto_ac','teto_mac','total_teto_mac',
+        'portaria_ms_gm_8516','integrasus','iac','sus_100','opo',
+        'rede_viver_sem_limite','rede_brasil_miseria','rsme','rce_rceg',
+        'rau_hosp_sos','rca_rcan','iapi','residencia_medica','melhor_em_casa',
+        'cer','doencas_raras','oficina_ortopedica','ihac','total_mc_ac_incentivos'
+    }
+    result = dict(row)
+    for f in num_fields:
+        if f in result and result[f] is None:
+            result[f] = 0.0
+    return result
+
+# ── CRUD ───────────────────────────────────────────────────────────────────────
+
+def inserir_registro(dados):
+    dados_clean = {k: v for k, v in dados.items() if k not in ('id','created_at','updated_at')}
+    if USE_SUPABASE:
+        r = get_sb().table('teto_mac').insert(dados_clean).execute()
+        return r.data[0]['id'] if r.data else None
+    else:
+        conn = get_db()
+        campos = list(dados_clean.keys())
+        placeholders = ','.join(['?' for _ in campos])
+        cur = conn.execute(
+            f"INSERT INTO teto_mac ({','.join(campos)}) VALUES ({placeholders})",
+            [dados_clean[k] for k in campos]
+        )
+        conn.commit()
+        new_id = cur.lastrowid
+        conn.close()
+        return new_id
+
+def atualizar_registro(id, dados):
+    dados_clean = {k: v for k, v in dados.items() if k not in ('id','created_at','updated_at')}
+    if USE_SUPABASE:
+        get_sb().table('teto_mac').update(dados_clean).eq('id', id).execute()
+    else:
+        conn = get_db()
+        campos = list(dados_clean.keys())
+        set_clause = ', '.join([f'{k} = ?' for k in campos])
+        conn.execute(
+            f"UPDATE teto_mac SET {set_clause}, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            [dados_clean[k] for k in campos] + [id]
+        )
+        conn.commit()
+        conn.close()
+
+def deletar_registro(id):
+    if USE_SUPABASE:
+        get_sb().table('teto_mac').delete().eq('id', id).execute()
+    else:
+        conn = get_db()
+        conn.execute("DELETE FROM teto_mac WHERE id = ?", (id,))
+        conn.commit()
+        conn.close()
+
+def buscar_registro(id):
+    if USE_SUPABASE:
+        r = get_sb().table('teto_mac').select('*').eq('id', id).execute()
+        return _clean(r.data[0]) if r.data else None
+    else:
+        conn = get_db()
+        row = conn.execute("SELECT * FROM teto_mac WHERE id = ?", (id,)).fetchone()
+        conn.close()
+        return _clean(dict(row)) if row else None
+
+# ── Pesquisa ───────────────────────────────────────────────────────────────────
+
+def pesquisar(filtros=None, page=1, per_page=50):
+    if USE_SUPABASE:
+        return _pesquisar_supabase(filtros, page, per_page)
+    else:
+        return _pesquisar_sqlite(filtros, page, per_page)
+
+def _pesquisar_supabase(filtros, page, per_page):
+    sb = get_sb()
+    q = sb.table('teto_mac').select('*', count='exact')
+
+    if filtros:
+        if filtros.get('ano'):
+            q = q.eq('ano', int(filtros['ano']))
+        if filtros.get('mes'):
+            q = q.eq('mes', int(filtros['mes']))
+        if filtros.get('drs'):
+            q = q.eq('drs', float(filtros['drs']))
+        if filtros.get('municipio'):
+            q = q.ilike('municipio', f"%{filtros['municipio']}%")
+        if filtros.get('unidade'):
+            q = q.ilike('unidade', f"%{filtros['unidade']}%")
+        if filtros.get('cnes'):
+            q = q.eq('cnes', str(filtros['cnes']))
+        if filtros.get('cnpj'):
+            q = q.ilike('cnpj', f"%{filtros['cnpj']}%")
+        if filtros.get('tipo'):
+            q = q.ilike('tipo', f"%{filtros['tipo']}%")
+
+    offset = (page - 1) * per_page
+    q = q.order('ano', desc=True).order('mes', desc=True).order('unidade')
+    q = q.range(offset, offset + per_page - 1)
+
+    r = q.execute()
+    total = r.count if r.count is not None else len(r.data)
+    return [_clean(row) for row in r.data], total
+
+def _pesquisar_sqlite(filtros, page, per_page):
+    conn = get_db()
+    where_parts = []
+    params = []
+
+    if filtros:
+        if filtros.get('ano'):
+            where_parts.append("ano = ?")
+            params.append(int(filtros['ano']))
+        if filtros.get('mes'):
+            where_parts.append("mes = ?")
+            params.append(int(filtros['mes']))
+        if filtros.get('drs'):
+            where_parts.append("CAST(drs AS INTEGER) = ?")
+            params.append(int(filtros['drs']))
+        if filtros.get('tipo'):
+            where_parts.append("tipo LIKE ?")
+            params.append(f"%{filtros['tipo']}%")
+        if filtros.get('municipio'):
+            where_parts.append("municipio LIKE ?")
+            params.append(f"%{filtros['municipio'].upper()}%")
+        if filtros.get('unidade'):
+            where_parts.append("unidade LIKE ?")
+            params.append(f"%{filtros['unidade'].upper()}%")
+        if filtros.get('cnes'):
+            where_parts.append("cnes = ?")
+            params.append(str(filtros['cnes']))
+        if filtros.get('cnpj'):
+            where_parts.append("cnpj LIKE ?")
+            params.append(f"%{filtros['cnpj']}%")
+
+    where = f"WHERE {' AND '.join(where_parts)}" if where_parts else ""
+    total = conn.execute(f"SELECT COUNT(*) FROM teto_mac {where}", params).fetchone()[0]
+    offset = (page - 1) * per_page
+    rows = conn.execute(
+        f"SELECT * FROM teto_mac {where} ORDER BY ano DESC, mes DESC, unidade LIMIT ? OFFSET ?",
+        params + [per_page, offset]
+    ).fetchall()
+    conn.close()
+    return [_clean(dict(r)) for r in rows], total
+
+# ── Lookups ────────────────────────────────────────────────────────────────────
+
+def obter_anos_meses():
+    if USE_SUPABASE:
+        # Reusa o RPC get_evolucao_mensal que retorna todos os pares ano/mes sem limite de linhas
+        r = get_sb().rpc('get_evolucao_mensal', {}).execute()
+        data = r.data if isinstance(r.data, list) else []
+        result = sorted(
+            [{'ano': d['ano'], 'mes': d['mes']} for d in data],
+            key=lambda x: (x['ano'], x['mes']), reverse=True
+        )
+        return result
+    else:
+        conn = get_db()
+        rows = conn.execute(
+            "SELECT DISTINCT ano, mes FROM teto_mac ORDER BY ano DESC, mes DESC"
+        ).fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+
+def obter_drs_lista():
+    if USE_SUPABASE:
+        # Reutiliza get_por_drs com o mês mais recente para obter todos os DRS
+        ams = obter_anos_meses()
+        if ams:
+            r = get_sb().rpc('get_por_drs', {'p_ano': ams[0]['ano'], 'p_mes': ams[0]['mes']}).execute()
+            data = r.data if isinstance(r.data, list) else []
+            return sorted(int(d['drs']) for d in data if d.get('drs') is not None)
+        return []
+    else:
+        conn = get_db()
+        rows = conn.execute(
+            "SELECT DISTINCT CAST(drs AS INTEGER) as drs FROM teto_mac WHERE drs IS NOT NULL ORDER BY CAST(drs AS INTEGER)"
+        ).fetchall()
+        conn.close()
+        return [r['drs'] for r in rows if r['drs']]
+
+def obter_municipios():
+    if USE_SUPABASE:
+        r = get_sb().table('teto_mac').select('municipio').order('municipio').limit(50000).execute()
+        seen = set()
+        result = []
+        for row in r.data:
+            m = row.get('municipio')
+            if m and m not in seen:
+                seen.add(m)
+                result.append(m)
+        return result
+    else:
+        conn = get_db()
+        rows = conn.execute(
+            "SELECT DISTINCT municipio FROM teto_mac WHERE municipio IS NOT NULL ORDER BY municipio"
+        ).fetchall()
+        conn.close()
+        return [r['municipio'] for r in rows]
+
+# ── Dashboard e Gráficos (via RPC) ────────────────────────────────────────────
+
+def dashboard_kpis(ano=None, mes=None):
+    if USE_SUPABASE:
+        if not ano or not mes:
+            ams = obter_anos_meses()
+            if not ams:
+                return {}
+            ano, mes = ams[0]['ano'], ams[0]['mes']
+        r = get_sb().rpc('get_kpis', {'p_ano': ano, 'p_mes': mes}).execute()
+        return r.data if isinstance(r.data, dict) else {}
+    else:
+        return _dashboard_kpis_sqlite(ano, mes)
+
+def _dashboard_kpis_sqlite(ano=None, mes=None):
+    conn = get_db()
+    if ano and mes:
+        filtro = "WHERE ano = ? AND mes = ?"
+        params = [ano, mes]
+    else:
+        ultimo = conn.execute("SELECT ano, mes FROM teto_mac ORDER BY ano DESC, mes DESC LIMIT 1").fetchone()
+        if ultimo:
+            filtro = "WHERE ano = ? AND mes = ?"
+            params = [ultimo['ano'], ultimo['mes']]
+        else:
+            conn.close()
+            return {}
+    kpis = conn.execute(f"""
+        SELECT COUNT(*) as total_unidades,
+            SUM(total_mc_ac_incentivos) as total_geral,
+            SUM(aih_mc + aih_ac) as total_aih,
+            SUM(sia_mc + sia_ac) as total_sia,
+            SUM(integrasus + iac + sus_100 + opo + rede_viver_sem_limite + rsme +
+                rce_rceg + rau_hosp_sos + rca_rcan + iapi + residencia_medica +
+                melhor_em_casa + cer + doencas_raras + oficina_ortopedica + ihac) as total_incentivos,
+            SUM(teto_mac + total_teto_mac) as total_teto_mac
+        FROM teto_mac {filtro}
+    """, params).fetchone()
+    conn.close()
+    return dict(kpis) if kpis else {}
+
+def grafico_evolucao_mensal(anos=None):
+    if USE_SUPABASE:
+        r = get_sb().rpc('get_evolucao_mensal', {}).execute()
+        data = r.data if isinstance(r.data, list) else []
+        if anos:
+            data = [d for d in data if d.get('ano') in anos]
+        return data
+    else:
+        conn = get_db()
+        if anos:
+            placeholders = ','.join(['?' for _ in anos])
+            rows = conn.execute(f"""
+                SELECT ano, mes, SUM(total_mc_ac_incentivos) as total, COUNT(*) as unidades
+                FROM teto_mac WHERE ano IN ({placeholders})
+                GROUP BY ano, mes ORDER BY ano, mes
+            """, anos).fetchall()
+        else:
+            rows = conn.execute("""
+                SELECT ano, mes, SUM(total_mc_ac_incentivos) as total, COUNT(*) as unidades
+                FROM teto_mac GROUP BY ano, mes ORDER BY ano, mes
+            """).fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+
+def grafico_por_drs(ano, mes):
+    if USE_SUPABASE:
+        r = get_sb().rpc('get_por_drs', {'p_ano': ano, 'p_mes': mes}).execute()
+        return r.data if isinstance(r.data, list) else []
+    else:
+        conn = get_db()
+        rows = conn.execute("""
+            SELECT CAST(drs AS INTEGER) as drs,
+                SUM(total_mc_ac_incentivos) as total, COUNT(*) as unidades
+            FROM teto_mac WHERE ano = ? AND mes = ? AND drs IS NOT NULL
+            GROUP BY CAST(drs AS INTEGER) ORDER BY total DESC
+        """, (ano, mes)).fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+
+def grafico_top_unidades(ano, mes, limite=15):
+    if USE_SUPABASE:
+        r = get_sb().rpc('get_top_unidades', {'p_ano': ano, 'p_mes': mes, 'p_limite': limite}).execute()
+        return r.data if isinstance(r.data, list) else []
+    else:
+        conn = get_db()
+        rows = conn.execute("""
+            SELECT unidade, municipio, total_mc_ac_incentivos as total
+            FROM teto_mac WHERE ano = ? AND mes = ? AND total_mc_ac_incentivos > 0
+            ORDER BY total DESC LIMIT ?
+        """, (ano, mes, limite)).fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+
+def grafico_por_tipo(ano, mes):
+    if USE_SUPABASE:
+        r = get_sb().rpc('get_por_tipo', {'p_ano': ano, 'p_mes': mes}).execute()
+        return r.data if isinstance(r.data, list) else []
+    else:
+        conn = get_db()
+        rows = conn.execute("""
+            SELECT
+              CASE
+                WHEN tipo LIKE '%PRÓPRIOS%' OR tipo LIKE '%PROPRIOS%' THEN 'Rede Própria'
+                WHEN tipo LIKE '%PRIVADOS%' THEN 'Privados'
+                ELSE COALESCE(tipo, 'Outros')
+              END as tipo_agrupado,
+              SUM(total_mc_ac_incentivos) as total, COUNT(*) as unidades
+            FROM teto_mac WHERE ano = ? AND mes = ?
+            GROUP BY tipo_agrupado ORDER BY total DESC
+        """, (ano, mes)).fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+
+def relatorio_resumo_drs(ano, mes):
+    if USE_SUPABASE:
+        r = get_sb().rpc('get_resumo_drs', {'p_ano': ano, 'p_mes': mes}).execute()
+        return r.data if isinstance(r.data, list) else []
+    else:
+        conn = get_db()
+        rows = conn.execute("""
+            SELECT CAST(drs AS INTEGER) as drs, COUNT(*) as total_unidades,
+                SUM(aih_fisico) as aih_fisico, SUM(aih_mc + aih_ac) as total_aih,
+                SUM(sia_mc + sia_ac) as total_sia, SUM(teto_mac + total_teto_mac) as teto_mac,
+                SUM(integrasus + iac + sus_100 + opo + rede_viver_sem_limite + rsme +
+                    rce_rceg + rau_hosp_sos + rca_rcan + iapi + residencia_medica +
+                    melhor_em_casa + cer + doencas_raras + oficina_ortopedica + ihac) as total_incentivos,
+                SUM(total_mc_ac_incentivos) as total_geral
+            FROM teto_mac WHERE ano = ? AND mes = ? AND drs IS NOT NULL
+            GROUP BY CAST(drs AS INTEGER) ORDER BY CAST(drs AS INTEGER)
+        """, (ano, mes)).fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+
+def relatorio_periodo(ano_ini, mes_ini, ano_fim, mes_fim):
+    if USE_SUPABASE:
+        r = (get_sb().table('teto_mac')
+            .select('ano,mes,drs,tipo,municipio,cnes,cnpj,unidade,aih_mc,aih_ac,sia_mc,sia_ac,teto_mac,total_teto_mac,total_mc_ac_incentivos')
+            .gte('ano', ano_ini)
+            .lte('ano', ano_fim)
+            .order('ano').order('mes').order('unidade')
+            .limit(5000)
+            .execute())
+        # filtrar mes_ini e mes_fim
+        result = []
+        for row in r.data:
+            val = row['ano'] * 100 + row['mes']
+            if ano_ini * 100 + mes_ini <= val <= ano_fim * 100 + mes_fim:
+                result.append(_clean(row))
+        return result
+    else:
+        conn = get_db()
+        rows = conn.execute("""
+            SELECT ano, mes, drs, tipo, municipio, cnes, cnpj, unidade,
+                aih_mc, aih_ac, sia_mc, sia_ac, teto_mac, total_teto_mac, total_mc_ac_incentivos
+            FROM teto_mac
+            WHERE (ano * 100 + mes) BETWEEN ? AND ?
+            ORDER BY ano, mes, unidade
+        """, (ano_ini * 100 + mes_ini, ano_fim * 100 + mes_fim)).fetchall()
+        conn.close()
+        return [_clean(dict(r)) for r in rows]
+
+def comparativo_unidade(cnes, ano_ini=2022, ano_fim=2026):
+    if USE_SUPABASE:
+        r = (get_sb().rpc('get_historico_unidade', {'p_cnes': str(cnes)}).execute())
+        return r.data if isinstance(r.data, list) else []
+    else:
+        conn = get_db()
+        rows = conn.execute("""
+            SELECT ano, mes, unidade, municipio, drs,
+                total_mc_ac_incentivos as total, aih_mc, aih_ac, sia_mc, sia_ac,
+                teto_mac + total_teto_mac as teto,
+                integrasus, iac, sus_100
+            FROM teto_mac WHERE cnes = ? AND ano BETWEEN ? AND ?
+            ORDER BY ano, mes
+        """, (str(cnes), ano_ini, ano_fim)).fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+
+def buscar_unidades_autocomplete(termo):
+    if USE_SUPABASE:
+        r = (get_sb().table('teto_mac')
+            .select('cnes,cnpj,unidade,municipio')
+            .ilike('unidade', f"%{termo.upper()}%")
+            .limit(20)
+            .execute())
+        seen = set()
+        result = []
+        for row in r.data:
+            if row.get('cnes') not in seen:
+                seen.add(row.get('cnes'))
+                result.append(row)
+        return result
+    else:
+        conn = get_db()
+        rows = conn.execute("""
+            SELECT DISTINCT cnes, cnpj, unidade, municipio
+            FROM teto_mac WHERE unidade LIKE ? OR cnes LIKE ? OR cnpj LIKE ?
+            ORDER BY unidade LIMIT 20
+        """, (f"%{termo.upper()}%", f"%{termo}%", f"%{termo}%")).fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+
+def estatisticas_gerais():
+    if USE_SUPABASE:
+        r = get_sb().rpc('get_estatisticas_gerais', {}).execute()
+        return r.data if isinstance(r.data, dict) else {}
+    else:
+        conn = get_db()
+        stats = conn.execute("""
+            SELECT COUNT(*) as total_registros,
+                COUNT(DISTINCT cnes) as total_unidades,
+                COUNT(DISTINCT municipio) as total_municipios,
+                COUNT(DISTINCT CAST(drs AS INTEGER)) as total_drs,
+                MIN(ano) as ano_min, MAX(ano) as ano_max,
+                COUNT(DISTINCT ano * 100 + mes) as total_competencias
+            FROM teto_mac
+        """).fetchone()
+        conn.close()
+        return dict(stats) if stats else {}
+
+# ── Usuários ───────────────────────────────────────────────────────────────────
+
+def buscar_usuario_por_email(email):
+    if USE_SUPABASE:
+        r = get_sb().table('usuarios').select('*').eq('email', email.lower()).eq('ativo', True).limit(1).execute()
+        return r.data[0] if r.data else None
+    else:
+        conn = get_db()
+        row = conn.execute("SELECT * FROM usuarios WHERE email=? AND ativo=1", (email.lower(),)).fetchone()
+        conn.close()
+        return dict(row) if row else None
+
+def buscar_usuario_por_id(id):
+    if USE_SUPABASE:
+        r = get_sb().table('usuarios').select('*').eq('id', id).limit(1).execute()
+        return r.data[0] if r.data else None
+    else:
+        conn = get_db()
+        row = conn.execute("SELECT * FROM usuarios WHERE id=?", (id,)).fetchone()
+        conn.close()
+        return dict(row) if row else None
+
+def listar_usuarios():
+    if USE_SUPABASE:
+        r = get_sb().table('usuarios').select('*').order('nome').execute()
+        return r.data if r.data else []
+    else:
+        conn = get_db()
+        rows = conn.execute("SELECT * FROM usuarios ORDER BY nome").fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+
+def criar_usuario(nome, email, senha_hash, perfil='usuario'):
+    dados = {'nome': nome, 'email': email.lower(), 'senha_hash': senha_hash, 'perfil': perfil, 'ativo': True}
+    if USE_SUPABASE:
+        r = get_sb().table('usuarios').insert(dados).execute()
+        return r.data[0]['id'] if r.data else None
+    else:
+        conn = get_db()
+        cur = conn.execute(
+            "INSERT INTO usuarios (nome, email, senha_hash, perfil, ativo) VALUES (?,?,?,?,1)",
+            (nome, email.lower(), senha_hash, perfil)
+        )
+        conn.commit()
+        uid = cur.lastrowid
+        conn.close()
+        return uid
+
+def editar_usuario_db(id, nome, email, perfil, ativo):
+    if USE_SUPABASE:
+        get_sb().table('usuarios').update({
+            'nome': nome, 'email': email.lower(), 'perfil': perfil, 'ativo': bool(ativo)
+        }).eq('id', id).execute()
+    else:
+        conn = get_db()
+        conn.execute(
+            "UPDATE usuarios SET nome=?, email=?, perfil=?, ativo=? WHERE id=?",
+            (nome, email.lower(), perfil, int(ativo), id)
+        )
+        conn.commit()
+        conn.close()
+
+def deletar_usuario_db(id):
+    if USE_SUPABASE:
+        get_sb().table('usuarios').delete().eq('id', id).execute()
+    else:
+        conn = get_db()
+        conn.execute("DELETE FROM usuarios WHERE id=?", (id,))
+        conn.commit()
+        conn.close()
+
+def atualizar_senha(id, senha_hash):
+    if USE_SUPABASE:
+        get_sb().table('usuarios').update({'senha_hash': senha_hash}).eq('id', id).execute()
+    else:
+        conn = get_db()
+        conn.execute("UPDATE usuarios SET senha_hash=? WHERE id=?", (senha_hash, id))
+        conn.commit()
+        conn.close()
+
+def dashboard_kpis_geral():
+    """KPIs consolidados de todos os períodos."""
+    if USE_SUPABASE:
+        ev = grafico_evolucao_mensal()
+        stats = estatisticas_gerais()
+        total_geral = sum(d.get('total', 0) or 0 for d in ev)
+        return {
+            'total_geral': total_geral,
+            'total_unidades': stats.get('total_unidades', 0),
+            'total_teto_mac': 0,
+            'total_incentivos': 0,
+            'total_aih': 0,
+            'total_sia': 0,
+        }
+    else:
+        conn = get_db()
+        row = conn.execute("""
+            SELECT COUNT(*) as total_unidades,
+                COALESCE(SUM(total_mc_ac_incentivos),0) as total_geral,
+                COALESCE(SUM(aih_mc + aih_ac),0) as total_aih,
+                COALESCE(SUM(sia_mc + sia_ac),0) as total_sia,
+                COALESCE(SUM(teto_mac + total_teto_mac),0) as total_teto_mac,
+                COALESCE(SUM(integrasus+iac+sus_100+opo+rede_viver_sem_limite+rsme+
+                    rce_rceg+rau_hosp_sos+rca_rcan+iapi+residencia_medica+
+                    melhor_em_casa+cer+doencas_raras+oficina_ortopedica+ihac),0) as total_incentivos
+            FROM teto_mac
+        """).fetchone()
+        conn.close()
+        return dict(row) if row else {}
+
+def registrar_acesso(id):
+    from datetime import datetime, timezone
+    agora = datetime.now(timezone.utc).isoformat()
+    if USE_SUPABASE:
+        get_sb().table('usuarios').update({'ultimo_acesso': agora}).eq('id', id).execute()
+    else:
+        conn = get_db()
+        conn.execute("UPDATE usuarios SET ultimo_acesso=? WHERE id=?", (agora, id))
+        conn.commit()
+        conn.close()
+
+def verificar_duplicata(ano, mes, cnes):
+    if USE_SUPABASE:
+        r = (get_sb().table('teto_mac')
+            .select('id', count='exact')
+            .eq('ano', ano).eq('mes', mes).eq('cnes', str(cnes))
+            .execute())
+        return (r.count or 0) > 0
+    else:
+        conn = get_db()
+        count = conn.execute(
+            "SELECT COUNT(*) FROM teto_mac WHERE ano=? AND mes=? AND cnes=?",
+            (ano, mes, str(cnes))
+        ).fetchone()[0]
+        conn.close()
+        return count > 0
+
+# ── SQLite init (fallback) ─────────────────────────────────────────────────────
+
+def _init_sqlite():
+    conn = get_db()
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS teto_mac (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ano INTEGER NOT NULL, mes INTEGER NOT NULL,
+            drs REAL, tipo TEXT, hu TEXT, municipio TEXT,
+            cnes TEXT, cnpj TEXT, unidade TEXT,
+            aih_fisico REAL DEFAULT 0, aih_faec REAL DEFAULT 0,
+            sia_faec REAL DEFAULT 0, equip_hemodialise REAL DEFAULT 0,
+            limite_complementacao REAL DEFAULT 0,
+            aih_mc REAL DEFAULT 0, aih_ac REAL DEFAULT 0, aih_total REAL DEFAULT 0,
+            sia_mc REAL DEFAULT 0, sia_ac REAL DEFAULT 0, sia_total REAL DEFAULT 0,
+            teto_global REAL DEFAULT 0, teto_mc REAL DEFAULT 0, teto_ac REAL DEFAULT 0,
+            teto_mac REAL DEFAULT 0, total_teto_mac REAL DEFAULT 0,
+            portaria_ms_gm_8516 REAL DEFAULT 0,
+            integrasus REAL DEFAULT 0, iac REAL DEFAULT 0, sus_100 REAL DEFAULT 0,
+            opo REAL DEFAULT 0, rede_viver_sem_limite REAL DEFAULT 0,
+            rede_brasil_miseria REAL DEFAULT 0, rsme REAL DEFAULT 0,
+            rce_rceg REAL DEFAULT 0, rau_hosp_sos REAL DEFAULT 0,
+            rca_rcan REAL DEFAULT 0, iapi REAL DEFAULT 0,
+            residencia_medica REAL DEFAULT 0, melhor_em_casa REAL DEFAULT 0,
+            cer REAL DEFAULT 0, doencas_raras REAL DEFAULT 0,
+            oficina_ortopedica REAL DEFAULT 0, ihac REAL DEFAULT 0,
+            total_mc_ac_incentivos REAL DEFAULT 0,
+            arquivo_origem TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS importacoes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            arquivo TEXT, ano INTEGER, mes INTEGER,
+            total_registros INTEGER DEFAULT 0, registros_importados INTEGER DEFAULT 0,
+            registros_erro INTEGER DEFAULT 0, status TEXT DEFAULT 'pendente',
+            mensagem TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS usuarios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            senha_hash TEXT NOT NULL,
+            perfil TEXT DEFAULT 'usuario',
+            ativo INTEGER DEFAULT 1,
+            criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            ultimo_acesso TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_ano_mes ON teto_mac(ano, mes);
+        CREATE INDEX IF NOT EXISTS idx_cnes ON teto_mac(cnes);
+        CREATE INDEX IF NOT EXISTS idx_municipio ON teto_mac(municipio);
+        CREATE INDEX IF NOT EXISTS idx_drs ON teto_mac(drs);
+    """)
+    conn.commit()
+    conn.close()

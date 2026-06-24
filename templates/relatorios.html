@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% block title %}Relatórios — Teto MAC{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h4 class="mb-0 fw-bold"><i class="bi bi-file-earmark-text me-2"></i>Relatórios</h4>
+  <small class="opacity-75">Selecione o tipo de relatório desejado</small>
+</div>
+
+<div class="row g-3">
+  <!-- Resumo DRS -->
+  <div class="col-md-6 col-lg-4">
+    <div class="card h-100">
+      <div class="card-header bg-primary text-white">
+        <i class="bi bi-diagram-3 me-2"></i><strong>Resumo por DRS</strong>
+      </div>
+      <div class="card-body">
+        <p class="text-muted small">Total agrupado por Departamento Regional de Saúde para uma competência específica.</p>
+        <form method="get" action="{{ url_for('relatorio_resumo_drs') }}">
+          <div class="row g-2">
+            <div class="col-6">
+              <select name="ano" class="form-select form-select-sm">
+                {% for ano in anos_disponiveis %}
+                  <option value="{{ ano }}" {{ 'selected' if ano == ultimo.ano }}>{{ ano }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-6">
+              <select name="mes" class="form-select form-select-sm">
+                {% for num, nome in meses.items() %}
+                  <option value="{{ num }}" {{ 'selected' if num == ultimo.mes }}>{{ nome }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm mt-2 w-100">
+            <i class="bi bi-arrow-right-circle me-1"></i>Gerar Relatório
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Por Período -->
+  <div class="col-md-6 col-lg-4">
+    <div class="card h-100">
+      <div class="card-header bg-success text-white">
+        <i class="bi bi-calendar-range me-2"></i><strong>Por Período</strong>
+      </div>
+      <div class="card-body">
+        <p class="text-muted small">Todos os registros em um intervalo de meses/anos.</p>
+        <form method="get" action="{{ url_for('relatorio_periodo') }}">
+          <div class="row g-1 mb-2">
+            <div class="col-12"><small class="fw-bold text-muted">DE:</small></div>
+            <div class="col-6">
+              <select name="ano_ini" class="form-select form-select-sm">
+                {% for ano in anos_disponiveis %}
+                  <option value="{{ ano }}" {{ 'selected' if ano == ultimo.ano }}>{{ ano }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-6">
+              <select name="mes_ini" class="form-select form-select-sm">
+                {% for num, nome in meses.items() %}
+                  <option value="{{ num }}" {{ 'selected' if num == 1 }}>{{ nome }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-12"><small class="fw-bold text-muted">ATÉ:</small></div>
+            <div class="col-6">
+              <select name="ano_fim" class="form-select form-select-sm">
+                {% for ano in anos_disponiveis %}
+                  <option value="{{ ano }}" {{ 'selected' if ano == ultimo.ano }}>{{ ano }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-6">
+              <select name="mes_fim" class="form-select form-select-sm">
+                {% for num, nome in meses.items() %}
+                  <option value="{{ num }}" {{ 'selected' if num == ultimo.mes }}>{{ nome }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-success btn-sm w-100">
+            <i class="bi bi-arrow-right-circle me-1"></i>Gerar Relatório
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Por Unidade -->
+  <div class="col-md-6 col-lg-4">
+    <div class="card h-100">
+      <div class="card-header bg-warning text-dark">
+        <i class="bi bi-graph-up me-2"></i><strong>Evolução por Unidade</strong>
+      </div>
+      <div class="card-body">
+        <p class="text-muted small">Histórico completo de uma unidade ao longo do tempo por CNES.</p>
+        <form method="get" action="{{ url_for('relatorio_comparativo_unidade') }}">
+          <div class="mb-2">
+            <input type="text" name="cnes" class="form-control form-control-sm" placeholder="Digite o CNES da unidade" required>
+          </div>
+          <button type="submit" class="btn btn-warning btn-sm w-100">
+            <i class="bi bi-arrow-right-circle me-1"></i>Gerar Relatório
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Exportar Excel Pesquisa -->
+  <div class="col-md-6 col-lg-4">
+    <div class="card h-100">
+      <div class="card-header bg-dark text-white">
+        <i class="bi bi-file-excel me-2"></i><strong>Exportar para Excel</strong>
+      </div>
+      <div class="card-body">
+        <p class="text-muted small">Exporta registros filtrados para planilha Excel formatada.</p>
+        <form method="get" action="{{ url_for('exportar_excel') }}">
+          <div class="row g-1 mb-2">
+            <div class="col-6">
+              <select name="ano" class="form-select form-select-sm">
+                <option value="">Todos os anos</option>
+                {% for ano in anos_disponiveis %}
+                  <option value="{{ ano }}" {{ 'selected' if ano == ultimo.ano }}>{{ ano }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-6">
+              <select name="mes" class="form-select form-select-sm">
+                <option value="">Todos os meses</option>
+                {% for num, nome in meses.items() %}
+                  <option value="{{ num }}" {{ 'selected' if num == ultimo.mes }}>{{ nome }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-dark btn-sm w-100">
+            <i class="bi bi-download me-1"></i>Baixar Excel
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pesquisa avançada -->
+  <div class="col-md-6 col-lg-4">
+    <div class="card h-100">
+      <div class="card-header" style="background:var(--ses-azul);color:white">
+        <i class="bi bi-search me-2"></i><strong>Pesquisa Completa</strong>
+      </div>
+      <div class="card-body d-flex flex-column">
+        <p class="text-muted small">Acesse a pesquisa completa com todos os filtros disponíveis e exportação.</p>
+        <a href="{{ url_for('pesquisa') }}" class="btn btn-ses btn-sm mt-auto">
+          <i class="bi bi-arrow-right-circle me-1"></i>Ir para Pesquisa
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Gráficos avançados -->
+  <div class="col-md-6 col-lg-4">
+    <div class="card h-100">
+      <div class="card-header bg-info text-white">
+        <i class="bi bi-bar-chart-line me-2"></i><strong>Gráficos Avançados</strong>
+      </div>
+      <div class="card-body d-flex flex-column">
+        <p class="text-muted small">Visualizações interativas: evolução, comparativos, distribuição e tendências.</p>
+        <a href="{{ url_for('graficos') }}" class="btn btn-info btn-sm mt-auto">
+          <i class="bi bi-arrow-right-circle me-1"></i>Ver Gráficos
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

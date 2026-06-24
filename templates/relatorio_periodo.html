@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Relatório por Período — Teto MAC{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center no-print flex-wrap gap-2">
+  <div>
+    <h4 class="mb-0 fw-bold"><i class="bi bi-calendar-range me-2"></i>Relatório por Período</h4>
+    <small class="opacity-75">{{ mes_ini | mes_nome }}/{{ ano_ini }} a {{ mes_fim | mes_nome }}/{{ ano_fim }} — {{ dados|length }} registros</small>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('exportar_excel', ano_ini=ano_ini, mes_ini=mes_ini, ano_fim=ano_fim, mes_fim=mes_fim) }}"
+       class="btn btn-success btn-sm"><i class="bi bi-file-excel me-1"></i>Excel</a>
+    <button onclick="window.print()" class="btn btn-outline-secondary btn-sm"><i class="bi bi-printer me-1"></i>Imprimir</button>
+    <a href="{{ url_for('relatorios') }}" class="btn btn-outline-light btn-sm"><i class="bi bi-arrow-left me-1"></i>Voltar</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header bg-white d-flex justify-content-between align-items-center">
+    <strong><i class="bi bi-table me-2 text-primary"></i>Dados do Período</strong>
+    <span class="badge bg-secondary">{{ dados|length }} registros</span>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive" style="max-height:600px; overflow-y:auto">
+      <table class="table table-sm table-hover table-bordered mb-0" id="tabelaPeriodo">
+        <thead class="table-dark sticky-top">
+          <tr>
+            <th>Ano/Mês</th>
+            <th>DRS</th>
+            <th>Município</th>
+            <th>CNES</th>
+            <th>Unidade</th>
+            <th class="text-end">AIH MC</th>
+            <th class="text-end">AIH AC</th>
+            <th class="text-end">SIA MC</th>
+            <th class="text-end">SIA AC</th>
+            <th class="text-end">Teto MAC</th>
+            <th class="text-end">Total MC+AC+Inc.</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in dados %}
+          <tr>
+            <td><span class="badge badge-drs">{{ (r.mes | mes_nome)[:3] }}/{{ r.ano }}</span></td>
+            <td>{{ r.drs | int if r.drs else '—' }}</td>
+            <td><small>{{ r.municipio or '—' }}</small></td>
+            <td><code class="small">{{ r.cnes or '—' }}</code></td>
+            <td>
+              <a href="{{ url_for('pesquisa', cnes=r.cnes) }}" class="text-decoration-none text-dark">
+                <small>{{ (r.unidade or '—')[:40] }}</small>
+              </a>
+            </td>
+            <td class="num-moeda small">{{ r.aih_mc | moeda }}</td>
+            <td class="num-moeda small">{{ r.aih_ac | moeda }}</td>
+            <td class="num-moeda small">{{ r.sia_mc | moeda }}</td>
+            <td class="num-moeda small">{{ r.sia_ac | moeda }}</td>
+            <td class="num-moeda small fw-bold">{{ (r.teto_mac or r.total_teto_mac) | moeda }}</td>
+            <td class="num-moeda small fw-bold text-primary">{{ r.total_mc_ac_incentivos | moeda }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+  $('#tabelaPeriodo').DataTable({
+    pageLength: 100,
+    language: {
+      url: 'https://cdn.datatables.net/plug-ins/1.13.6/i18n/pt-BR.json'
+    },
+    dom: 'Bfrtip',
+    order: [[0,'desc']],
+    scrollY: '400px',
+    scrollCollapse: true,
+    paging: true
+  });
+});
+</script>
+{% endblock %}

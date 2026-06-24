@@ -1,0 +1,6 @@
+Para iniciar o sistema, execute no terminal:
+
+cd "x:\CGOF\GCSS\CONTROLE TETO MAC\CGOF\SISTEMA"
+python app.py
+
+Ou acesse diretamente: http://localhost:5000

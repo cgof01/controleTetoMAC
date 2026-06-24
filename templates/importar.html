@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+{% block title %}Importar XLS — Teto MAC{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h4 class="mb-0 fw-bold"><i class="bi bi-cloud-upload me-2"></i>Importar Dados XLS</h4>
+  <small class="opacity-75">Importação dos arquivos de Teto MAC das planilhas originais</small>
+</div>
+
+<div class="row g-3 mb-4">
+  <!-- Importar todos os finais -->
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header bg-primary text-white">
+        <i class="bi bi-folder-symlink me-2"></i><strong>Importar Arquivos Finais (em Lote)</strong>
+      </div>
+      <div class="card-body">
+        <p class="text-muted small">
+          Importa automaticamente todos os arquivos <code>*_Final.xls</code> das pastas
+          de 2022 a 2026 localizadas em:
+          <code class="d-block mt-1 bg-light p-1 rounded">CGOF/TETOS/{ano}/</code>
+        </p>
+        <form method="post" id="formLote">
+          <input type="hidden" name="acao" value="importar_todos">
+          <div class="mb-3">
+            <label class="form-label fw-bold">Selecionar Anos:</label>
+            <div class="d-flex flex-wrap gap-2">
+              {% for ano in anos_disponiveis %}
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="anos" value="{{ ano }}" id="ano{{ ano }}" checked>
+                  <label class="form-check-label fw-bold" for="ano{{ ano }}">{{ ano }}</label>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+          <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" name="substituir" value="1" id="subst">
+            <label class="form-check-label" for="subst">
+              <strong class="text-warning">Substituir registros existentes</strong>
+              <small class="text-muted d-block">Se desmarcado, registros duplicados serão pulados</small>
+            </label>
+          </div>
+          <button type="submit" class="btn btn-primary w-100" id="btnLote">
+            <i class="bi bi-play-circle me-2"></i>Iniciar Importação em Lote
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Importar arquivo único -->
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header bg-success text-white">
+        <i class="bi bi-file-earmark-arrow-up me-2"></i><strong>Importar Arquivo Único</strong>
+      </div>
+      <div class="card-body">
+        <p class="text-muted small">Envie um arquivo XLS/XLSX específico para importação manual.</p>
+        <form method="post" enctype="multipart/form-data">
+          <input type="hidden" name="acao" value="importar_arquivo">
+          <div class="mb-3">
+            <label class="form-label fw-bold">Arquivo XLS/XLSX</label>
+            <input type="file" name="arquivo" class="form-control" accept=".xls,.xlsx" required>
+            <div class="form-text">Formatos aceitos: .xls, .xlsx</div>
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <label class="form-label small fw-bold">Ano (opcional)</label>
+              <select name="ano" class="form-select form-select-sm">
+                <option value="">Auto-detectar</option>
+                {% for ano in anos_disponiveis %}
+                  <option value="{{ ano }}">{{ ano }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-6">
+              <label class="form-label small fw-bold">Mês (opcional)</label>
+              <select name="mes" class="form-select form-select-sm">
+                <option value="">Auto-detectar</option>
+                {% for num, nome in meses.items() %}
+                  <option value="{{ num }}">{{ nome }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" name="substituir" value="1" id="subst2">
+            <label class="form-check-label" for="subst2">Substituir registros existentes</label>
+          </div>
+          <button type="submit" class="btn btn-success w-100">
+            <i class="bi bi-upload me-2"></i>Importar Arquivo
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Resultados da importação -->
+{% if resultados %}
+<div class="card mb-3">
+  <div class="card-header bg-white d-flex justify-content-between align-items-center">
+    <strong><i class="bi bi-check-circle text-success me-2"></i>Resultado da Importação</strong>
+    {% set total_imp = resultados | sum(attribute='importados') %}
+    {% set total_err = resultados | sum(attribute='erros') %}
+    <span class="badge {{ 'bg-success' if total_err == 0 else 'bg-warning' }}">
+      {{ total_imp }} importados / {{ total_err }} erros
+    </span>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive" style="max-height:400px; overflow-y:auto">
+      <table class="table table-sm table-hover mb-0">
+        <thead class="table-dark sticky-top">
+          <tr>
+            <th>Arquivo</th>
+            <th>Ano/Mês</th>
+            <th class="text-center">Total</th>
+            <th class="text-center">Importados</th>
+            <th class="text-center">Pulados</th>
+            <th class="text-center">Erros</th>
+            <th>Mensagens</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in resultados %}
+          <tr class="{{ 'table-danger' if r.erros > 0 else ('table-success' if r.importados > 0 else '') }}">
+            <td><small>{{ r.arquivo }}</small></td>
+            <td><span class="badge badge-drs">{{ (r.mes | mes_nome)[:3] if r.mes else '?' }}/{{ r.ano or '?' }}</span></td>
+            <td class="text-center">{{ r.total }}</td>
+            <td class="text-center"><span class="badge bg-success">{{ r.importados }}</span></td>
+            <td class="text-center"><span class="badge bg-secondary">{{ r.pulados }}</span></td>
+            <td class="text-center">
+              {% if r.erros > 0 %}
+                <span class="badge bg-danger">{{ r.erros }}</span>
+              {% else %}
+                <span class="badge bg-success">0</span>
+              {% endif %}
+            </td>
+            <td><small class="text-muted">{{ r.mensagens | join('; ') if r.mensagens else '—' }}</small></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Histórico de importações -->
+{% if historico_imp %}
+<div class="card">
+  <div class="card-header bg-white">
+    <strong><i class="bi bi-clock-history text-secondary me-2"></i>Histórico de Importações</strong>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive" style="max-height:300px; overflow-y:auto">
+      <table class="table table-sm table-hover mb-0">
+        <thead class="table-secondary sticky-top">
+          <tr>
+            <th>Data/Hora</th>
+            <th>Arquivo</th>
+            <th>Competência</th>
+            <th class="text-center">Importados</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for h in historico_imp %}
+          <tr>
+            <td><small class="text-muted">{{ h.created_at }}</small></td>
+            <td><small>{{ h.arquivo }}</small></td>
+            <td>
+              {% if h.mes and h.ano %}
+                <span class="badge badge-drs">{{ (h.mes | mes_nome)[:3] }}/{{ h.ano }}</span>
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td class="text-center">{{ h.registros_importados }}</td>
+            <td>
+              <span class="badge {{ 'bg-success' if h.status == 'concluido' else 'bg-danger' }}">
+                {{ h.status }}
+              </span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('formLote')?.addEventListener('submit', function() {
+  const btn = document.getElementById('btnLote');
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Importando... Aguarde';
+  btn.disabled = true;
+});
+</script>
+{% endblock %}

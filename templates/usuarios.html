@@ -1,0 +1,200 @@
+{% extends 'base.html' %}
+{% block title %}Gerenciar Usuários{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+  <h4 class="mb-0"><i class="bi bi-people"></i> Gerenciar Usuários</h4>
+  <button class="btn btn-warning btn-sm fw-bold" data-bs-toggle="modal" data-bs-target="#modalNovoUsuario">
+    <i class="bi bi-person-plus"></i> Novo Usuário
+  </button>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0" id="tabelaUsuarios">
+        <thead class="table-dark">
+          <tr>
+            <th>#</th>
+            <th>Nome</th>
+            <th>Email</th>
+            <th>Perfil</th>
+            <th>Status</th>
+            <th>Criado em</th>
+            <th>Último Acesso</th>
+            <th class="text-center">Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for u in usuarios %}
+          <tr>
+            <td>{{ u.id }}</td>
+            <td>{{ u.nome }}</td>
+            <td>{{ u.email }}</td>
+            <td>
+              <span class="badge {{ 'bg-danger' if u.perfil == 'admin' else 'bg-primary' }}">
+                {{ 'Admin' if u.perfil == 'admin' else 'Usuário' }}
+              </span>
+            </td>
+            <td>
+              <span class="badge {{ 'bg-success' if u.ativo else 'bg-secondary' }}">
+                {{ 'Ativo' if u.ativo else 'Inativo' }}
+              </span>
+            </td>
+            <td>{{ u.criado_em[:10] if u.criado_em else '—' }}</td>
+            <td>{{ u.ultimo_acesso[:16].replace('T',' ') if u.ultimo_acesso else '—' }}</td>
+            <td class="text-center">
+              <button class="btn btn-sm btn-outline-primary" title="Editar"
+                onclick="abrirEdicao({{ u.id }}, '{{ u.nome }}', '{{ u.email }}', '{{ u.perfil }}', {{ 'true' if u.ativo else 'false' }})">
+                <i class="bi bi-pencil"></i>
+              </button>
+              <button class="btn btn-sm btn-outline-warning" title="Trocar Senha"
+                onclick="abrirTrocarSenha({{ u.id }}, '{{ u.nome }}')">
+                <i class="bi bi-key"></i>
+              </button>
+              {% if u.id != session.get('usuario_id') %}
+              <form method="POST" action="{{ url_for('deletar_usuario', id=u.id) }}" class="d-inline"
+                onsubmit="return confirm('Excluir usuário {{ u.nome }}?')">
+                <button type="submit" class="btn btn-sm btn-outline-danger" title="Excluir">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Novo Usuário -->
+<div class="modal fade" id="modalNovoUsuario" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-dark text-white">
+        <h5 class="modal-title"><i class="bi bi-person-plus"></i> Novo Usuário</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" action="{{ url_for('criar_usuario') }}">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-bold">Nome Completo</label>
+            <input type="text" class="form-control" name="nome" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">Email</label>
+            <input type="email" class="form-control" name="email" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">Senha</label>
+            <input type="password" class="form-control" name="senha" required minlength="6">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">Perfil</label>
+            <select class="form-select" name="perfil">
+              <option value="usuario">Usuário</option>
+              <option value="admin">Administrador</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-ses"><i class="bi bi-check-circle"></i> Criar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Editar Usuário -->
+<div class="modal fade" id="modalEditarUsuario" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-dark text-white">
+        <h5 class="modal-title"><i class="bi bi-pencil"></i> Editar Usuário</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" action="{{ url_for('editar_usuario') }}">
+        <input type="hidden" name="id" id="editId">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-bold">Nome Completo</label>
+            <input type="text" class="form-control" name="nome" id="editNome" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">Email</label>
+            <input type="email" class="form-control" name="email" id="editEmail" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">Perfil</label>
+            <select class="form-select" name="perfil" id="editPerfil">
+              <option value="usuario">Usuário</option>
+              <option value="admin">Administrador</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">Status</label>
+            <select class="form-select" name="ativo" id="editAtivo">
+              <option value="1">Ativo</option>
+              <option value="0">Inativo</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-ses"><i class="bi bi-check-circle"></i> Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Trocar Senha -->
+<div class="modal fade" id="modalTrocarSenha" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-warning">
+        <h5 class="modal-title"><i class="bi bi-key"></i> Trocar Senha — <span id="trocaNome"></span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" action="{{ url_for('admin_trocar_senha') }}">
+        <input type="hidden" name="id" id="trocaId">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-bold">Nova Senha</label>
+            <input type="password" class="form-control" name="nova_senha" required minlength="6">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">Confirmar Nova Senha</label>
+            <input type="password" class="form-control" name="confirmar_senha" required minlength="6">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-warning fw-bold"><i class="bi bi-check-circle"></i> Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function abrirEdicao(id, nome, email, perfil, ativo) {
+  document.getElementById('editId').value = id;
+  document.getElementById('editNome').value = nome;
+  document.getElementById('editEmail').value = email;
+  document.getElementById('editPerfil').value = perfil;
+  document.getElementById('editAtivo').value = ativo ? '1' : '0';
+  new bootstrap.Modal(document.getElementById('modalEditarUsuario')).show();
+}
+function abrirTrocarSenha(id, nome) {
+  document.getElementById('trocaId').value = id;
+  document.getElementById('trocaNome').textContent = nome;
+  new bootstrap.Modal(document.getElementById('modalTrocarSenha')).show();
+}
+</script>
+{% endblock %}

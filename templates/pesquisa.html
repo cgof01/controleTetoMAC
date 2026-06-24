@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+{% block title %}Pesquisa — Teto MAC{% endblock %}
+
+{% block extra_css %}
+<style>
+  .table-teto th { font-size: 0.75rem; white-space: nowrap; }
+  .table-teto td { font-size: 0.82rem; }
+  .filtro-card { border-left: 4px solid var(--ses-azul); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h4 class="mb-0 fw-bold"><i class="bi bi-search me-2"></i>Pesquisa de Registros</h4>
+  <small class="opacity-75">Busca e filtros avançados</small>
+</div>
+
+<!-- Filtros -->
+<div class="card mb-3 filtro-card">
+  <div class="card-header bg-white d-flex justify-content-between align-items-center">
+    <strong><i class="bi bi-funnel me-2 text-primary"></i>Filtros</strong>
+    <button class="btn btn-sm btn-link text-muted" type="button" data-bs-toggle="collapse" data-bs-target="#filtrosPanel">
+      <i class="bi bi-chevron-down"></i>
+    </button>
+  </div>
+  <div id="filtrosPanel" class="collapse show">
+    <div class="card-body">
+      <form method="get" id="formFiltro">
+        <div class="row g-2">
+          <div class="col-md-2">
+            <label class="form-label small fw-bold">Ano</label>
+            <select name="ano" class="form-select form-select-sm">
+              <option value="">Todos</option>
+              {% for ano in anos_disponiveis %}
+                <option value="{{ ano }}" {{ 'selected' if filtros.get('ano')|string == ano|string }}>{{ ano }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small fw-bold">Mês</label>
+            <select name="mes" class="form-select form-select-sm">
+              <option value="">Todos</option>
+              {% for num, nome in meses.items() %}
+                <option value="{{ num }}" {{ 'selected' if filtros.get('mes')|string == num|string }}>{{ nome }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-1">
+            <label class="form-label small fw-bold">DRS</label>
+            <select name="drs" class="form-select form-select-sm">
+              <option value="">Todos</option>
+              {% for d in drs_lista %}
+                <option value="{{ d }}" {{ 'selected' if filtros.get('drs')|string == d|string }}>{{ d }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small fw-bold">Município</label>
+            <input type="text" name="municipio" class="form-control form-control-sm" placeholder="Nome do município"
+              value="{{ filtros.get('municipio', '') }}">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small fw-bold">Unidade / Hospital</label>
+            <input type="text" name="unidade" class="form-control form-control-sm" id="inputUnidade"
+              placeholder="Nome, CNES ou CNPJ" value="{{ filtros.get('unidade', '') }}">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small fw-bold">CNES</label>
+            <input type="text" name="cnes" class="form-control form-control-sm" placeholder="Código CNES"
+              value="{{ filtros.get('cnes', '') }}">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small fw-bold">Tipo</label>
+            <select name="tipo" class="form-select form-select-sm">
+              <option value="">Todos</option>
+              <option value="PRIVADOS" {{ 'selected' if 'PRIVADOS' in filtros.get('tipo','') }}>Privados</option>
+              <option value="PRÓPRIOS" {{ 'selected' if 'PRÓPRIOS' in filtros.get('tipo','') or 'PROPRIOS' in filtros.get('tipo','') }}>Rede Própria</option>
+              <option value="FIXO" {{ 'selected' if 'FIXO' in filtros.get('tipo','') }}>Fixo</option>
+              <option value="PRODUÇÃO" {{ 'selected' if 'PRODUÇÃO' in filtros.get('tipo','') }}>Produção</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small fw-bold">Registros por pág.</label>
+            <select name="per_page" class="form-select form-select-sm">
+              <option value="25" {{ 'selected' if filtros.get('per_page')=='25' }}>25</option>
+              <option value="50" {{ 'selected' if not filtros.get('per_page') or filtros.get('per_page')=='50' }}>50</option>
+              <option value="100" {{ 'selected' if filtros.get('per_page')=='100' }}>100</option>
+              <option value="200" {{ 'selected' if filtros.get('per_page')=='200' }}>200</option>
+            </select>
+          </div>
+          <div class="col-12 d-flex gap-2">
+            <button type="submit" class="btn btn-ses btn-sm"><i class="bi bi-search me-1"></i>Buscar</button>
+            <a href="{{ url_for('pesquisa') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-x-circle me-1"></i>Limpar</a>
+            <a href="{{ url_for('exportar_excel', **filtros) }}" class="btn btn-success btn-sm ms-auto">
+              <i class="bi bi-file-excel me-1"></i>Exportar Excel ({{ total }})
+            </a>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Resultados -->
+<div class="card">
+  <div class="card-header bg-white d-flex justify-content-between align-items-center">
+    <strong><i class="bi bi-table me-2 text-primary"></i>Resultados</strong>
+    <span class="badge bg-primary">{{ total }} registros encontrados</span>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover table-teto mb-0">
+        <thead class="table-dark">
+          <tr>
+            <th>Ano/Mês</th>
+            <th>DRS</th>
+            <th>Tipo</th>
+            <th>Município</th>
+            <th>CNES</th>
+            <th>Unidade</th>
+            <th class="text-end">AIH Físico</th>
+            <th class="text-end">AIH MC</th>
+            <th class="text-end">AIH AC</th>
+            <th class="text-end">SIA MC</th>
+            <th class="text-end">SIA AC</th>
+            <th class="text-end">Teto MAC</th>
+            <th class="text-end">Total MC+AC+Inc.</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if registros %}
+            {% for r in registros %}
+            <tr>
+              <td><span class="badge badge-drs">{{ (r.mes | mes_nome)[:3] }}/{{ r.ano }}</span></td>
+              <td><span class="badge bg-secondary">{{ r.drs | int if r.drs else '—' }}</span></td>
+              <td><small class="text-muted">{{ r.tipo[:20] if r.tipo else '—' }}</small></td>
+              <td><small>{{ r.municipio or '—' }}</small></td>
+              <td><code class="small">{{ r.cnes or '—' }}</code></td>
+              <td>
+                <a href="{{ url_for('detalhe', id=r.id) }}" class="text-decoration-none fw-bold text-dark">
+                  {{ (r.unidade or '—')[:45] }}{% if r.unidade and r.unidade|length > 45 %}...{% endif %}
+                </a>
+              </td>
+              <td class="num-moeda">{{ r.aih_fisico | moeda if r.aih_fisico else '—' }}</td>
+              <td class="num-moeda">{{ r.aih_mc | moeda if r.aih_mc else '—' }}</td>
+              <td class="num-moeda">{{ r.aih_ac | moeda if r.aih_ac else '—' }}</td>
+              <td class="num-moeda">{{ r.sia_mc | moeda if r.sia_mc else '—' }}</td>
+              <td class="num-moeda">{{ r.sia_ac | moeda if r.sia_ac else '—' }}</td>
+              <td class="num-moeda fw-bold">{{ (r.teto_mac or r.total_teto_mac) | moeda }}</td>
+              <td class="num-moeda fw-bold text-primary">{{ r.total_mc_ac_incentivos | moeda }}</td>
+              <td>
+                <div class="btn-group btn-group-sm">
+                  <a href="{{ url_for('detalhe', id=r.id) }}" class="btn btn-outline-primary" title="Ver detalhes"><i class="bi bi-eye"></i></a>
+                  <a href="{{ url_for('editar', id=r.id) }}" class="btn btn-outline-warning" title="Editar"><i class="bi bi-pencil"></i></a>
+                  <button type="button" class="btn btn-outline-danger" title="Deletar"
+                    onclick="confirmarDelete({{ r.id }}, '{{ (r.unidade or '') | replace("'","") }}')">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          {% else %}
+            <tr><td colspan="14" class="text-center py-4 text-muted">
+              <i class="bi bi-inbox fs-3 d-block mb-2"></i>Nenhum registro encontrado com os filtros selecionados.
+            </td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {% if total_pages > 1 %}
+  <div class="card-footer bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <small class="text-muted">
+      Mostrando {{ (page-1)*per_page + 1 }}–{{ [page*per_page, total]|min }} de {{ total }} registros
+    </small>
+    <nav>
+      <ul class="pagination pagination-sm mb-0">
+        {% if page > 1 %}
+          <li class="page-item"><a class="page-link" href="{{ url_for('pesquisa', page=page-1, **filtros) }}">‹</a></li>
+        {% endif %}
+        {% for p in range([1, page-2]|max, [total_pages+1, page+3]|min) %}
+          <li class="page-item {{ 'active' if p == page }}">
+            <a class="page-link" href="{{ url_for('pesquisa', page=p, **filtros) }}">{{ p }}</a>
+          </li>
+        {% endfor %}
+        {% if page < total_pages %}
+          <li class="page-item"><a class="page-link" href="{{ url_for('pesquisa', page=page+1, **filtros) }}">›</a></li>
+        {% endif %}
+      </ul>
+    </nav>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Modal delete -->
+<form id="formDelete" method="post">
+  <div class="modal fade" id="modalDelete" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+      <div class="modal-content">
+        <div class="modal-header bg-danger text-white">
+          <h6 class="modal-title"><i class="bi bi-exclamation-triangle me-2"></i>Confirmar Exclusão</h6>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-1">Deseja excluir o registro:</p>
+          <strong id="deleteNome"></strong>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-danger btn-sm"><i class="bi bi-trash me-1"></i>Excluir</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function confirmarDelete(id, nome) {
+  document.getElementById('deleteNome').textContent = nome;
+  document.getElementById('formDelete').action = '/deletar/' + id;
+  new bootstrap.Modal(document.getElementById('modalDelete')).show();
+}
+</script>
+{% endblock %}

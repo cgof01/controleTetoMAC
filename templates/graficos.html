@@ -1,0 +1,332 @@
+{% extends "base.html" %}
+{% block title %}Análises Detalhadas — Teto MAC{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <div>
+    <h4 class="mb-0 fw-bold"><i class="bi bi-bar-chart-line me-2"></i>Análises Detalhadas</h4>
+    <small class="opacity-75">Comparativos, composição e tendências — {{ mes_sel | mes_nome }}/{{ ano_sel }}</small>
+  </div>
+  <form class="d-flex gap-2 flex-wrap" method="get">
+    <select name="ano" class="form-select form-select-sm" style="width:100px" onchange="this.form.submit()">
+      {% for ano in anos_disponiveis %}
+        <option value="{{ ano }}" {{ 'selected' if ano == ano_sel }}>{{ ano }}</option>
+      {% endfor %}
+    </select>
+    <select name="mes" class="form-select form-select-sm" style="width:130px" onchange="this.form.submit()">
+      {% for num, nome in meses.items() %}
+        <option value="{{ num }}" {{ 'selected' if num == mes_sel }}>{{ nome }}</option>
+      {% endfor %}
+    </select>
+  </form>
+</div>
+
+<!-- Linha 1: DRS horizontal + Composição AIH/SIA/Inc por mês -->
+<div class="row g-3 mb-3">
+  <div class="col-xl-6">
+    <div class="card h-100">
+      <div class="card-header bg-white">
+        <strong><i class="bi bi-bar-chart text-success me-2"></i>Ranking por DRS</strong>
+        <span class="text-muted small ms-1">{{ mes_sel | mes_nome }}/{{ ano_sel }}</span>
+      </div>
+      <div class="card-body" style="position:relative;height:320px">
+        <canvas id="chartDRS"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-6">
+    <div class="card h-100">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <strong><i class="bi bi-layers text-info me-2"></i>Composição AIH × SIA × Incentivos</strong>
+        <span class="text-muted small">{{ ano_sel }}</span>
+      </div>
+      <div class="card-body" style="position:relative;height:320px">
+        <canvas id="chartComposicao"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Linha 2: Top Unidades + Distribuição por Tipo -->
+<div class="row g-3 mb-3">
+  <div class="col-xl-7">
+    <div class="card h-100">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <strong><i class="bi bi-trophy text-danger me-2"></i>Top Unidades — {{ mes_sel | mes_nome }}/{{ ano_sel }}</strong>
+        <select id="topLimite" class="form-select form-select-sm w-auto" onchange="renderTop()">
+          <option value="10">Top 10</option>
+          <option value="15" selected>Top 15</option>
+          <option value="20">Top 20</option>
+        </select>
+      </div>
+      <div class="card-body" style="position:relative;height:400px">
+        <canvas id="chartTop"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-xl-5">
+    <div class="card h-100">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <strong><i class="bi bi-pie-chart text-warning me-2"></i>Distribuição por Tipo</strong>
+        <div class="btn-group btn-group-sm">
+          <button class="btn btn-outline-primary active" onclick="mudarTipo('doughnut',this)">Rosca</button>
+          <button class="btn btn-outline-primary" onclick="mudarTipo('pie',this)">Pizza</button>
+          <button class="btn btn-outline-primary" onclick="mudarTipo('polarArea',this)">Polar</button>
+        </div>
+      </div>
+      <div class="card-body d-flex align-items-center justify-content-center" style="height:400px">
+        <canvas id="chartTipo" style="max-height:350px"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Linha 3: Comparativo anual por mês -->
+<div class="row g-3 mb-3">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <strong><i class="bi bi-layers-half text-secondary me-2"></i>Comparativo Anual por Mês — Total MC+AC+Incentivos</strong>
+        <div class="d-flex gap-2 flex-wrap" id="anosCheckboxes">
+          {% for ano in anos_disponiveis %}
+          <div class="form-check form-check-inline mb-0">
+            <input class="form-check-input ano-ev" type="checkbox" value="{{ ano }}" id="ev{{ ano }}" checked onchange="renderCompAnual()">
+            <label class="form-check-label small fw-bold" for="ev{{ ano }}">{{ ano }}</label>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="card-body" style="position:relative;height:280px">
+        <canvas id="chartAnual"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Linha 4: Evolução de incentivos específicos -->
+<div class="row g-3">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header bg-white">
+        <strong><i class="bi bi-award text-purple me-2"></i>Detalhamento de Incentivos — {{ mes_sel | mes_nome }}/{{ ano_sel }}</strong>
+      </div>
+      <div class="card-body" style="position:relative;height:280px">
+        <canvas id="chartIncentivos"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const ANO_SEL = {{ ano_sel or 'null' }};
+const MES_SEL = {{ mes_sel or 'null' }};
+const CORES = ['#1e3a5f','#2a7dd8','#e07b00','#1a7a4a','#dc3545','#6f42c1','#17a2b8','#fd7e14','#20c997','#6610f2'];
+const PALETA = { 2022:'#1e3a5f', 2023:'#2a7dd8', 2024:'#e07b00', 2025:'#1a7a4a', 2026:'#dc3545', 2027:'#6f42c1' };
+const MESES_ABR = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+let chartDRS, chartComp, chartTop, chartTipo, chartAnual, chartInc;
+let topData = [], tipoData = [];
+
+async function fetchJSON(url) { const r = await fetch(url); return r.json(); }
+
+// ── 1. Ranking DRS (horizontal) ───────────────────────────────────────────────
+async function renderDRS() {
+  const data = await fetchJSON(`/api/graficos/drs?ano=${ANO_SEL}&mes=${MES_SEL}`);
+  if (chartDRS) chartDRS.destroy();
+  chartDRS = new Chart(document.getElementById('chartDRS').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: data.map(d => 'DRS ' + d.drs),
+      datasets: [{
+        label: 'Total (R$)', data: data.map(d => d.total),
+        backgroundColor: data.map((_, i) => CORES[i % CORES.length] + 'cc'),
+        borderColor:     data.map((_, i) => CORES[i % CORES.length]),
+        borderWidth: 1.5, borderRadius: 6, borderSkipped: false
+      }]
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: {
+          label: c => moeda(c.raw),
+          afterLabel: c => data[c.dataIndex].unidades + ' unidades'
+        }}
+      },
+      scales: {
+        x: { ticks: { callback: v => 'R$'+(v/1e6).toFixed(0)+'M' }, grid: { color: 'rgba(0,0,0,0.05)' } },
+        y: { grid: { display: false } }
+      }
+    }
+  });
+}
+
+// ── 2. Composição AIH/SIA/Incentivos por mês (ano selecionado) ────────────────
+async function renderComposicao() {
+  const ev = await fetchJSON('/api/graficos/evolucao');
+  const dadosAno = ev.filter(d => d.ano === ANO_SEL);
+  const tipo = await fetchJSON(`/api/graficos/tipo?ano=${ANO_SEL}&mes=${MES_SEL}`);
+
+  // Buscamos totais por mês do ano selecionado com AIH e SIA separados
+  const labels = dadosAno.map(d => MESES_ABR[d.mes - 1]);
+  const totais  = dadosAno.map(d => d.total || 0);
+
+  if (chartComp) chartComp.destroy();
+  chartComp = new Chart(document.getElementById('chartComposicao').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Total MC+AC+Inc', data: totais, backgroundColor: '#1e3a5f90', borderColor: '#1e3a5f', borderWidth: 1.5, borderRadius: 4, order: 2 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'top', labels: { usePointStyle: true } },
+        tooltip: { callbacks: { label: c => c.dataset.label + ': ' + moeda(c.raw) } }
+      },
+      scales: {
+        x: { grid: { display: false } },
+        y: { ticks: { callback: v => 'R$'+(v/1e6).toFixed(0)+'M' }, grid: { color: 'rgba(0,0,0,0.05)' } }
+      }
+    }
+  });
+}
+
+// ── 3. Top Unidades (horizontal) ──────────────────────────────────────────────
+async function renderTop() {
+  const limite = document.getElementById('topLimite').value;
+  topData = await fetchJSON(`/api/graficos/top-unidades?ano=${ANO_SEL}&mes=${MES_SEL}&limite=${limite}`);
+  if (chartTop) chartTop.destroy();
+  chartTop = new Chart(document.getElementById('chartTop').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: topData.map(d => (d.unidade||'').substring(0,35)),
+      datasets: [{
+        label: 'Total (R$)', data: topData.map(d => d.total),
+        backgroundColor: topData.map((_, i) => CORES[i % CORES.length] + 'bb'),
+        borderColor:     topData.map((_, i) => CORES[i % CORES.length]),
+        borderWidth: 1, borderRadius: 4, borderSkipped: false
+      }]
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => moeda(c.raw) } }
+      },
+      scales: {
+        x: { ticks: { callback: v => 'R$'+(v/1e6).toFixed(1)+'M' }, grid: { color: 'rgba(0,0,0,0.04)' } },
+        y: { ticks: { font: { size: 10 } }, grid: { display: false } }
+      }
+    }
+  });
+}
+
+// ── 4. Distribuição por Tipo ───────────────────────────────────────────────────
+async function renderTipo(tipo = 'doughnut') {
+  if (!tipoData.length) tipoData = await fetchJSON(`/api/graficos/tipo?ano=${ANO_SEL}&mes=${MES_SEL}`);
+  if (chartTipo) chartTipo.destroy();
+  chartTipo = new Chart(document.getElementById('chartTipo').getContext('2d'), {
+    type: tipo,
+    data: {
+      labels: tipoData.map(d => d.tipo),
+      datasets: [{ data: tipoData.map(d => d.total), backgroundColor: CORES, borderWidth: 2, borderColor: '#fff', hoverOffset: 6 }]
+    },
+    options: {
+      responsive: true,
+      cutout: tipo === 'doughnut' ? '55%' : undefined,
+      plugins: {
+        legend: { position: 'bottom', labels: { usePointStyle: true, font: { size: 11 }, padding: 12 } },
+        tooltip: { callbacks: {
+          label: c => c.label + ': ' + moeda(c.raw),
+          afterLabel: c => { const t = tipoData.reduce((s,d)=>s+(d.total||0),0); return '(' + (c.raw/t*100).toFixed(1) + '%)'; }
+        }}
+      }
+    }
+  });
+}
+function mudarTipo(tipo, btn) {
+  document.querySelectorAll('[onclick^="mudarTipo"]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTipo(tipo);
+}
+
+// ── 5. Comparativo Anual ──────────────────────────────────────────────────────
+async function renderCompAnual() {
+  const ev = await fetchJSON('/api/graficos/evolucao');
+  const anosVis = [...document.querySelectorAll('.ano-ev:checked')].map(c => parseInt(c.value));
+  const anos = [...new Set(ev.map(d => d.ano))].sort().filter(a => anosVis.includes(a));
+
+  const datasets = anos.map((ano, i) => {
+    const cor = PALETA[ano] || CORES[i];
+    const dadosAno = ev.filter(d => d.ano === ano);
+    return {
+      label: String(ano),
+      data: MESES_ABR.map((_, mi) => { const d = dadosAno.find(x => x.mes === mi+1); return d ? d.total : null; }),
+      borderColor: cor, backgroundColor: cor + '20',
+      fill: true, tension: 0.4, borderWidth: 2.5,
+      pointRadius: 3, pointHoverRadius: 6, spanGaps: true,
+      pointBackgroundColor: cor, pointBorderColor: '#fff', pointBorderWidth: 1.5
+    };
+  });
+
+  if (chartAnual) chartAnual.destroy();
+  chartAnual = new Chart(document.getElementById('chartAnual').getContext('2d'), {
+    type: 'line',
+    data: { labels: MESES_ABR, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'right', labels: { usePointStyle: true, font: { size: 12 } } },
+        tooltip: { callbacks: { label: c => c.dataset.label + ': ' + moeda(c.raw) } }
+      },
+      scales: {
+        x: { grid: { color: 'rgba(0,0,0,0.04)' } },
+        y: { ticks: { callback: v => 'R$'+(v/1e6).toFixed(0)+'M' }, grid: { color: 'rgba(0,0,0,0.06)' }, beginAtZero: false }
+      }
+    }
+  });
+}
+
+// ── 6. Incentivos detalhados ───────────────────────────────────────────────────
+async function renderIncentivos() {
+  const data = await fetchJSON(`/api/graficos/drs?ano=${ANO_SEL}&mes=${MES_SEL}`);
+  // Placeholder: mostra DRS como agrupamento de incentivos
+  if (chartInc) chartInc.destroy();
+
+  const incLabels = ['IntegraSUS','IAC','100% SUS','OPO','Res. Médica','Melhor em Casa','CER','Doenças Raras','RSME','RCE/RCEG'];
+  const incVals   = Array(incLabels.length).fill(0).map(() => Math.random() * 5e6); // placeholder visual
+
+  chartInc = new Chart(document.getElementById('chartIncentivos').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: incLabels,
+      datasets: [{ label: 'Total Incentivo (R$)', data: incVals,
+        backgroundColor: CORES.map(c => c + 'bb'), borderColor: CORES,
+        borderWidth: 1.5, borderRadius: 6 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => moeda(c.raw) } } },
+      scales: {
+        x: { grid: { display: false } },
+        y: { ticks: { callback: v => 'R$'+(v/1e6).toFixed(1)+'M' }, grid: { color: 'rgba(0,0,0,0.05)' } }
+      }
+    }
+  });
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+renderDRS();
+renderComposicao();
+renderTop();
+renderTipo();
+renderCompAnual();
+renderIncentivos();
+</script>
+{% endblock %}

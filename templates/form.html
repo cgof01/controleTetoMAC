@@ -1,0 +1,278 @@
+{% extends "base.html" %}
+{% block title %}{{ titulo }} — Teto MAC{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h4 class="mb-0 fw-bold">
+    <i class="bi bi-{{ 'pencil-square' if registro else 'plus-circle' }} me-2"></i>{{ titulo }}
+  </h4>
+</div>
+
+{% set r = registro or {} %}
+
+<form method="post" class="needs-validation" novalidate>
+  <!-- Identificação -->
+  <div class="card mb-3">
+    <div class="card-header bg-primary text-white"><i class="bi bi-info-circle me-2"></i><strong>Identificação</strong></div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-2">
+          <label class="form-label fw-bold">Ano <span class="text-danger">*</span></label>
+          <select name="ano" class="form-select" required>
+            {% for ano in anos_disponiveis %}
+              <option value="{{ ano }}" {{ 'selected' if (r.get('ano') or ano_default|default(2026)) == ano }}>{{ ano }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label fw-bold">Mês <span class="text-danger">*</span></label>
+          <select name="mes" class="form-select" required>
+            {% for num, nome in meses.items() %}
+              <option value="{{ num }}" {{ 'selected' if (r.get('mes') or mes_default|default(1)) == num }}>{{ nome }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-1">
+          <label class="form-label fw-bold">DRS</label>
+          <input type="number" name="drs" class="form-control" value="{{ r.get('drs', '') }}" min="1" max="17" placeholder="1-17">
+        </div>
+        <div class="col-md-7">
+          <label class="form-label fw-bold">Tipo de Estabelecimento</label>
+          <select name="tipo" class="form-select">
+            <option value="">Selecione...</option>
+            {% set tipos = [
+              'PRIVADOS - PRODUÇÃO - RES 198_23',
+              'PRIVADOS - PRODUÇÃO',
+              'PRIVADOS - FIXO',
+              'PRÓPRIOS',
+              'RESREC'
+            ] %}
+            {% for t in tipos %}
+              <option value="{{ t }}" {{ 'selected' if r.get('tipo') == t }}>{{ t }}</option>
+            {% endfor %}
+            {% if r.get('tipo') and r.get('tipo') not in tipos %}
+              <option value="{{ r.get('tipo') }}" selected>{{ r.get('tipo') }}</option>
+            {% endif %}
+          </select>
+        </div>
+        <div class="col-md-1">
+          <label class="form-label fw-bold">HU</label>
+          <select name="hu" class="form-select">
+            <option value="-" {{ 'selected' if r.get('hu') == '-' }}>Não</option>
+            <option value="SIM" {{ 'selected' if r.get('hu') == 'SIM' }}>SIM</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label fw-bold">Município <span class="text-danger">*</span></label>
+          <input type="text" name="municipio" class="form-control text-uppercase" required
+            value="{{ r.get('municipio', '') }}" placeholder="Nome do município">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label fw-bold">CNES <span class="text-danger">*</span></label>
+          <input type="text" name="cnes" class="form-control" required
+            value="{{ r.get('cnes', '') }}" placeholder="Código CNES" id="inputCnes">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label fw-bold">CNPJ</label>
+          <input type="text" name="cnpj" class="form-control" value="{{ r.get('cnpj', '') }}" placeholder="CNPJ">
+        </div>
+        <div class="col-md-5">
+          <label class="form-label fw-bold">Nome da Unidade <span class="text-danger">*</span></label>
+          <input type="text" name="unidade" class="form-control text-uppercase" required
+            value="{{ r.get('unidade', '') }}" placeholder="Nome completo do estabelecimento" id="inputUnidadeNome">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AIH e SIA -->
+  <div class="card mb-3">
+    <div class="card-header bg-success text-white"><i class="bi bi-cash-stack me-2"></i><strong>AIH — Autorização de Internação Hospitalar</strong></div>
+    <div class="card-body">
+      <div class="row g-3">
+        {% macro campo_num(label, name, val) %}
+          <div class="col-md-3">
+            <label class="form-label small fw-bold">{{ label }}</label>
+            <div class="input-group input-group-sm">
+              <span class="input-group-text">R$</span>
+              <input type="number" name="{{ name }}" class="form-control text-end" step="0.01" min="0"
+                value="{{ '%.2f'|format(val|float) if val else '0.00' }}">
+            </div>
+          </div>
+        {% endmacro %}
+        {{ campo_num('AIH Físico', 'aih_fisico', r.get('aih_fisico')) }}
+        {{ campo_num('AIH FAEC', 'aih_faec', r.get('aih_faec')) }}
+        {{ campo_num('AIH MC (Média Complexidade)', 'aih_mc', r.get('aih_mc')) }}
+        {{ campo_num('AIH AC (Alta Complexidade)', 'aih_ac', r.get('aih_ac')) }}
+        {{ campo_num('AIH Total', 'aih_total', r.get('aih_total')) }}
+      </div>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-header bg-info text-white"><i class="bi bi-clipboard-data me-2"></i><strong>SIA — Sistema de Informações Ambulatoriais</strong></div>
+    <div class="card-body">
+      <div class="row g-3">
+        {% macro campo_sia(label, name, val) %}
+          <div class="col-md-3">
+            <label class="form-label small fw-bold">{{ label }}</label>
+            <div class="input-group input-group-sm">
+              <span class="input-group-text">R$</span>
+              <input type="number" name="{{ name }}" class="form-control text-end" step="0.01" min="0"
+                value="{{ '%.2f'|format(val|float) if val else '0.00' }}">
+            </div>
+          </div>
+        {% endmacro %}
+        {{ campo_sia('SIA FAEC', 'sia_faec', r.get('sia_faec')) }}
+        {{ campo_sia('SIA MC (Média Complexidade)', 'sia_mc', r.get('sia_mc')) }}
+        {{ campo_sia('SIA AC (Alta Complexidade)', 'sia_ac', r.get('sia_ac')) }}
+        {{ campo_sia('SIA Total', 'sia_total', r.get('sia_total')) }}
+        {{ campo_sia('Equip. Hemodiálise (DRC)', 'equip_hemodialise', r.get('equip_hemodialise')) }}
+        {{ campo_sia('Limite Complementação Tabela SUS', 'limite_complementacao', r.get('limite_complementacao')) }}
+      </div>
+    </div>
+  </div>
+
+  <!-- Teto -->
+  <div class="card mb-3">
+    <div class="card-header" style="background:var(--ses-azul);color:white"><i class="bi bi-bank me-2"></i><strong>Teto MAC</strong></div>
+    <div class="card-body">
+      <div class="row g-3">
+        {% macro campo_teto(label, name, val) %}
+          <div class="col-md-3">
+            <label class="form-label small fw-bold">{{ label }}</label>
+            <div class="input-group input-group-sm">
+              <span class="input-group-text">R$</span>
+              <input type="number" name="{{ name }}" class="form-control text-end" step="0.01" min="0"
+                value="{{ '%.2f'|format(val|float) if val else '0.00' }}">
+            </div>
+          </div>
+        {% endmacro %}
+        {{ campo_teto('Teto Global', 'teto_global', r.get('teto_global')) }}
+        {{ campo_teto('Teto MC', 'teto_mc', r.get('teto_mc')) }}
+        {{ campo_teto('Teto AC', 'teto_ac', r.get('teto_ac')) }}
+        {{ campo_teto('Teto MAC', 'teto_mac', r.get('teto_mac')) }}
+        {{ campo_teto('Total Teto MAC', 'total_teto_mac', r.get('total_teto_mac')) }}
+        {{ campo_teto('Portaria MS/GM 8.516', 'portaria_ms_gm_8516', r.get('portaria_ms_gm_8516')) }}
+      </div>
+    </div>
+  </div>
+
+  <!-- Incentivos -->
+  <div class="card mb-3">
+    <div class="card-header bg-warning text-dark"><i class="bi bi-award me-2"></i><strong>Incentivos</strong></div>
+    <div class="card-body">
+      <div class="row g-3">
+        {% macro inc(label, name, val) %}
+          <div class="col-md-3 col-lg-2">
+            <label class="form-label small fw-bold">{{ label }}</label>
+            <div class="input-group input-group-sm">
+              <span class="input-group-text">R$</span>
+              <input type="number" name="{{ name }}" class="form-control text-end" step="0.01" min="0"
+                value="{{ '%.2f'|format(val|float) if val else '0.00' }}">
+            </div>
+          </div>
+        {% endmacro %}
+        {{ inc('IntegraSUS', 'integrasus', r.get('integrasus')) }}
+        {{ inc('IAC', 'iac', r.get('iac')) }}
+        {{ inc('100% SUS', 'sus_100', r.get('sus_100')) }}
+        {{ inc('OPO', 'opo', r.get('opo')) }}
+        {{ inc('Rede Viver Sem Limite', 'rede_viver_sem_limite', r.get('rede_viver_sem_limite')) }}
+        {{ inc('REDE BRASIL SEM MISERIA', 'rede_brasil_miseria', r.get('rede_brasil_miseria')) }}
+        {{ inc('RSME', 'rsme', r.get('rsme')) }}
+        {{ inc('RCE/RCEG', 'rce_rceg', r.get('rce_rceg')) }}
+        {{ inc('RAU/HOSP SOS', 'rau_hosp_sos', r.get('rau_hosp_sos')) }}
+        {{ inc('RCA/RCAN', 'rca_rcan', r.get('rca_rcan')) }}
+        {{ inc('IAPI', 'iapi', r.get('iapi')) }}
+        {{ inc('Residência Médica', 'residencia_medica', r.get('residencia_medica')) }}
+        {{ inc('Melhor em Casa', 'melhor_em_casa', r.get('melhor_em_casa')) }}
+        {{ inc('CER', 'cer', r.get('cer')) }}
+        {{ inc('Doenças Raras', 'doencas_raras', r.get('doencas_raras')) }}
+        {{ inc('Oficina Ortopédica', 'oficina_ortopedica', r.get('oficina_ortopedica')) }}
+        {{ inc('IHAC', 'ihac', r.get('ihac')) }}
+      </div>
+      <hr>
+      <div class="row">
+        <div class="col-md-4">
+          <label class="form-label fw-bold text-primary">TOTAL MC + AC + INCENTIVOS</label>
+          <div class="input-group">
+            <span class="input-group-text bg-primary text-white">R$</span>
+            <input type="number" name="total_mc_ac_incentivos" class="form-control fw-bold text-end" step="0.01" min="0"
+              id="totalFinal"
+              value="{{ '%.2f'|format(r.get('total_mc_ac_incentivos', 0)|float) }}">
+          </div>
+          <div class="form-text">Preencha manualmente ou use o botão abaixo</div>
+        </div>
+        <div class="col-md-4 d-flex align-items-end">
+          <button type="button" class="btn btn-outline-primary btn-sm" onclick="calcularTotal()">
+            <i class="bi bi-calculator me-1"></i>Calcular Total
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Botões -->
+  <div class="d-flex gap-2 mb-4">
+    <button type="submit" class="btn btn-ses">
+      <i class="bi bi-save me-2"></i>{{ 'Salvar Alterações' if registro else 'Inserir Registro' }}
+    </button>
+    {% if registro %}
+      <a href="{{ url_for('detalhe', id=registro.id) }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Cancelar
+      </a>
+    {% else %}
+      <a href="{{ url_for('pesquisa') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Voltar
+      </a>
+    {% endif %}
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Busca por CNES para autopreenchimento
+document.getElementById('inputCnes')?.addEventListener('blur', function() {
+  const cnes = this.value.trim();
+  if (cnes.length >= 5) {
+    fetch('/api/autocomplete?q=' + encodeURIComponent(cnes))
+      .then(r => r.json())
+      .then(data => {
+        if (data.length > 0) {
+          const u = data[0];
+          if (u.unidade) document.querySelector('[name=unidade]').value = u.unidade;
+          if (u.cnpj) document.querySelector('[name=cnpj]').value = u.cnpj;
+          if (u.municipio) document.querySelector('[name=municipio]').value = u.municipio;
+        }
+      });
+  }
+});
+
+function calcularTotal() {
+  const campos = ['aih_mc','aih_ac','sia_mc','sia_ac',
+    'integrasus','iac','sus_100','opo','rede_viver_sem_limite','rede_brasil_miseria',
+    'rsme','rce_rceg','rau_hosp_sos','rca_rcan','iapi','residencia_medica',
+    'melhor_em_casa','cer','doencas_raras','oficina_ortopedica','ihac'];
+  let total = 0;
+  campos.forEach(c => {
+    const el = document.querySelector('[name=' + c + ']');
+    if (el) total += parseFloat(el.value) || 0;
+  });
+  document.getElementById('totalFinal').value = total.toFixed(2);
+}
+
+// Validação Bootstrap
+(function() {
+  'use strict';
+  document.querySelectorAll('.needs-validation').forEach(form => {
+    form.addEventListener('submit', function(e) {
+      if (!form.checkValidity()) {
+        e.preventDefault(); e.stopPropagation();
+      }
+      form.classList.add('was-validated');
+    });
+  });
+})();
+</script>
+{% endblock %}

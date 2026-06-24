@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Banco de dados local (SQLite)
+*.db
+*.sqlite
+*.sqlite3
+
+# Arquivos temporários
+corrections_temp.json
+*.tmp
+*.log
+
+# Credenciais e ambiente — NÃO versionar
+.env
+.env.local
+.env.production
+
+# Planilhas locais (pasta TETOS não entra no repo)
+*.xls
+*.xlsx
+
+# OS
+.DS_Store
+Thumbs.db
