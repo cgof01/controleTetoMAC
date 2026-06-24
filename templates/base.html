@@ -21,11 +21,61 @@
     .navbar-brand { font-weight: 700; font-size: 0.82rem; letter-spacing: 0.2px; line-height: 1.25; padding: 0; margin: 0; }
     .navbar-brand img { height: 64px; width: auto; display: block; }
     .navbar-texto { font-size: 0.92rem; font-weight: 700; color: #fff; letter-spacing: 0.3px; line-height: 1.3; white-space: nowrap; }
-    .sidebar { min-height: calc(100vh - 56px); background: #fff; border-right: 1px solid #dee2e6; box-shadow: 2px 0 5px rgba(0,0,0,0.05); }
-    .sidebar .nav-link { color: #495057; padding: 0.6rem 1rem; border-radius: 6px; margin: 2px 8px; transition: all 0.2s; }
+    /* ── Layout flexível com sidebar recolhível ── */
+    .layout-flex { display: flex; min-height: calc(100vh - 64px); }
+    .sidebar {
+      width: 220px; flex-shrink: 0;
+      background: #fff; border-right: 1px solid #dee2e6;
+      box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+      transition: width 0.25s cubic-bezier(.4,0,.2,1);
+      overflow: hidden; position: relative;
+    }
+    .sidebar.collapsed { width: 58px; }
+    .main-wrap { flex: 1; min-width: 0; }
+
+    /* Links e headings */
+    .sidebar .nav-link {
+      color: #495057; padding: 0.55rem 0.75rem;
+      border-radius: 6px; margin: 2px 6px;
+      transition: background 0.2s, color 0.2s;
+      display: flex; align-items: center; gap: 0.55rem;
+      white-space: nowrap; overflow: hidden;
+    }
     .sidebar .nav-link:hover, .sidebar .nav-link.active { background: var(--ses-azul); color: white; }
-    .sidebar .nav-link i { width: 20px; }
-    .sidebar-heading { font-size: 0.7rem; font-weight: 700; color: #6c757d; text-transform: uppercase; letter-spacing: 1px; padding: 0.5rem 1rem; margin-top: 0.5rem; }
+    .sidebar .nav-link i { font-size: 1rem; flex-shrink: 0; width: 20px; text-align: center; }
+    .sidebar .nav-text { transition: opacity 0.15s; }
+    .sidebar.collapsed .nav-text { opacity: 0; pointer-events: none; }
+    .sidebar-heading {
+      font-size: 0.7rem; font-weight: 700; color: #6c757d;
+      text-transform: uppercase; letter-spacing: 1px;
+      padding: 0.5rem 1rem; margin-top: 0.5rem;
+      white-space: nowrap; overflow: hidden;
+      transition: opacity 0.15s;
+    }
+    .sidebar.collapsed .sidebar-heading { opacity: 0; }
+
+    /* Botão de toggle */
+    .sidebar-toggle {
+      position: absolute; top: 14px; right: -13px; z-index: 200;
+      width: 26px; height: 26px; border-radius: 50%;
+      background: var(--ses-azul); color: #fff;
+      border: 2px solid #fff; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+      transition: transform 0.25s;
+    }
+    .sidebar-toggle i { font-size: 0.75rem; transition: transform 0.25s; }
+    .sidebar.collapsed .sidebar-toggle i { transform: rotate(180deg); }
+
+    /* Tooltip ao recolher */
+    .sidebar.collapsed .nav-link { position: relative; }
+    .sidebar.collapsed .nav-link:hover::after {
+      content: attr(data-label);
+      position: absolute; left: calc(100% + 10px); top: 50%; transform: translateY(-50%);
+      background: rgba(15,25,50,0.9); color: #fff;
+      padding: 4px 10px; border-radius: 6px; font-size: 0.8rem;
+      white-space: nowrap; pointer-events: none; z-index: 9999;
+    }
     .card { border: none; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
     .card-header { border-radius: 12px 12px 0 0 !important; font-weight: 600; }
     .kpi-card { border-left: 4px solid var(--ses-azul); }
@@ -73,61 +123,68 @@
     </div>
   </nav>
 
-  <div class="container-fluid">
-    <div class="row">
+  <div class="container-fluid p-0">
+    <div class="layout-flex">
       <!-- Sidebar -->
-      <div class="col-lg-2 col-md-3 sidebar py-3 d-none d-md-block">
+      <div id="mainSidebar" class="sidebar py-3 d-none d-md-flex flex-column">
+        <button class="sidebar-toggle" id="sidebarToggle" title="Recolher/Expandir">
+          <i class="bi bi-chevron-left"></i>
+        </button>
+
         <div class="sidebar-heading">Principal</div>
         <nav class="nav flex-column">
-          <a class="nav-link {{ 'active' if request.endpoint == 'dashboard' }}" href="{{ url_for('dashboard') }}">
-            <i class="bi bi-speedometer2"></i> Dashboard
+          <a class="nav-link {{ 'active' if request.endpoint == 'dashboard' }}" href="{{ url_for('dashboard') }}" data-label="Dashboard">
+            <i class="bi bi-speedometer2"></i><span class="nav-text">Dashboard</span>
           </a>
-          <a class="nav-link {{ 'active' if request.endpoint == 'pesquisa' }}" href="{{ url_for('pesquisa') }}">
-            <i class="bi bi-search"></i> Pesquisar
+          <a class="nav-link {{ 'active' if request.endpoint == 'pesquisa' }}" href="{{ url_for('pesquisa') }}" data-label="Pesquisar">
+            <i class="bi bi-search"></i><span class="nav-text">Pesquisar</span>
           </a>
-          <a class="nav-link {{ 'active' if request.endpoint == 'inserir' }}" href="{{ url_for('inserir') }}">
-            <i class="bi bi-plus-square"></i> Inserir
+          <a class="nav-link {{ 'active' if request.endpoint == 'inserir' }}" href="{{ url_for('inserir') }}" data-label="Inserir">
+            <i class="bi bi-plus-square"></i><span class="nav-text">Inserir</span>
           </a>
-          <a class="nav-link {{ 'active' if request.endpoint == 'graficos' }}" href="{{ url_for('graficos') }}">
-            <i class="bi bi-bar-chart-line"></i> Gráficos
+          <a class="nav-link {{ 'active' if request.endpoint == 'graficos' }}" href="{{ url_for('graficos') }}" data-label="Gráficos">
+            <i class="bi bi-bar-chart-line"></i><span class="nav-text">Gráficos</span>
           </a>
         </nav>
+
         <div class="sidebar-heading mt-2">Relatórios</div>
         <nav class="nav flex-column">
-          <a class="nav-link {{ 'active' if request.endpoint == 'relatorios' }}" href="{{ url_for('relatorios') }}">
-            <i class="bi bi-file-earmark-text"></i> Relatórios
+          <a class="nav-link {{ 'active' if request.endpoint == 'relatorios' }}" href="{{ url_for('relatorios') }}" data-label="Relatórios">
+            <i class="bi bi-file-earmark-text"></i><span class="nav-text">Relatórios</span>
           </a>
-          <a class="nav-link" href="{{ url_for('relatorio_resumo_drs') }}">
-            <i class="bi bi-diagram-3"></i> Resumo DRS
+          <a class="nav-link {{ 'active' if request.endpoint == 'relatorio_resumo_drs' }}" href="{{ url_for('relatorio_resumo_drs') }}" data-label="Resumo DRS">
+            <i class="bi bi-diagram-3"></i><span class="nav-text">Resumo DRS</span>
           </a>
-          <a class="nav-link" href="{{ url_for('relatorio_comparativo_unidade') }}">
-            <i class="bi bi-graph-up"></i> Por Unidade
+          <a class="nav-link {{ 'active' if request.endpoint == 'relatorio_comparativo_unidade' }}" href="{{ url_for('relatorio_comparativo_unidade') }}" data-label="Por Unidade">
+            <i class="bi bi-graph-up"></i><span class="nav-text">Por Unidade</span>
           </a>
         </nav>
+
         {% if session.get('usuario_perfil') == 'admin' %}
         <div class="sidebar-heading mt-2">Administração</div>
         <nav class="nav flex-column">
-          <a class="nav-link {{ 'active' if request.endpoint == 'importar' }}" href="{{ url_for('importar') }}">
-            <i class="bi bi-cloud-upload"></i> Importar XLS
+          <a class="nav-link {{ 'active' if request.endpoint == 'importar' }}" href="{{ url_for('importar') }}" data-label="Importar XLS">
+            <i class="bi bi-cloud-upload"></i><span class="nav-text">Importar XLS</span>
           </a>
-          <a class="nav-link {{ 'active' if request.endpoint == 'usuarios' }}" href="{{ url_for('usuarios') }}">
-            <i class="bi bi-people"></i> Usuários
+          <a class="nav-link {{ 'active' if request.endpoint == 'usuarios' }}" href="{{ url_for('usuarios') }}" data-label="Usuários">
+            <i class="bi bi-people"></i><span class="nav-text">Usuários</span>
           </a>
         </nav>
         {% endif %}
+
         <div class="sidebar-heading mt-2">Conta</div>
         <nav class="nav flex-column">
-          <a class="nav-link {{ 'active' if request.endpoint == 'alterar_senha' }}" href="{{ url_for('alterar_senha') }}">
-            <i class="bi bi-key"></i> Alterar Senha
+          <a class="nav-link {{ 'active' if request.endpoint == 'alterar_senha' }}" href="{{ url_for('alterar_senha') }}" data-label="Alterar Senha">
+            <i class="bi bi-key"></i><span class="nav-text">Alterar Senha</span>
           </a>
-          <a class="nav-link text-danger" href="{{ url_for('logout') }}">
-            <i class="bi bi-box-arrow-right"></i> Sair
+          <a class="nav-link text-danger" href="{{ url_for('logout') }}" data-label="Sair">
+            <i class="bi bi-box-arrow-right"></i><span class="nav-text">Sair</span>
           </a>
         </nav>
       </div>
 
       <!-- Conteúdo principal -->
-      <div class="col-lg-10 col-md-9 main-content py-3 px-4">
+      <div class="main-wrap main-content py-3 px-4">
         <!-- Flash messages -->
         <div class="flash-container">
           {% with messages = get_flashed_messages(with_categories=true) %}
@@ -141,8 +198,8 @@
         </div>
 
         {% block content %}{% endblock %}
-      </div>
-    </div>
+      </div><!-- /main-wrap -->
+    </div><!-- /layout-flex -->
   </div>
 
   <footer class="text-center mt-3">
@@ -172,6 +229,22 @@
       if (!v) return '0';
       return parseInt(v).toLocaleString('pt-BR');
     }
+  </script>
+  <script>
+    (function () {
+      const sidebar = document.getElementById('mainSidebar');
+      const btn = document.getElementById('sidebarToggle');
+      if (!sidebar || !btn) return;
+
+      if (localStorage.getItem('sidebar_collapsed') === '1') {
+        sidebar.classList.add('collapsed');
+      }
+
+      btn.addEventListener('click', function () {
+        sidebar.classList.toggle('collapsed');
+        localStorage.setItem('sidebar_collapsed', sidebar.classList.contains('collapsed') ? '1' : '0');
+      });
+    })();
   </script>
   {% block extra_js %}{% endblock %}
 </body>
