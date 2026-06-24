@@ -258,6 +258,10 @@
            href="{{ url_for('usuarios') }}" data-tip="Usuários">
           <i class="bi bi-people"></i><span class="nav-label">Usuários</span>
         </a>
+        <a class="nav-link {{ 'active' if request.endpoint == 'auditoria' }}"
+           href="{{ url_for('auditoria') }}" data-tip="Auditoria">
+          <i class="bi bi-shield-check"></i><span class="nav-label">Auditoria</span>
+        </a>
       </nav>
       {% endif %}
 

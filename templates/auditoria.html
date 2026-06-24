@@ -1,0 +1,634 @@
+{% extends "base.html" %}
+{% block title %}Auditoria — Teto MAC{% endblock %}
+
+{% block extra_css %}
+<style>
+  .badge-problema { font-size: 0.72rem; }
+  .diff-positivo { color: #1a7a4a; font-weight: 600; }
+  .diff-negativo { color: #dc3545; font-weight: 600; }
+  .row-selecionado { background: #eaf3ff !important; }
+  #tabelaRegistros td, #tabelaRegistros th { font-size: 0.8rem; }
+  .card-validacao .num { font-size: 1.8rem; font-weight: 700; }
+  .filtro-ativo { background: var(--ses-azul); color: #fff; border-color: var(--ses-azul); }
+  .dt-info, .dt-paging { margin-top: 0.5rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-2">
+  <div>
+    <h4 class="mb-0 fw-bold"><i class="bi bi-shield-check me-2"></i>Auditoria e Validação</h4>
+    <small class="opacity-75">Valide, edite, exclua e compare registros com as planilhas originais</small>
+  </div>
+  <!-- Seletor de período -->
+  <form id="frmPeriodo" class="d-flex gap-2 flex-wrap align-items-center" method="get">
+    <select name="ano" id="selAno" class="form-select form-select-sm" style="width:110px" onchange="this.form.submit()">
+      {% for ano in anos_disponiveis %}
+        <option value="{{ ano }}" {{ 'selected' if ano == ano_sel }}>{{ ano }}</option>
+      {% endfor %}
+    </select>
+    <select name="mes" id="selMes" class="form-select form-select-sm" style="width:130px" onchange="this.form.submit()">
+      {% for num, nome in meses.items() %}
+        <option value="{{ num }}" {{ 'selected' if num == mes_sel }}>{{ nome }}</option>
+      {% endfor %}
+    </select>
+    <span class="text-white-50 small">Período selecionado</span>
+  </form>
+</div>
+
+<!-- Cards de resumo (carregados via AJAX) -->
+<div id="summaryCards" class="row g-3 mb-3">
+  <div class="col-12 text-center text-muted py-3">
+    <span class="spinner-border spinner-border-sm me-2"></span>Carregando validação…
+  </div>
+</div>
+
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-0" id="auditTabs" role="tablist">
+  <li class="nav-item">
+    <button class="nav-link active fw-semibold" data-bs-toggle="tab" data-bs-target="#tabValidacao" type="button">
+      <i class="bi bi-clipboard-check me-1"></i>Validação
+    </button>
+  </li>
+  <li class="nav-item">
+    <button class="nav-link fw-semibold" data-bs-toggle="tab" data-bs-target="#tabRegistros" type="button">
+      <i class="bi bi-table me-1"></i>Registros
+    </button>
+  </li>
+  <li class="nav-item">
+    <button class="nav-link fw-semibold" data-bs-toggle="tab" data-bs-target="#tabComparar" type="button">
+      <i class="bi bi-arrow-left-right me-1"></i>Comparar com Planilha
+    </button>
+  </li>
+</ul>
+
+<div class="tab-content border border-top-0 rounded-bottom bg-white p-3 mb-3">
+
+  <!-- ── Tab Validação ───────────────────────────────────────────── -->
+  <div class="tab-pane fade show active" id="tabValidacao">
+    <div id="validacaoContent">
+      <div class="text-center text-muted py-4">
+        <span class="spinner-border spinner-border-sm me-2"></span>Analisando dados…
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Tab Registros ──────────────────────────────────────────── -->
+  <div class="tab-pane fade" id="tabRegistros">
+    <!-- Barra de filtros -->
+    <div class="row g-2 mb-3 align-items-end">
+      <div class="col-md-4">
+        <input type="text" id="filtroBusca" class="form-control form-control-sm"
+               placeholder="Buscar unidade, CNES ou município…" oninput="debounceCarregar()">
+      </div>
+      <div class="col-auto">
+        <select id="filtroDRS" class="form-select form-select-sm" onchange="carregarRegistros()">
+          <option value="">Todos os DRS</option>
+          {% for drs in drs_lista %}
+          <option value="{{ drs }}">DRS {{ drs }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto ms-auto d-flex gap-2">
+        <button class="btn btn-sm btn-outline-danger" id="btnDeleteSel" onclick="deletarSelecionados()" disabled>
+          <i class="bi bi-trash me-1"></i>Excluir selecionados (<span id="cntSel">0</span>)
+        </button>
+        <button class="btn btn-sm btn-danger" onclick="confirmarDeletarPeriodo()">
+          <i class="bi bi-trash3 me-1"></i>Excluir todo o período
+        </button>
+      </div>
+    </div>
+
+    <!-- Tabela -->
+    <div class="table-responsive" style="max-height:520px;overflow-y:auto">
+      <table class="table table-sm table-hover align-middle mb-0" id="tabelaRegistros">
+        <thead class="sticky-top" style="background:var(--ses-azul);color:#fff;z-index:2">
+          <tr>
+            <th style="width:36px">
+              <input type="checkbox" id="chkTodos" onchange="toggleTodosCheck(this)">
+            </th>
+            <th style="width:40px">#</th>
+            <th>CNES</th>
+            <th>Estabelecimento</th>
+            <th>DRS</th>
+            <th>Município</th>
+            <th class="text-end">Total MC+AC+Inc.</th>
+            <th class="text-end">Teto MAC</th>
+            <th style="width:90px">Ações</th>
+          </tr>
+        </thead>
+        <tbody id="tbodyRegistros">
+          <tr><td colspan="9" class="text-center text-muted py-4">
+            <span class="spinner-border spinner-border-sm"></span> Carregando…
+          </td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Paginação -->
+    <div class="d-flex justify-content-between align-items-center mt-2">
+      <small class="text-muted" id="infoRegistros">—</small>
+      <div id="paginacaoRegistros" class="d-flex gap-1"></div>
+    </div>
+  </div>
+
+  <!-- ── Tab Comparar ───────────────────────────────────────────── -->
+  <div class="tab-pane fade" id="tabComparar">
+    <div class="row g-3">
+      <div class="col-md-5">
+        <div class="card border">
+          <div class="card-header bg-light fw-semibold">
+            <i class="bi bi-file-earmark-arrow-up me-1 text-primary"></i>Upload da Planilha de Referência
+          </div>
+          <div class="card-body">
+            <p class="text-muted small">Selecione a planilha original para comparar com os dados no banco.
+              O sistema detecta automaticamente o período pelo nome do arquivo.</p>
+            <form id="frmComparar" enctype="multipart/form-data">
+              <div class="mb-3">
+                <label class="form-label fw-bold small">Arquivo XLS / XLSX</label>
+                <input type="file" id="arquivoComp" name="arquivo" class="form-control form-control-sm"
+                       accept=".xls,.xlsx" required>
+              </div>
+              <div class="row g-2 mb-3">
+                <div class="col">
+                  <label class="form-label small">Ano (opt.)</label>
+                  <select name="ano" class="form-select form-select-sm">
+                    <option value="">Auto</option>
+                    {% for ano in anos_disponiveis %}
+                      <option value="{{ ano }}" {{ 'selected' if ano == ano_sel }}>{{ ano }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col">
+                  <label class="form-label small">Mês (opt.)</label>
+                  <select name="mes" class="form-select form-select-sm">
+                    <option value="">Auto</option>
+                    {% for num, nome in meses.items() %}
+                      <option value="{{ num }}" {{ 'selected' if num == mes_sel }}>{{ nome }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </div>
+              <button type="submit" class="btn btn-primary w-100" id="btnComparar">
+                <i class="bi bi-arrow-left-right me-1"></i>Comparar
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-7" id="resultadoComparacao">
+        <div class="text-center text-muted py-5">
+          <i class="bi bi-arrow-left-right fs-1 opacity-25"></i>
+          <div class="mt-2">Selecione uma planilha e clique em Comparar</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /tab-content -->
+
+<!-- ── Modais ─────────────────────────────────────────────────────── -->
+
+<!-- Confirmar exclusão selecionados -->
+<div class="modal fade" id="modalConfirmDelete" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header bg-danger text-white">
+        <h6 class="modal-title"><i class="bi bi-exclamation-triangle me-1"></i>Confirmar Exclusão</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="modalDeleteMsg">Excluir registros selecionados?</div>
+      <div class="modal-footer">
+        <button class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-sm btn-danger" id="btnConfirmDelete">
+          <i class="bi bi-trash me-1"></i>Excluir
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Confirmar exclusão do período inteiro -->
+<div class="modal fade" id="modalDeletarPeriodo" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-danger text-white">
+        <h6 class="modal-title"><i class="bi bi-exclamation-octagon me-1"></i>Excluir Período Inteiro</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p>Esta ação irá excluir <strong>TODOS</strong> os registros de
+           <strong id="periodoLabel"></strong>.</p>
+        <p class="text-danger mb-0"><strong>Esta operação não pode ser desfeita.</strong></p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-sm btn-danger" id="btnConfirmPeriodo">
+          <i class="bi bi-trash3 me-1"></i>Excluir tudo
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const ANO = {{ ano_sel or 'null' }};
+const MES = {{ mes_sel or 'null' }};
+const MESES_NOME = {{ meses | tojson }};
+
+let paginaAtual = 1;
+const PER_PAGE  = 100;
+let totalRegs   = 0;
+let idsSelecionados = new Set();
+let _debTimer = null;
+
+/* ── Validação ─────────────────────────────────────────────────────────── */
+async function carregarValidacao() {
+  if (!ANO || !MES) return;
+  const res = await fetch(`/api/auditoria/validacao?ano=${ANO}&mes=${MES}`);
+  const d   = await res.json();
+
+  const ok    = d.total > 0 && d.sem_cnes === 0 && d.sem_valor === 0 && d.duplicatas === 0;
+  const alerta = d.sem_cnes + d.sem_valor + d.sem_drs + d.duplicatas;
+
+  // Summary cards
+  document.getElementById('summaryCards').innerHTML = `
+    <div class="col-6 col-lg-3">
+      <div class="card kpi-card h-100">
+        <div class="card-body d-flex justify-content-between align-items-center">
+          <div>
+            <div class="kpi-label">Total Registros</div>
+            <div class="kpi-valor">${d.total.toLocaleString('pt-BR')}</div>
+            <small class="text-muted">${MESES_NOME[MES]} / ${ANO}</small>
+          </div>
+          <i class="bi bi-database kpi-icon text-primary"></i>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="card kpi-card ${alerta > 0 ? 'laranja' : 'verde'} h-100">
+        <div class="card-body d-flex justify-content-between align-items-center">
+          <div>
+            <div class="kpi-label">Problemas detectados</div>
+            <div class="kpi-valor" style="color:${alerta > 0 ? 'var(--ses-laranja)' : 'var(--ses-verde)'}">${alerta}</div>
+            <small class="${alerta > 0 ? 'text-warning fw-bold' : 'text-success'}">${alerta > 0 ? 'Requer atenção' : 'Dados OK'}</small>
+          </div>
+          <i class="bi bi-${alerta > 0 ? 'exclamation-triangle' : 'check-circle'} kpi-icon ${alerta > 0 ? 'text-warning' : 'text-success'}"></i>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="card kpi-card ${d.duplicatas > 0 ? 'roxo' : ''} h-100">
+        <div class="card-body d-flex justify-content-between align-items-center">
+          <div>
+            <div class="kpi-label">Duplicatas (CNES)</div>
+            <div class="kpi-valor" style="color:${d.duplicatas > 0 ? '#6f42c1' : 'var(--ses-azul)'}">${d.duplicatas}</div>
+            <small class="text-muted">Registros extras por CNES</small>
+          </div>
+          <i class="bi bi-copy kpi-icon text-secondary"></i>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3">
+      <div class="card kpi-card ${d.sem_cnes > 0 ? 'laranja' : ''} h-100">
+        <div class="card-body d-flex justify-content-between align-items-center">
+          <div>
+            <div class="kpi-label">Sem CNES / Sem valor</div>
+            <div class="kpi-valor" style="color:${d.sem_cnes > 0 ? 'var(--ses-laranja)' : 'var(--ses-azul)'}">${d.sem_cnes} / ${d.sem_valor}</div>
+            <small class="text-muted">Registros incompletos</small>
+          </div>
+          <i class="bi bi-question-circle kpi-icon text-warning"></i>
+        </div>
+      </div>
+    </div>`;
+
+  // Conteúdo da aba validação
+  let html = '';
+  if (alerta === 0) {
+    html = `<div class="alert alert-success d-flex gap-2 align-items-center">
+      <i class="bi bi-check-circle-fill fs-4"></i>
+      <div><strong>Dados validados com sucesso!</strong><br>
+      Todos os ${d.total} registros de ${MESES_NOME[MES]}/${ANO} estão íntegros.</div>
+    </div>`;
+  } else {
+    html = `<div class="alert alert-warning d-flex gap-2 align-items-center mb-3">
+      <i class="bi bi-exclamation-triangle-fill fs-4"></i>
+      <div><strong>${alerta} problema(s) detectado(s)</strong> em ${MESES_NOME[MES]}/${ANO}.
+      Revise os registros abaixo.</div>
+    </div>`;
+  }
+
+  if (d.problemas && d.problemas.length) {
+    html += `<h6 class="fw-bold mb-2 text-danger"><i class="bi bi-exclamation-circle me-1"></i>Registros com problemas (${d.problemas.length})</h6>
+    <div class="table-responsive" style="max-height:300px;overflow-y:auto">
+    <table class="table table-sm table-hover mb-0">
+      <thead class="table-danger sticky-top">
+        <tr><th>ID</th><th>CNES</th><th>Estabelecimento</th><th>DRS</th><th class="text-end">Total</th><th>Problema</th><th></th></tr>
+      </thead><tbody>`;
+    d.problemas.forEach(r => {
+      html += `<tr>
+        <td class="text-muted small">${r.id}</td>
+        <td class="small">${r.cnes || '<em class="text-danger">—</em>'}</td>
+        <td class="small" style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.unidade}">${r.unidade}</td>
+        <td class="text-center small">${r.drs || '—'}</td>
+        <td class="text-end small">${moeda(r.total_mc_ac_incentivos)}</td>
+        <td><span class="badge bg-warning text-dark badge-problema">${r.problema}</span></td>
+        <td><a href="/editar/${r.id}" class="btn btn-xs btn-outline-primary btn-sm py-0 px-1"><i class="bi bi-pencil"></i></a></td>
+      </tr>`;
+    });
+    html += `</tbody></table></div>`;
+  }
+
+  if (d.duplicatas_lista && d.duplicatas_lista.length) {
+    html += `<h6 class="fw-bold mb-2 mt-3 text-purple"><i class="bi bi-copy me-1"></i>CNES duplicados</h6>
+    <table class="table table-sm table-hover">
+      <thead class="table-secondary"><tr><th>CNES</th><th>Ocorrências</th><th>Unidades</th></tr></thead><tbody>`;
+    d.duplicatas_lista.forEach(r => {
+      html += `<tr><td class="fw-bold">${r.cnes}</td><td class="text-center text-danger fw-bold">${r.c}</td>
+               <td class="small text-muted" style="max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.unidades}</td></tr>`;
+    });
+    html += `</tbody></table>`;
+  }
+
+  document.getElementById('validacaoContent').innerHTML = html;
+}
+
+/* ── Registros ─────────────────────────────────────────────────────────── */
+async function carregarRegistros(pagina = 1) {
+  paginaAtual = pagina;
+  const busca = document.getElementById('filtroBusca').value.trim();
+  const drs   = document.getElementById('filtroDRS').value;
+  const url   = `/api/auditoria/registros?ano=${ANO}&mes=${MES}&page=${pagina}&per_page=${PER_PAGE}` +
+                (busca ? `&q=${encodeURIComponent(busca)}` : '') +
+                (drs   ? `&drs=${drs}` : '');
+  const tbody = document.getElementById('tbodyRegistros');
+  tbody.innerHTML = '<tr><td colspan="9" class="text-center py-3"><span class="spinner-border spinner-border-sm"></span></td></tr>';
+
+  const res  = await fetch(url);
+  const data = await res.json();
+  totalRegs  = data.total;
+  renderTabela(data.registros, pagina);
+  renderPaginacao(pagina, data.total);
+  document.getElementById('infoRegistros').textContent =
+    `Mostrando ${(pagina-1)*PER_PAGE + 1}–${Math.min(pagina*PER_PAGE, data.total)} de ${data.total.toLocaleString('pt-BR')} registros`;
+}
+
+function renderTabela(rows, pagina) {
+  const tbody = document.getElementById('tbodyRegistros');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">Nenhum registro encontrado.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map((r, i) => {
+    const sel = idsSelecionados.has(r.id);
+    return `<tr class="${sel ? 'row-selecionado' : ''}" data-id="${r.id}">
+      <td class="text-center">
+        <input type="checkbox" class="chk-reg" data-id="${r.id}" ${sel ? 'checked' : ''} onchange="toggleSel(this)">
+      </td>
+      <td class="text-muted small">${(pagina-1)*PER_PAGE + i + 1}</td>
+      <td class="small fw-bold">${r.cnes || '<span class="text-danger">—</span>'}</td>
+      <td style="max-width:260px">
+        <div class="text-truncate small" title="${r.unidade}">${r.unidade || '—'}</div>
+        <small class="text-muted">${r.municipio || ''}</small>
+      </td>
+      <td class="text-center small">${r.drs || '—'}</td>
+      <td class="small text-truncate" style="max-width:120px">${r.municipio || '—'}</td>
+      <td class="text-end small fw-bold">${moeda(r.total_mc_ac_incentivos)}</td>
+      <td class="text-end small">${moeda(r.teto_mac)}</td>
+      <td>
+        <div class="d-flex gap-1">
+          <a href="/editar/${r.id}" class="btn btn-sm btn-outline-primary py-0 px-1" title="Editar">
+            <i class="bi bi-pencil"></i>
+          </a>
+          <button class="btn btn-sm btn-outline-danger py-0 px-1" title="Excluir"
+                  onclick="deletarUm(${r.id}, '${(r.unidade||'').replace(/'/g,'\\'')}')">
+            <i class="bi bi-trash"></i>
+          </button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function renderPaginacao(pag, total) {
+  const pages = Math.ceil(total / PER_PAGE);
+  const div = document.getElementById('paginacaoRegistros');
+  if (pages <= 1) { div.innerHTML = ''; return; }
+  let btns = '';
+  const start = Math.max(1, pag - 2), end = Math.min(pages, pag + 2);
+  if (pag > 1) btns += `<button class="btn btn-sm btn-outline-secondary" onclick="carregarRegistros(${pag-1})">‹</button>`;
+  for (let p = start; p <= end; p++)
+    btns += `<button class="btn btn-sm ${p===pag ? 'btn-primary' : 'btn-outline-secondary'}" onclick="carregarRegistros(${p})">${p}</button>`;
+  if (pag < pages) btns += `<button class="btn btn-sm btn-outline-secondary" onclick="carregarRegistros(${pag+1})">›</button>`;
+  div.innerHTML = btns;
+}
+
+function debounceCarregar() {
+  clearTimeout(_debTimer);
+  _debTimer = setTimeout(() => carregarRegistros(), 400);
+}
+
+/* ── Seleção ───────────────────────────────────────────────────────────── */
+function toggleSel(cb) {
+  const id = parseInt(cb.dataset.id);
+  cb.closest('tr').classList.toggle('row-selecionado', cb.checked);
+  cb.checked ? idsSelecionados.add(id) : idsSelecionados.delete(id);
+  atualizarBtnDelete();
+}
+
+function toggleTodosCheck(cb) {
+  document.querySelectorAll('.chk-reg').forEach(c => {
+    c.checked = cb.checked;
+    const id = parseInt(c.dataset.id);
+    c.closest('tr').classList.toggle('row-selecionado', cb.checked);
+    cb.checked ? idsSelecionados.add(id) : idsSelecionados.delete(id);
+  });
+  atualizarBtnDelete();
+}
+
+function atualizarBtnDelete() {
+  const n = idsSelecionados.size;
+  document.getElementById('cntSel').textContent = n;
+  document.getElementById('btnDeleteSel').disabled = n === 0;
+}
+
+/* ── Exclusões ─────────────────────────────────────────────────────────── */
+function deletarSelecionados() {
+  const n = idsSelecionados.size;
+  document.getElementById('modalDeleteMsg').innerHTML =
+    `Excluir <strong>${n}</strong> registro(s) selecionado(s)?`;
+  document.getElementById('btnConfirmDelete').onclick = async () => {
+    bootstrap.Modal.getInstance(document.getElementById('modalConfirmDelete')).hide();
+    const res = await fetch('/auditoria/deletar-registros', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ids: [...idsSelecionados]})
+    });
+    const d = await res.json();
+    idsSelecionados.clear();
+    atualizarBtnDelete();
+    mostrarToast(d.ok ? `${d.deletados} registro(s) excluído(s).` : d.msg, d.ok ? 'success' : 'danger');
+    carregarRegistros(paginaAtual);
+    carregarValidacao();
+  };
+  new bootstrap.Modal(document.getElementById('modalConfirmDelete')).show();
+}
+
+function deletarUm(id, nome) {
+  document.getElementById('modalDeleteMsg').innerHTML =
+    `Excluir o registro <strong>${nome}</strong> (ID ${id})?`;
+  document.getElementById('btnConfirmDelete').onclick = async () => {
+    bootstrap.Modal.getInstance(document.getElementById('modalConfirmDelete')).hide();
+    const res = await fetch('/auditoria/deletar-registros', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ids: [id]})
+    });
+    const d = await res.json();
+    idsSelecionados.delete(id);
+    atualizarBtnDelete();
+    mostrarToast(d.ok ? 'Registro excluído.' : d.msg, d.ok ? 'success' : 'danger');
+    carregarRegistros(paginaAtual);
+    carregarValidacao();
+  };
+  new bootstrap.Modal(document.getElementById('modalConfirmDelete')).show();
+}
+
+function confirmarDeletarPeriodo() {
+  document.getElementById('periodoLabel').textContent =
+    `${MESES_NOME[MES]}/${ANO}`;
+  document.getElementById('btnConfirmPeriodo').onclick = async () => {
+    bootstrap.Modal.getInstance(document.getElementById('modalDeletarPeriodo')).hide();
+    const res = await fetch('/auditoria/deletar-periodo', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ano: ANO, mes: MES})
+    });
+    const d = await res.json();
+    mostrarToast(d.ok ? `Período excluído: ${d.deletados} registros removidos.` : d.msg,
+                 d.ok ? 'success' : 'danger');
+    idsSelecionados.clear();
+    atualizarBtnDelete();
+    carregarRegistros(1);
+    carregarValidacao();
+  };
+  new bootstrap.Modal(document.getElementById('modalDeletarPeriodo')).show();
+}
+
+/* ── Comparação ────────────────────────────────────────────────────────── */
+document.getElementById('frmComparar').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const btn = document.getElementById('btnComparar');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Comparando…';
+  document.getElementById('resultadoComparacao').innerHTML =
+    '<div class="text-center text-muted py-5"><span class="spinner-border"></span><div class="mt-2">Processando…</div></div>';
+
+  const fd = new FormData(this);
+  try {
+    const res  = await fetch('/auditoria/comparar', {method: 'POST', body: fd});
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    renderComparacao(data);
+  } catch(err) {
+    document.getElementById('resultadoComparacao').innerHTML =
+      `<div class="alert alert-danger"><i class="bi bi-exclamation-circle me-1"></i>${err.message}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-arrow-left-right me-1"></i>Comparar';
+  }
+});
+
+function renderComparacao(d) {
+  const nomesMes = MESES_NOME;
+  const per = `${nomesMes[d.mes]}/${d.ano}`;
+  let html = `
+  <h6 class="fw-bold mb-3">Resultado: <strong>${d.arquivo}</strong> vs banco (${per})</h6>
+  <div class="row g-2 mb-3">
+    <div class="col-6 col-lg-3"><div class="card text-center p-2 border-success">
+      <div class="fs-4 fw-bold text-success">${d.iguais}</div>
+      <small class="text-muted">Idênticos</small></div></div>
+    <div class="col-6 col-lg-3"><div class="card text-center p-2 border-warning">
+      <div class="fs-4 fw-bold text-warning">${d.diferentes.length}</div>
+      <small class="text-muted">Com diferenças</small></div></div>
+    <div class="col-6 col-lg-3"><div class="card text-center p-2 border-danger">
+      <div class="fs-4 fw-bold text-danger">${d.apenas_db.length}</div>
+      <small class="text-muted">Só no banco</small></div></div>
+    <div class="col-6 col-lg-3"><div class="card text-center p-2 border-info">
+      <div class="fs-4 fw-bold text-info">${d.apenas_xls.length}</div>
+      <small class="text-muted">Só na planilha</small></div></div>
+  </div>`;
+
+  if (d.diferentes.length) {
+    html += `<h6 class="fw-bold text-warning mt-3 mb-1"><i class="bi bi-exclamation-triangle me-1"></i>Valores diferentes (${d.diferentes.length})</h6>
+    <div class="table-responsive" style="max-height:220px;overflow-y:auto">
+    <table class="table table-sm table-hover mb-0">
+      <thead class="table-warning sticky-top"><tr><th>CNES</th><th>Estabelecimento</th><th>Campo</th>
+        <th class="text-end">No banco</th><th class="text-end">Na planilha</th><th class="text-end">Diferença</th><th></th></tr></thead>
+      <tbody>`;
+    d.diferentes.forEach(r => {
+      r.diffs.forEach((df, i) => {
+        html += `<tr>
+          ${i===0 ? `<td rowspan="${r.diffs.length}" class="fw-bold small">${r.cnes}</td>
+                     <td rowspan="${r.diffs.length}" class="small" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.unidade}">${r.unidade}</td>` : ''}
+          <td class="small">${df.campo}</td>
+          <td class="text-end small">${moeda(df.db)}</td>
+          <td class="text-end small">${moeda(df.xls)}</td>
+          <td class="text-end small ${df.diff >= 0 ? 'diff-positivo' : 'diff-negativo'}">${df.diff >= 0 ? '+' : ''}${moeda(df.diff)}</td>
+          ${i===0 ? `<td rowspan="${r.diffs.length}"><a href="/editar/${r.id}" class="btn btn-xs btn-outline-primary btn-sm py-0 px-1"><i class="bi bi-pencil"></i></a></td>` : ''}
+        </tr>`;
+      });
+    });
+    html += `</tbody></table></div>`;
+  }
+
+  if (d.apenas_db.length) {
+    html += `<h6 class="fw-bold text-danger mt-3 mb-1"><i class="bi bi-database-dash me-1"></i>Só no banco — ausentes na planilha (${d.apenas_db.length})</h6>
+    <div class="table-responsive" style="max-height:150px;overflow-y:auto">
+    <table class="table table-sm mb-0">
+      <thead class="table-danger sticky-top"><tr><th>CNES</th><th>Estabelecimento</th><th></th></tr></thead>
+      <tbody>${d.apenas_db.map(r =>
+        `<tr><td class="fw-bold small">${r.cnes}</td>
+             <td class="small">${r.unidade}</td>
+             <td><a href="/editar/${r.id}" class="btn btn-sm btn-outline-primary py-0 px-1"><i class="bi bi-pencil"></i></a></td></tr>`
+      ).join('')}</tbody></table></div>`;
+  }
+
+  if (d.apenas_xls.length) {
+    html += `<h6 class="fw-bold text-info mt-3 mb-1"><i class="bi bi-file-plus me-1"></i>Só na planilha — novos registros (${d.apenas_xls.length})</h6>
+    <div class="table-responsive" style="max-height:150px;overflow-y:auto">
+    <table class="table table-sm mb-0">
+      <thead class="table-info sticky-top"><tr><th>CNES</th><th>Estabelecimento</th></tr></thead>
+      <tbody>${d.apenas_xls.map(r =>
+        `<tr><td class="fw-bold small">${r.cnes}</td><td class="small">${r.unidade}</td></tr>`
+      ).join('')}</tbody></table></div>`;
+  }
+
+  document.getElementById('resultadoComparacao').innerHTML = html;
+}
+
+/* ── Toast ─────────────────────────────────────────────────────────────── */
+function mostrarToast(msg, tipo = 'success') {
+  const div = document.createElement('div');
+  div.className = `alert alert-${tipo} alert-dismissible shadow position-fixed`
+    + ` fade show`;
+  div.style.cssText = 'top:74px;right:20px;z-index:9999;min-width:280px';
+  div.innerHTML = `${msg}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+  document.body.appendChild(div);
+  setTimeout(() => div.remove(), 4000);
+}
+
+/* ── Init ──────────────────────────────────────────────────────────────── */
+document.addEventListener('DOMContentLoaded', () => {
+  if (ANO && MES) {
+    carregarValidacao();
+    // Carrega registros quando a aba for aberta
+    document.querySelector('[data-bs-target="#tabRegistros"]').addEventListener('shown.bs.tab', () => {
+      if (!document.getElementById('tbodyRegistros').querySelector('tr[data-id]')) {
+        carregarRegistros();
+      }
+    });
+  }
+});
+</script>
+{% endblock %}

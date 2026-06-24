@@ -600,6 +600,192 @@ def dashboard_kpis_geral():
         conn.close()
         return dict(row) if row else {}
 
+# ── Auditoria ─────────────────────────────────────────────────────────────────
+
+def auditoria_validacao(ano, mes):
+    """Relatório de qualidade de dados para um período."""
+    if USE_SUPABASE:
+        sb = get_sb()
+        base = sb.table('teto_mac').select('id', count='exact')
+        total = (base.eq('ano', ano).eq('mes', mes).execute()).count or 0
+        sem_cnes = (sb.table('teto_mac').select('id', count='exact')
+                    .eq('ano', ano).eq('mes', mes)
+                    .or_('cnes.is.null,cnes.eq.').execute()).count or 0
+        sem_valor = (sb.table('teto_mac').select('id', count='exact')
+                     .eq('ano', ano).eq('mes', mes)
+                     .lte('total_mc_ac_incentivos', 0).execute()).count or 0
+        sem_drs = (sb.table('teto_mac').select('id', count='exact')
+                   .eq('ano', ano).eq('mes', mes)
+                   .or_('drs.is.null,drs.eq.0').execute()).count or 0
+        return {'total': total, 'sem_cnes': sem_cnes, 'sem_valor': sem_valor,
+                'sem_drs': sem_drs, 'duplicatas': 0, 'problemas': [], 'duplicatas_lista': []}
+    else:
+        conn = get_db()
+        total = conn.execute("SELECT COUNT(*) FROM teto_mac WHERE ano=? AND mes=?", (ano, mes)).fetchone()[0]
+        sem_cnes  = conn.execute("SELECT COUNT(*) FROM teto_mac WHERE ano=? AND mes=? AND (cnes IS NULL OR TRIM(cnes)='')", (ano, mes)).fetchone()[0]
+        sem_valor = conn.execute("SELECT COUNT(*) FROM teto_mac WHERE ano=? AND mes=? AND (total_mc_ac_incentivos IS NULL OR total_mc_ac_incentivos<=0)", (ano, mes)).fetchone()[0]
+        sem_drs   = conn.execute("SELECT COUNT(*) FROM teto_mac WHERE ano=? AND mes=? AND (drs IS NULL OR drs=0)", (ano, mes)).fetchone()[0]
+        dup_rows  = conn.execute("""
+            SELECT cnes, COUNT(*) as c, GROUP_CONCAT(unidade, ' | ') as unidades
+            FROM teto_mac WHERE ano=? AND mes=? AND cnes IS NOT NULL AND TRIM(cnes)!=''
+            GROUP BY cnes HAVING c > 1 LIMIT 50
+        """, (ano, mes)).fetchall()
+        duplicatas = sum(r['c'] - 1 for r in dup_rows)
+        prob_rows = conn.execute("""
+            SELECT id, cnes, unidade, municipio, CAST(drs AS INTEGER) as drs,
+                   total_mc_ac_incentivos,
+                   CASE
+                     WHEN cnes IS NULL OR TRIM(cnes)='' THEN 'Sem CNES'
+                     WHEN total_mc_ac_incentivos IS NULL OR total_mc_ac_incentivos<=0 THEN 'Valor zero/nulo'
+                     WHEN drs IS NULL OR drs=0 THEN 'Sem DRS'
+                     ELSE 'Problema'
+                   END as problema
+            FROM teto_mac
+            WHERE ano=? AND mes=? AND (
+              cnes IS NULL OR TRIM(cnes)='' OR
+              total_mc_ac_incentivos IS NULL OR total_mc_ac_incentivos<=0 OR
+              drs IS NULL OR drs=0
+            ) LIMIT 200
+        """, (ano, mes)).fetchall()
+        conn.close()
+        return {
+            'total': total, 'sem_cnes': sem_cnes, 'sem_valor': sem_valor,
+            'sem_drs': sem_drs, 'duplicatas': duplicatas,
+            'problemas': [dict(r) for r in prob_rows],
+            'duplicatas_lista': [dict(r) for r in dup_rows]
+        }
+
+def auditoria_registros(ano, mes, drs=None, busca=None, page=1, per_page=50):
+    """Registros paginados filtrados para auditoria."""
+    if USE_SUPABASE:
+        sb = get_sb()
+        sel = 'id,cnes,unidade,municipio,drs,tipo,total_mc_ac_incentivos,teto_mac,total_teto_mac,aih_mc,aih_ac,sia_mc,sia_ac,arquivo_origem'
+        q = sb.table('teto_mac').select(sel).eq('ano', ano).eq('mes', mes)
+        qc = sb.table('teto_mac').select('id', count='exact').eq('ano', ano).eq('mes', mes)
+        if drs:
+            q  = q.eq('drs', drs)
+            qc = qc.eq('drs', drs)
+        if busca:
+            q  = q.ilike('unidade', f'%{busca}%')
+            qc = qc.ilike('unidade', f'%{busca}%')
+        total = (qc.execute()).count or 0
+        offset = (page - 1) * per_page
+        r = q.order('total_mc_ac_incentivos', desc=True).range(offset, offset + per_page - 1).execute()
+        return r.data or [], total
+    else:
+        conn = get_db()
+        conds = ['ano=? AND mes=?']
+        params = [ano, mes]
+        if drs:
+            conds.append('CAST(drs AS INTEGER)=?')
+            params.append(int(drs))
+        if busca:
+            conds.append('(unidade LIKE ? OR cnes LIKE ? OR municipio LIKE ?)')
+            b = f'%{busca}%'
+            params.extend([b, b, b])
+        where = ' AND '.join(conds)
+        total = conn.execute(f'SELECT COUNT(*) FROM teto_mac WHERE {where}', params).fetchone()[0]
+        offset = (page - 1) * per_page
+        rows = conn.execute(f"""
+            SELECT id, cnes, unidade, municipio, CAST(drs AS INTEGER) as drs, tipo,
+                   total_mc_ac_incentivos, teto_mac, total_teto_mac,
+                   aih_mc, aih_ac, sia_mc, sia_ac, arquivo_origem
+            FROM teto_mac WHERE {where}
+            ORDER BY total_mc_ac_incentivos DESC
+            LIMIT ? OFFSET ?
+        """, params + [per_page, offset]).fetchall()
+        conn.close()
+        return [dict(r) for r in rows], total
+
+def auditoria_deletar_ids(ids):
+    """Deleta registros por lista de IDs."""
+    if not ids:
+        return 0
+    if USE_SUPABASE:
+        get_sb().table('teto_mac').delete().in_('id', ids).execute()
+    else:
+        conn = get_db()
+        ph = ','.join(['?' for _ in ids])
+        cur = conn.execute(f'DELETE FROM teto_mac WHERE id IN ({ph})', ids)
+        conn.commit()
+        conn.close()
+        return cur.rowcount
+    return len(ids)
+
+def auditoria_deletar_periodo(ano, mes):
+    """Deleta todos os registros de um período."""
+    if USE_SUPABASE:
+        get_sb().table('teto_mac').delete().eq('ano', ano).eq('mes', mes).execute()
+    else:
+        conn = get_db()
+        cur = conn.execute('DELETE FROM teto_mac WHERE ano=? AND mes=?', (ano, mes))
+        conn.commit()
+        conn.close()
+        return cur.rowcount
+
+def auditoria_comparar(registros_xls, ano, mes):
+    """Compara planilha com banco. Retorna diffs."""
+    if USE_SUPABASE:
+        r = get_sb().table('teto_mac').select(
+            'id,cnes,unidade,total_mc_ac_incentivos,teto_mac,aih_mc,aih_ac,sia_mc,sia_ac'
+        ).eq('ano', ano).eq('mes', mes).execute()
+        db_rows = r.data or []
+    else:
+        conn = get_db()
+        rows = conn.execute("""
+            SELECT id, cnes, unidade, total_mc_ac_incentivos, teto_mac, aih_mc, aih_ac, sia_mc, sia_ac
+            FROM teto_mac WHERE ano=? AND mes=?
+        """, (ano, mes)).fetchall()
+        conn.close()
+        db_rows = [dict(r) for r in rows]
+
+    db_idx  = {str(r['cnes']): r for r in db_rows if r.get('cnes')}
+    xls_idx = {str(r.get('cnes','')): r for r in registros_xls if r.get('cnes')}
+
+    apenas_db, apenas_xls, diferentes = [], [], []
+    iguais = 0
+
+    CAMPOS_CMP = [
+        ('total_mc_ac_incentivos', 'Total MC+AC+Inc.'),
+        ('teto_mac', 'Teto MAC'),
+        ('aih_mc', 'AIH MC'),
+        ('aih_ac', 'AIH AC'),
+        ('sia_mc', 'SIA MC'),
+        ('sia_ac', 'SIA AC'),
+    ]
+
+    for cnes, db_r in db_idx.items():
+        if cnes not in xls_idx:
+            apenas_db.append({'cnes': cnes, 'unidade': db_r.get('unidade',''), 'id': db_r.get('id')})
+        else:
+            xls_r = xls_idx[cnes]
+            diffs = []
+            for campo, label in CAMPOS_CMP:
+                v_db  = round(float(db_r.get(campo) or 0), 2)
+                v_xls = round(float(xls_r.get(campo) or 0), 2)
+                if abs(v_db - v_xls) > 0.01:
+                    diffs.append({'campo': label, 'db': v_db, 'xls': v_xls, 'diff': v_xls - v_db})
+            if diffs:
+                diferentes.append({
+                    'cnes': cnes, 'unidade': db_r.get('unidade',''),
+                    'id': db_r.get('id'), 'diffs': diffs
+                })
+            else:
+                iguais += 1
+
+    for cnes, xls_r in xls_idx.items():
+        if cnes not in db_idx:
+            apenas_xls.append({'cnes': cnes, 'unidade': xls_r.get('unidade','')})
+
+    return {
+        'apenas_db': apenas_db[:100],
+        'apenas_xls': apenas_xls[:100],
+        'diferentes': diferentes[:200],
+        'iguais': iguais,
+        'total_db': len(db_rows),
+        'total_xls': len(registros_xls)
+    }
+
 def registrar_acesso(id):
     from datetime import datetime, timezone
     agora = datetime.now(timezone.utc).isoformat()

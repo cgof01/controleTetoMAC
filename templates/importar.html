@@ -9,7 +9,7 @@
 
 <div class="row g-3 mb-4">
   <!-- Importar múltiplos arquivos -->
-  <div class="col-md-6">
+  <div class="col-md-8 mx-auto">
     <div class="card h-100">
       <div class="card-header bg-primary text-white">
         <i class="bi bi-files me-2"></i><strong>Importar Múltiplas Planilhas (em Lote)</strong>
@@ -48,52 +48,6 @@
     </div>
   </div>
 
-  <!-- Importar arquivo único -->
-  <div class="col-md-6">
-    <div class="card h-100">
-      <div class="card-header bg-success text-white">
-        <i class="bi bi-file-earmark-arrow-up me-2"></i><strong>Importar Arquivo Único</strong>
-      </div>
-      <div class="card-body">
-        <p class="text-muted small">Envie um arquivo XLS/XLSX específico para importação manual.</p>
-        <form method="post" enctype="multipart/form-data">
-          <input type="hidden" name="acao" value="importar_arquivo">
-          <div class="mb-3">
-            <label class="form-label fw-bold">Arquivo XLS/XLSX</label>
-            <input type="file" name="arquivo" class="form-control" accept=".xls,.xlsx" required>
-            <div class="form-text">Formatos aceitos: .xls, .xlsx</div>
-          </div>
-          <div class="row g-2 mb-3">
-            <div class="col-6">
-              <label class="form-label small fw-bold">Ano (opcional)</label>
-              <select name="ano" class="form-select form-select-sm">
-                <option value="">Auto-detectar</option>
-                {% for ano in anos_disponiveis %}
-                  <option value="{{ ano }}">{{ ano }}</option>
-                {% endfor %}
-              </select>
-            </div>
-            <div class="col-6">
-              <label class="form-label small fw-bold">Mês (opcional)</label>
-              <select name="mes" class="form-select form-select-sm">
-                <option value="">Auto-detectar</option>
-                {% for num, nome in meses.items() %}
-                  <option value="{{ num }}">{{ nome }}</option>
-                {% endfor %}
-              </select>
-            </div>
-          </div>
-          <div class="form-check mb-3">
-            <input class="form-check-input" type="checkbox" name="substituir" value="1" id="subst2">
-            <label class="form-check-label" for="subst2">Substituir registros existentes</label>
-          </div>
-          <button type="submit" class="btn btn-success w-100">
-            <i class="bi bi-upload me-2"></i>Importar Arquivo
-          </button>
-        </form>
-      </div>
-    </div>
-  </div>
 </div>
 
 <!-- Resultados da importação -->

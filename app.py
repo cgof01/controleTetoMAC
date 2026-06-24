@@ -696,6 +696,160 @@ def _obter_historico_importacoes():
         conn.close()
         return [dict(r) for r in rows]
 
+# ── Auditoria ─────────────────────────────────────────────────────────────────
+
+@app.route('/auditoria')
+@admin_required
+def auditoria():
+    anos_meses = db.obter_anos_meses()
+    anos_disponiveis = sorted(set(am['ano'] for am in anos_meses), reverse=True)
+    ano = request.args.get('ano', type=int)
+    mes = request.args.get('mes', type=int)
+    if not ano and anos_meses:
+        ano, mes = anos_meses[0]['ano'], anos_meses[0]['mes']
+    drs_lista = db.obter_drs_lista()
+    return render_template('auditoria.html',
+        anos_meses=anos_meses, anos_disponiveis=anos_disponiveis,
+        ano_sel=ano, mes_sel=mes, meses=MESES, drs_lista=drs_lista
+    )
+
+@app.route('/api/auditoria/validacao')
+@admin_required
+def api_auditoria_validacao():
+    ano = request.args.get('ano', type=int)
+    mes = request.args.get('mes', type=int)
+    if not ano or not mes:
+        return jsonify({'error': 'ano e mes obrigatorios'}), 400
+    return jsonify(db.auditoria_validacao(ano, mes))
+
+@app.route('/api/auditoria/registros')
+@admin_required
+def api_auditoria_registros():
+    ano = request.args.get('ano', type=int)
+    mes = request.args.get('mes', type=int)
+    drs = request.args.get('drs', type=int)
+    busca = request.args.get('q', '').strip()
+    page = request.args.get('page', 1, type=int)
+    per_page = min(request.args.get('per_page', 100, type=int), 500)
+    if not ano or not mes:
+        return jsonify({'registros': [], 'total': 0})
+    regs, total = db.auditoria_registros(ano, mes, drs or None, busca or None, page, per_page)
+    return jsonify({'registros': regs, 'total': total, 'page': page, 'per_page': per_page})
+
+@app.route('/auditoria/deletar-registros', methods=['POST'])
+@admin_required
+def auditoria_deletar_registros():
+    data = request.get_json()
+    ids  = data.get('ids', [])
+    if not ids:
+        return jsonify({'ok': False, 'msg': 'Nenhum ID fornecido'}), 400
+    try:
+        n = db.auditoria_deletar_ids(ids)
+        return jsonify({'ok': True, 'deletados': n})
+    except Exception as e:
+        return jsonify({'ok': False, 'msg': str(e)}), 500
+
+@app.route('/auditoria/deletar-periodo', methods=['POST'])
+@admin_required
+def auditoria_deletar_periodo():
+    data = request.get_json()
+    ano, mes = data.get('ano'), data.get('mes')
+    if not ano or not mes:
+        return jsonify({'ok': False, 'msg': 'ano e mes obrigatorios'}), 400
+    try:
+        n = db.auditoria_deletar_periodo(ano, mes)
+        return jsonify({'ok': True, 'deletados': n})
+    except Exception as e:
+        return jsonify({'ok': False, 'msg': str(e)}), 500
+
+@app.route('/auditoria/comparar', methods=['POST'])
+@admin_required
+def auditoria_comparar():
+    from import_xls import extrair_ano_mes_do_nome, mapear_colunas, val_num, val_str
+    arquivo = request.files.get('arquivo')
+    if not arquivo:
+        return jsonify({'error': 'Arquivo não enviado'}), 400
+    ano = request.form.get('ano', type=int)
+    mes = request.form.get('mes', type=int)
+    import tempfile
+    ext = os.path.splitext(arquivo.filename)[1]
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
+    arquivo.save(tmp.name)
+    tmp.close()
+    try:
+        if not ano or not mes:
+            ano, mes = extrair_ano_mes_do_nome(arquivo.filename)
+        registros_xls = _ler_planilha_auditoria(tmp.name, ano, mes)
+        resultado = db.auditoria_comparar(registros_xls, ano, mes)
+        resultado.update({'ano': ano, 'mes': mes, 'arquivo': arquivo.filename})
+        return jsonify(resultado)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        os.unlink(tmp.name)
+
+def _ler_planilha_auditoria(filepath, ano, mes):
+    """Lê planilha e retorna lista de dicts sem salvar no banco."""
+    from import_xls import mapear_colunas, val_num, val_str
+    import xlrd, openpyxl
+    registros = []
+    try:
+        try:
+            wb = xlrd.open_workbook(filepath)
+            ws = wb.sheet_by_index(0)
+            header_row = None
+            for r in range(min(5, ws.nrows)):
+                if 'DRS' in [str(ws.cell_value(r, c)).strip().upper() for c in range(ws.ncols)]:
+                    header_row = r; break
+            if header_row is None:
+                return []
+            mapa = mapear_colunas([ws.cell_value(header_row, c) for c in range(ws.ncols)])
+            for r in range(header_row + 1, ws.nrows):
+                rv = [ws.cell_value(r, c) for c in range(ws.ncols)]
+                if not str(rv[mapa.get('drs', 0)] if 'drs' in mapa else '').strip() and \
+                   not str(rv[mapa.get('unidade', 0)] if 'unidade' in mapa else '').strip():
+                    continue
+                g = lambda f: rv[mapa[f]] if f in mapa and mapa[f] < len(rv) else 0
+                cnes = val_str(rv[mapa['cnes']]) if 'cnes' in mapa else ''
+                if cnes and cnes != 'RESREC':
+                    try: cnes = str(int(float(cnes)))
+                    except: pass
+                registros.append({
+                    'cnes': cnes,
+                    'unidade': val_str(g('unidade')).upper(),
+                    'municipio': val_str(g('municipio')).upper(),
+                    'drs': val_num(g('drs')),
+                    'total_mc_ac_incentivos': val_num(g('total_mc_ac_incentivos')),
+                    'teto_mac': val_num(g('teto_mac')),
+                    'aih_mc': val_num(g('aih_mc')), 'aih_ac': val_num(g('aih_ac')),
+                    'sia_mc': val_num(g('sia_mc')), 'sia_ac': val_num(g('sia_ac')),
+                })
+        except Exception:
+            wb = openpyxl.load_workbook(filepath, read_only=True, data_only=True)
+            ws = wb.active
+            rows = list(ws.iter_rows(values_only=True))
+            header_row = next((i for i, r in enumerate(rows[:5])
+                               if 'DRS' in [str(v).strip().upper() for v in r if v]), None)
+            if header_row is None:
+                return []
+            mapa = mapear_colunas(list(rows[header_row]))
+            for rv in rows[header_row + 1:]:
+                if not rv or all(v is None for v in rv[:5]):
+                    continue
+                g = lambda f: rv[mapa[f]] if f in mapa and mapa[f] < len(rv) else 0
+                cnes = val_str(rv[mapa['cnes']]) if 'cnes' in mapa else ''
+                registros.append({
+                    'cnes': cnes,
+                    'unidade': val_str(g('unidade')).upper(),
+                    'total_mc_ac_incentivos': val_num(g('total_mc_ac_incentivos')),
+                    'teto_mac': val_num(g('teto_mac')),
+                    'aih_mc': val_num(g('aih_mc')), 'aih_ac': val_num(g('aih_ac')),
+                    'sia_mc': val_num(g('sia_mc')), 'sia_ac': val_num(g('sia_ac')),
+                })
+    except Exception as e:
+        pass
+    return registros
+
 # ── Gráficos (API JSON) ────────────────────────────────────────────────────────
 
 @app.route('/api/graficos/evolucao')
