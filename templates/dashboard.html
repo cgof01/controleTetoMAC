@@ -216,8 +216,13 @@
       </div>
       <div class="card-body p-0" style="max-height:320px;overflow-y:auto">
         <table class="table table-sm table-hover mb-0">
-          <thead class="table-dark sticky-top">
-            <tr><th>#</th><th>Unidade</th><th class="text-end">Total</th><th>Participação</th></tr>
+          <thead class="sticky-top" style="background:var(--ses-azul);color:#fff">
+            <tr>
+              <th class="ps-3" style="width:48px">#</th>
+              <th>Estabelecimento</th>
+              <th class="text-end pe-3">Total MC+AC+Inc.</th>
+              <th class="text-center pe-2" style="width:80px">Part.%</th>
+            </tr>
           </thead>
           <tbody id="tbodyTop">
             <tr><td colspan="4" class="text-center text-muted small">Carregando...</td></tr>
@@ -374,20 +379,28 @@ if (TIPO_DATA.length) {
 // ── Top Unidades ───────────────────────────────────────────────────────────────
 const tbody = document.getElementById('tbodyTop');
 tbody.innerHTML = '';
-const total1 = TOP_DATA[0]?.total || 1;
+const totalGeral = TOP_DATA.reduce((s, d) => s + (d.total || 0), 0) || 1;
+const top1 = TOP_DATA[0]?.total || 1;
+const RANK_COR = ['#1e3a5f','#2a7dd8','#e07b00'];
 TOP_DATA.forEach((d, i) => {
-  const pct = (d.total / total1 * 100).toFixed(1);
-  const medalha = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '';
+  const pctTop  = (d.total / top1 * 100).toFixed(1);
+  const pctGeral = (d.total / totalGeral * 100).toFixed(1);
+  const cor = RANK_COR[i] || '#64748b';
   const tr = document.createElement('tr');
   tr.innerHTML = `
-    <td class="text-center fw-bold small">${medalha || (i+1)}</td>
-    <td><small class="text-truncate d-block" style="max-width:380px" title="${d.unidade}">${d.unidade}</small>
-      <div class="progress mt-1" style="height:3px">
-        <div class="progress-bar" style="width:${pct}%;background:${CORES[i%CORES.length]}"></div>
+    <td class="text-center ps-3">
+      <span style="display:inline-flex;align-items:center;justify-content:center;
+        width:26px;height:26px;border-radius:50%;background:${cor};color:#fff;
+        font-size:0.72rem;font-weight:700;">${i+1}</span>
+    </td>
+    <td style="max-width:0">
+      <div class="text-truncate fw-500 small" style="max-width:360px" title="${d.unidade}">${d.unidade}</div>
+      <div class="progress mt-1" style="height:3px;border-radius:2px">
+        <div class="progress-bar" style="width:${pctTop}%;background:${cor};border-radius:2px"></div>
       </div>
     </td>
-    <td class="text-end num-moeda small fw-bold">${moeda(d.total)}</td>
-    <td class="text-center small text-muted">${pct}%</td>`;
+    <td class="text-end num-moeda small fw-bold pe-3">${moeda(d.total)}</td>
+    <td class="text-center small text-muted pe-2">${pctGeral}%</td>`;
   tbody.appendChild(tr);
 });
 {% endif %}

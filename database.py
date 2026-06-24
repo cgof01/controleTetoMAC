@@ -335,15 +335,29 @@ def grafico_por_drs(ano, mes):
         conn.close()
         return [dict(r) for r in rows]
 
+_EXCLUIR_UNIDADES = ('TOTAL', 'SUBTOTAL', 'TOTAL GERAL', 'GERAL')
+
+def _filtrar_totais(dados):
+    return [
+        d for d in dados
+        if not any(
+            ex == (d.get('unidade') or '').upper().strip()
+            for ex in _EXCLUIR_UNIDADES
+        )
+    ]
+
 def grafico_top_unidades(ano, mes, limite=15):
     if USE_SUPABASE:
-        r = get_sb().rpc('get_top_unidades', {'p_ano': ano, 'p_mes': mes, 'p_limite': limite}).execute()
-        return r.data if isinstance(r.data, list) else []
+        r = get_sb().rpc('get_top_unidades', {'p_ano': ano, 'p_mes': mes, 'p_limite': limite + 5}).execute()
+        dados = r.data if isinstance(r.data, list) else []
+        return _filtrar_totais(dados)[:limite]
     else:
         conn = get_db()
         rows = conn.execute("""
             SELECT unidade, municipio, total_mc_ac_incentivos as total
-            FROM teto_mac WHERE ano = ? AND mes = ? AND total_mc_ac_incentivos > 0
+            FROM teto_mac
+            WHERE ano = ? AND mes = ? AND total_mc_ac_incentivos > 0
+              AND UPPER(TRIM(unidade)) NOT IN ('TOTAL','SUBTOTAL','TOTAL GERAL','GERAL')
             ORDER BY total DESC LIMIT ?
         """, (ano, mes, limite)).fetchall()
         conn.close()

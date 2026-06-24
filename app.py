@@ -620,17 +620,36 @@ def importar():
         acao = request.form.get('acao')
         substituir = request.form.get('substituir') == '1'
 
-        if acao == 'importar_todos':
-            anos_sel = request.form.getlist('anos')
-            anos = [int(a) for a in anos_sel] if anos_sel else None
-            resultados = importar_todos_finais(BASE_TETOS, anos=anos, substituir=substituir)
-            total_imp = sum(r['importados'] for r in resultados)
-            total_err = sum(r['erros'] for r in resultados)
-            flash(f'Importação concluída: {len(resultados)} arquivos, {total_imp} registros importados, {total_err} erros', 'success' if total_err == 0 else 'warning')
-            return render_template('importar.html',
-                resultados=resultados,
-                anos_disponiveis=list(range(2022, 2027))
-            )
+        if acao == 'importar_multiplos':
+            arquivos = request.files.getlist('arquivos')
+            if not arquivos or all(not a.filename for a in arquivos):
+                flash('Nenhum arquivo selecionado.', 'danger')
+            else:
+                resultados = []
+                for arquivo in arquivos:
+                    if not arquivo.filename:
+                        continue
+                    import tempfile
+                    ext = os.path.splitext(arquivo.filename)[1]
+                    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
+                    arquivo.save(tmp.name)
+                    tmp.close()
+                    try:
+                        res = importar_arquivo_xls(tmp.name, None, None, substituir, nome_original=arquivo.filename)
+                        res['arquivo'] = arquivo.filename
+                        resultados.append(res)
+                    finally:
+                        os.unlink(tmp.name)
+                total_imp = sum(r['importados'] for r in resultados)
+                total_err = sum(r['erros'] for r in resultados)
+                flash(f'{len(resultados)} arquivo(s) processado(s) — {total_imp} registros importados, {total_err} erros.',
+                      'success' if total_err == 0 else 'warning')
+                return render_template('importar.html',
+                    resultados=resultados,
+                    anos_disponiveis=list(range(2021, 2028)),
+                    meses=MESES,
+                    historico_imp=_obter_historico_importacoes()
+                )
 
         elif acao == 'importar_arquivo':
             arquivo = request.files.get('arquivo')

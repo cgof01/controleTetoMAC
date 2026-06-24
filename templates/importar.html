@@ -8,40 +8,40 @@
 </div>
 
 <div class="row g-3 mb-4">
-  <!-- Importar todos os finais -->
+  <!-- Importar múltiplos arquivos -->
   <div class="col-md-6">
     <div class="card h-100">
       <div class="card-header bg-primary text-white">
-        <i class="bi bi-folder-symlink me-2"></i><strong>Importar Arquivos Finais (em Lote)</strong>
+        <i class="bi bi-files me-2"></i><strong>Importar Múltiplas Planilhas (em Lote)</strong>
       </div>
       <div class="card-body">
-        <p class="text-muted small">
-          Importa automaticamente todos os arquivos <code>*_Final.xls</code> das pastas
-          de 2022 a 2026 localizadas em:
-          <code class="d-block mt-1 bg-light p-1 rounded">CGOF/TETOS/{ano}/</code>
+        <p class="text-muted small mb-3">
+          Selecione várias planilhas de uma vez. O ano e mês são detectados automaticamente
+          pelo nome do arquivo (ex: <code>Teto Janeiro_2024_Final.xls</code>).
         </p>
-        <form method="post" id="formLote">
-          <input type="hidden" name="acao" value="importar_todos">
+        <form method="post" enctype="multipart/form-data" id="formLote">
+          <input type="hidden" name="acao" value="importar_multiplos">
           <div class="mb-3">
-            <label class="form-label fw-bold">Selecionar Anos:</label>
-            <div class="d-flex flex-wrap gap-2">
-              {% for ano in anos_disponiveis %}
-                <div class="form-check">
-                  <input class="form-check-input" type="checkbox" name="anos" value="{{ ano }}" id="ano{{ ano }}" checked>
-                  <label class="form-check-label fw-bold" for="ano{{ ano }}">{{ ano }}</label>
-                </div>
-              {% endfor %}
+            <label class="form-label fw-bold">Planilhas XLS / XLSX</label>
+            <div id="dropZone" class="border-2 border-dashed border-primary rounded p-4 text-center"
+                 style="border-style:dashed!important;cursor:pointer;background:#f8faff;transition:background 0.2s">
+              <i class="bi bi-cloud-upload fs-2 text-primary mb-2 d-block"></i>
+              <div class="fw-bold text-primary">Clique para selecionar ou arraste os arquivos aqui</div>
+              <small class="text-muted">Múltiplos arquivos .xls / .xlsx aceitos</small>
+              <input type="file" name="arquivos" id="inputArquivos" multiple accept=".xls,.xlsx"
+                     class="d-none">
             </div>
+            <div id="listaArquivos" class="mt-2 small text-muted"></div>
           </div>
           <div class="form-check mb-3">
             <input class="form-check-input" type="checkbox" name="substituir" value="1" id="subst">
             <label class="form-check-label" for="subst">
               <strong class="text-warning">Substituir registros existentes</strong>
-              <small class="text-muted d-block">Se desmarcado, registros duplicados serão pulados</small>
+              <small class="text-muted d-block">Se desmarcado, duplicatas serão puladas</small>
             </label>
           </div>
-          <button type="submit" class="btn btn-primary w-100" id="btnLote">
-            <i class="bi bi-play-circle me-2"></i>Iniciar Importação em Lote
+          <button type="submit" class="btn btn-primary w-100" id="btnLote" disabled>
+            <i class="bi bi-play-circle me-2"></i>Importar Planilhas Selecionadas
           </button>
         </form>
       </div>
@@ -194,10 +194,49 @@
 
 {% block extra_js %}
 <script>
-document.getElementById('formLote')?.addEventListener('submit', function() {
-  const btn = document.getElementById('btnLote');
-  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Importando... Aguarde';
-  btn.disabled = true;
-});
+(function () {
+  const dropZone   = document.getElementById('dropZone');
+  const inputArq   = document.getElementById('inputArquivos');
+  const lista      = document.getElementById('listaArquivos');
+  const btnLote    = document.getElementById('btnLote');
+  const formLote   = document.getElementById('formLote');
+
+  if (!dropZone) return;
+
+  function mostrarArquivos(files) {
+    if (!files.length) { lista.innerHTML = ''; btnLote.disabled = true; return; }
+    lista.innerHTML = `<strong>${files.length} arquivo(s) selecionado(s):</strong><ul class="mb-0 mt-1">` +
+      [...files].map(f => `<li><i class="bi bi-file-earmark-spreadsheet text-success me-1"></i>${f.name}</li>`).join('') +
+      '</ul>';
+    btnLote.disabled = false;
+    dropZone.style.background = '#eaf3ff';
+  }
+
+  dropZone.addEventListener('click', () => inputArq.click());
+
+  inputArq.addEventListener('change', () => mostrarArquivos(inputArq.files));
+
+  dropZone.addEventListener('dragover', e => {
+    e.preventDefault(); dropZone.style.background = '#dceeff';
+  });
+  dropZone.addEventListener('dragleave', () => {
+    dropZone.style.background = '#f8faff';
+  });
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    const dt = new DataTransfer();
+    [...e.dataTransfer.files]
+      .filter(f => /\.(xls|xlsx)$/i.test(f.name))
+      .forEach(f => dt.items.add(f));
+    inputArq.files = dt.files;
+    mostrarArquivos(dt.files);
+    dropZone.style.background = '#eaf3ff';
+  });
+
+  formLote.addEventListener('submit', function () {
+    btnLote.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Importando… Aguarde';
+    btnLote.disabled = true;
+  });
+})();
 </script>
 {% endblock %}
