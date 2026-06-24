@@ -116,12 +116,9 @@
     </div>
     <!-- Toggles de grupos -->
     <div class="d-flex gap-2 flex-wrap mt-2">
-      <small class="text-muted align-self-center">Mostrar grupos:</small>
-      <span class="grp-toggle badge" style="background:#0f7a6b" data-grupo="fundo" onclick="toggleGrupo(this)">Fundo MAC</span>
-      <span class="grp-toggle badge" style="background:#1e8a5a" data-grupo="aih" onclick="toggleGrupo(this)">AIH</span>
-      <span class="grp-toggle badge" style="background:#1b6fa5" data-grupo="sia" onclick="toggleGrupo(this)">SIA</span>
-      <span class="grp-toggle badge" style="background:#5b2db5" data-grupo="teto" onclick="toggleGrupo(this)">Teto</span>
-      <span class="grp-toggle badge" style="background:#b35020" data-grupo="inc" onclick="toggleGrupo(this)">Incentivos</span>
+      <small class="text-muted align-self-center">Mostrar/ocultar:</small>
+      <span class="grp-toggle badge" style="background:#134e4a" data-grupo="fundo" onclick="toggleGrupo(this)">Fundo MAC (FAEC + AIH + SIA + Teto)</span>
+      <span class="grp-toggle badge" style="background:#7c2d12" data-grupo="inc" onclick="toggleGrupo(this)">Incentivos</span>
     </div>
   </div>
 </div>
@@ -136,88 +133,83 @@
 <div id="wrapTabela" class="border rounded">
   <table id="tblDet">
     <thead>
+      <!-- Linha 1 — grupos principais -->
+      <tr>
+        <th colspan="8" class="th-grupo-ident col-sticky-1" style="border-right:2px solid #2a7dd8"></th>
+        <th colspan="18" class="th-grupo-fundo group-col" data-grupo="fundo"
+            style="letter-spacing:.3px;font-size:.65rem">
+          FUNDO DE AÇÕES ESTRATÉGICAS E COMPENSAÇÃO MÉDIA E ALTA COMPLEXIDADE
+        </th>
+        <th colspan="17" class="th-grupo-inc group-col" data-grupo="inc">INCENTIVOS</th>
+        <th colspan="1" class="th-grupo-total">TOTAL MC + AC + INCENTIVOS</th>
+      </tr>
+      <!-- Linha 2 — sub-grupos -->
+      <tr>
+        <th colspan="2" class="th-grupo-ident col-sticky-1" style="border-right:0"></th>
+        <th colspan="6" class="th-grupo-ident" style="border-right:2px solid #2a7dd8"></th>
+        <!-- Sub-grupos dentro do FUNDO -->
+        <th colspan="5" class="th-sub-fundo group-col" data-grupo="fundo">FAEC / Hemodiálise</th>
+        <th colspan="4" class="th-sub-aih group-col" data-grupo="fundo">AIH</th>
+        <th colspan="4" class="th-sub-sia group-col" data-grupo="fundo">SIA</th>
+        <th colspan="5" class="th-sub-teto group-col" data-grupo="fundo"
+            style="border-right:2px solid #b35020">TETO MAC</th>
+        <!-- Incentivos vazio (sem sub-grupo) -->
+        <th colspan="17" class="th-sub-inc group-col" data-grupo="inc"></th>
+        <th colspan="1" class="th-sub-total"></th>
+      </tr>
+      <!-- Linha 3 — colunas individuais -->
       <tr>
         <!-- Identificação -->
-        <th colspan="8" class="th-grupo-ident col-sticky-1" style="border-right:2px solid #2a7dd8">
-          <i class="bi bi-person-vcard me-1"></i>Identificação
-        </th>
-        <!-- Fundo -->
-        <th colspan="5" class="th-grupo-fundo group-col" data-grupo="fundo">
-          <i class="bi bi-hospital me-1"></i>FAEC / Hemodiálise
-        </th>
-        <!-- AIH -->
-        <th colspan="4" class="th-grupo-aih group-col" data-grupo="aih">
-          <i class="bi bi-file-medical me-1"></i>AIH
-        </th>
-        <!-- SIA -->
-        <th colspan="4" class="th-grupo-sia group-col" data-grupo="sia">
-          <i class="bi bi-clipboard2-pulse me-1"></i>SIA
-        </th>
-        <!-- Teto -->
-        <th colspan="5" class="th-grupo-teto group-col" data-grupo="teto">
-          <i class="bi bi-bank me-1"></i>Teto
-        </th>
-        <!-- Incentivos -->
-        <th colspan="17" class="th-grupo-inc group-col" data-grupo="inc">
-          <i class="bi bi-star me-1"></i>Incentivos
-        </th>
-        <!-- Total -->
-        <th colspan="1" class="th-grupo-total">
-          <i class="bi bi-sigma me-1"></i>Total
-        </th>
-      </tr>
-      <tr>
-        <!-- Identificação sub -->
         <th class="th-sub-ident col-sticky-1" style="text-align:center">#</th>
         <th class="th-sub-ident col-sticky-2">DRS</th>
-        <th class="th-sub-ident col-sticky-3" style="border-right:2px solid #2a7dd8">Unidade</th>
+        <th class="th-sub-ident col-sticky-3" style="border-right:2px solid #2a7dd8">UNIDADES</th>
         <th class="th-sub-ident">TIPO</th>
         <th class="th-sub-ident">HU</th>
-        <th class="th-sub-ident">Município</th>
+        <th class="th-sub-ident">MUNICÍPIO</th>
         <th class="th-sub-ident">CNES</th>
         <th class="th-sub-ident" style="border-right:2px solid #155e40">CNPJ</th>
-        <!-- Fundo sub -->
+        <!-- FAEC / Hemodiálise -->
         <th class="th-sub-fundo group-col" data-grupo="fundo">AIH FÍSICO</th>
         <th class="th-sub-fundo group-col" data-grupo="fundo">AIH FAEC</th>
         <th class="th-sub-fundo group-col" data-grupo="fundo">SIA FAEC</th>
-        <th class="th-sub-fundo group-col" data-grupo="fundo">EQUIP. HEMODI.</th>
-        <th class="th-sub-fundo group-col" data-grupo="fundo" style="border-right:2px solid #1e8a5a">LIM. COMPL.</th>
-        <!-- AIH sub -->
-        <th class="th-sub-aih group-col" data-grupo="aih">MC</th>
-        <th class="th-sub-aih group-col" data-grupo="aih">AC</th>
-        <th class="th-sub-aih group-col" data-grupo="aih">TOTAL AIH</th>
-        <th class="th-sub-aih group-col" data-grupo="aih" style="border-right:2px solid #1b6fa5">PORTARIA 8516</th>
-        <!-- SIA sub -->
-        <th class="th-sub-sia group-col" data-grupo="sia">MC</th>
-        <th class="th-sub-sia group-col" data-grupo="sia">AC</th>
-        <th class="th-sub-sia group-col" data-grupo="sia">TOTAL SIA</th>
-        <th class="th-sub-sia group-col" data-grupo="sia" style="border-right:2px solid #5b2db5">TETO GLOBAL</th>
-        <!-- Teto sub -->
-        <th class="th-sub-teto group-col" data-grupo="teto">TETO MC</th>
-        <th class="th-sub-teto group-col" data-grupo="teto">TETO AC</th>
-        <th class="th-sub-teto group-col" data-grupo="teto">TETO MAC</th>
-        <th class="th-sub-teto group-col" data-grupo="teto">TOTAL TETO MAC</th>
-        <th class="th-sub-teto group-col" data-grupo="teto" style="border-right:2px solid #b35020">T. GLOBAL</th>
-        <!-- Incentivos sub -->
+        <th class="th-sub-fundo group-col" data-grupo="fundo">EQUIPAMENTO HEMODIÁLISE (DRC)</th>
+        <th class="th-sub-fundo group-col" data-grupo="fundo" style="border-right:2px solid #1e8a5a">LIMITE COMPLEMENTAÇÃO</th>
+        <!-- AIH -->
+        <th class="th-sub-aih group-col" data-grupo="fundo">AIH MC</th>
+        <th class="th-sub-aih group-col" data-grupo="fundo">AIH AC</th>
+        <th class="th-sub-aih group-col" data-grupo="fundo">AIH TOTAL</th>
+        <th class="th-sub-aih group-col" data-grupo="fundo" style="border-right:2px solid #1b6fa5">PORTARIA MS/GM 8.516</th>
+        <!-- SIA -->
+        <th class="th-sub-sia group-col" data-grupo="fundo">SIA MC</th>
+        <th class="th-sub-sia group-col" data-grupo="fundo">SIA AC</th>
+        <th class="th-sub-sia group-col" data-grupo="fundo">SIA TOTAL</th>
+        <th class="th-sub-sia group-col" data-grupo="fundo" style="border-right:2px solid #5b2db5">TETO GLOBAL</th>
+        <!-- TETO -->
+        <th class="th-sub-teto group-col" data-grupo="fundo">TETO MC</th>
+        <th class="th-sub-teto group-col" data-grupo="fundo">TETO AC</th>
+        <th class="th-sub-teto group-col" data-grupo="fundo">TETO MAC</th>
+        <th class="th-sub-teto group-col" data-grupo="fundo">TOTAL TETO MAC</th>
+        <th class="th-sub-teto group-col" data-grupo="fundo" style="border-right:2px solid #b35020">T. GLOBAL</th>
+        <!-- INCENTIVOS -->
         <th class="th-sub-inc group-col" data-grupo="inc">INTEGRASUS</th>
         <th class="th-sub-inc group-col" data-grupo="inc">IAC</th>
         <th class="th-sub-inc group-col" data-grupo="inc">100% SUS</th>
         <th class="th-sub-inc group-col" data-grupo="inc">OPO</th>
-        <th class="th-sub-inc group-col" data-grupo="inc">REDE VIVER</th>
-        <th class="th-sub-inc group-col" data-grupo="inc">REDE BRASIL</th>
+        <th class="th-sub-inc group-col" data-grupo="inc">REDE VIVER SEM LIMITE</th>
+        <th class="th-sub-inc group-col" data-grupo="inc">REDE BRASIL SEM MISÉRIA</th>
         <th class="th-sub-inc group-col" data-grupo="inc">RSME</th>
-        <th class="th-sub-inc group-col" data-grupo="inc">RCE/RCEG</th>
-        <th class="th-sub-inc group-col" data-grupo="inc">RAU/HOSP SOS</th>
-        <th class="th-sub-inc group-col" data-grupo="inc">RCA/RCAN</th>
-        <th class="th-sub-inc group-col" data-grupo="inc">IAPI</th>
-        <th class="th-sub-inc group-col" data-grupo="inc">RESID. MÉD.</th>
+        <th class="th-sub-inc group-col" data-grupo="inc">REDE ALYNE</th>
+        <th class="th-sub-inc group-col" data-grupo="inc">RAU HOSP SOS</th>
+        <th class="th-sub-inc group-col" data-grupo="inc">RCA_RCAR</th>
+        <th class="th-sub-inc group-col" data-grupo="inc">iAPI</th>
+        <th class="th-sub-inc group-col" data-grupo="inc">RESIDÊNCIA MÉDICA</th>
         <th class="th-sub-inc group-col" data-grupo="inc">MELHOR EM CASA</th>
         <th class="th-sub-inc group-col" data-grupo="inc">CER</th>
         <th class="th-sub-inc group-col" data-grupo="inc">DOENÇAS RARAS</th>
-        <th class="th-sub-inc group-col" data-grupo="inc">OFICINA ORTOP.</th>
-        <th class="th-sub-inc group-col" data-grupo="inc" style="border-right:2px solid #92400e">IHAC</th>
+        <th class="th-sub-inc group-col" data-grupo="inc">OFICINA ORTOPÉDICA</th>
+        <th class="th-sub-inc group-col" data-grupo="inc" style="border-right:2px solid #92400e">HOSP. AMIGO DA CRIANÇA</th>
         <!-- Total -->
-        <th class="th-sub-total">TOTAL MC+AC+INC.</th>
+        <th class="th-sub-total">TOTAL MC + AC + INCENTIVOS</th>
       </tr>
     </thead>
     <tbody id="tbodyDet">
@@ -350,19 +342,19 @@ function renderTabela(rows, pg) {
       <td class="num-col group-col" data-grupo="fundo">${n(r.sia_faec)}</td>
       <td class="num-col group-col" data-grupo="fundo">${n(r.equip_hemodialise)}</td>
       <td class="num-col group-col" data-grupo="fundo" style="border-right:2px solid #c7d9f0">${n(r.limite_complementacao)}</td>
-      <td class="num-col group-col" data-grupo="aih">${n(r.aih_mc)}</td>
-      <td class="num-col group-col" data-grupo="aih">${n(r.aih_ac)}</td>
-      <td class="num-col group-col" data-grupo="aih">${n(r.aih_total)}</td>
-      <td class="num-col group-col" data-grupo="aih" style="border-right:2px solid #c7d9f0">${n(r.portaria_ms_gm_8516)}</td>
-      <td class="num-col group-col" data-grupo="sia">${n(r.sia_mc)}</td>
-      <td class="num-col group-col" data-grupo="sia">${n(r.sia_ac)}</td>
-      <td class="num-col group-col" data-grupo="sia">${n(r.sia_total)}</td>
-      <td class="num-col group-col" data-grupo="sia" style="border-right:2px solid #c7d9f0">${n(r.teto_global)}</td>
-      <td class="num-col group-col" data-grupo="teto">${n(r.teto_mc)}</td>
-      <td class="num-col group-col" data-grupo="teto">${n(r.teto_ac)}</td>
-      <td class="num-col group-col" data-grupo="teto">${n(r.teto_mac)}</td>
-      <td class="num-col group-col" data-grupo="teto">${n(r.total_teto_mac)}</td>
-      <td class="num-col group-col" data-grupo="teto" style="border-right:2px solid #c7d9f0">${n(r.teto_global)}</td>
+      <td class="num-col group-col" data-grupo="fundo">${n(r.aih_mc)}</td>
+      <td class="num-col group-col" data-grupo="fundo">${n(r.aih_ac)}</td>
+      <td class="num-col group-col" data-grupo="fundo">${n(r.aih_total)}</td>
+      <td class="num-col group-col" data-grupo="fundo" style="border-right:2px solid #c7d9f0">${n(r.portaria_ms_gm_8516)}</td>
+      <td class="num-col group-col" data-grupo="fundo">${n(r.sia_mc)}</td>
+      <td class="num-col group-col" data-grupo="fundo">${n(r.sia_ac)}</td>
+      <td class="num-col group-col" data-grupo="fundo">${n(r.sia_total)}</td>
+      <td class="num-col group-col" data-grupo="fundo" style="border-right:2px solid #c7d9f0">${n(r.teto_global)}</td>
+      <td class="num-col group-col" data-grupo="fundo">${n(r.teto_mc)}</td>
+      <td class="num-col group-col" data-grupo="fundo">${n(r.teto_ac)}</td>
+      <td class="num-col group-col" data-grupo="fundo">${n(r.teto_mac)}</td>
+      <td class="num-col group-col" data-grupo="fundo">${n(r.total_teto_mac)}</td>
+      <td class="num-col group-col" data-grupo="fundo" style="border-right:2px solid #c7d9f0">${n(r.teto_global)}</td>
       <td class="num-col group-col" data-grupo="inc">${n(r.integrasus)}</td>
       <td class="num-col group-col" data-grupo="inc">${n(r.iac)}</td>
       <td class="num-col group-col" data-grupo="inc">${n(r.sus_100)}</td>
