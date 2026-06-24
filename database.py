@@ -786,6 +786,66 @@ def auditoria_comparar(registros_xls, ano, mes):
         'total_xls': len(registros_xls)
     }
 
+# ── Detalhamento Completo ─────────────────────────────────────────────────────
+
+_COLS_DET = [
+    'id','drs','tipo','hu','municipio','cnes','cnpj','unidade',
+    'aih_fisico','aih_faec','sia_faec','equip_hemodialise','limite_complementacao',
+    'aih_mc','aih_ac','aih_total','sia_mc','sia_ac','sia_total',
+    'teto_global','teto_mc','teto_ac','teto_mac','total_teto_mac',
+    'portaria_ms_gm_8516','integrasus','iac','sus_100','opo',
+    'rede_viver_sem_limite','rede_brasil_miseria','rsme','rce_rceg',
+    'rau_hosp_sos','rca_rcan','iapi','residencia_medica','melhor_em_casa',
+    'cer','doencas_raras','oficina_ortopedica','ihac','total_mc_ac_incentivos'
+]
+
+def detalhamento_registros(ano, mes, drs=None, tipo=None, busca=None, page=1, per_page=50):
+    where = ['ano = ?', 'mes = ?']
+    params = [ano, mes]
+    if drs:
+        where.append('CAST(drs AS INTEGER) = ?')
+        params.append(int(drs))
+    if tipo:
+        where.append('tipo = ?')
+        params.append(tipo)
+    if busca:
+        where.append('(unidade LIKE ? OR cnes LIKE ? OR municipio LIKE ?)')
+        params.extend([f'%{busca}%', f'%{busca}%', f'%{busca}%'])
+    ws = ' AND '.join(where)
+    if USE_SUPABASE:
+        sb = get_sb()
+        q = sb.table('teto_mac').select('*').eq('ano', ano).eq('mes', mes)
+        if drs: q = q.eq('drs', drs)
+        if tipo: q = q.eq('tipo', tipo)
+        tc = sb.table('teto_mac').select('id', count='exact').eq('ano', ano).eq('mes', mes)
+        if drs: tc = tc.eq('drs', drs)
+        total = (tc.execute()).count or 0
+        offset = (page - 1) * per_page
+        rows = q.order('drs').order('unidade').range(offset, offset + per_page - 1).execute()
+        return rows.data or [], total
+    else:
+        offset = (page - 1) * per_page
+        conn = get_db()
+        total = conn.execute(f'SELECT COUNT(*) FROM teto_mac WHERE {ws}', params).fetchone()[0]
+        rows = conn.execute(
+            f"SELECT {','.join(_COLS_DET)} FROM teto_mac WHERE {ws} ORDER BY CAST(drs AS INTEGER), unidade LIMIT ? OFFSET ?",
+            params + [per_page, offset]
+        ).fetchall()
+        conn.close()
+        return [dict(r) for r in rows], total
+
+def detalhamento_tipos(ano, mes):
+    if USE_SUPABASE:
+        r = get_sb().table('teto_mac').select('tipo').eq('ano', ano).eq('mes', mes).execute()
+        return sorted(set(row['tipo'] for row in (r.data or []) if row.get('tipo')))
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT DISTINCT tipo FROM teto_mac WHERE ano=? AND mes=? AND tipo IS NOT NULL AND TRIM(tipo)!='' ORDER BY tipo",
+        (ano, mes)
+    ).fetchall()
+    conn.close()
+    return [r[0] for r in rows]
+
 def registrar_acesso(id):
     from datetime import datetime, timezone
     agora = datetime.now(timezone.utc).isoformat()

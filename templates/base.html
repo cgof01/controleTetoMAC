@@ -244,6 +244,10 @@
            href="{{ url_for('relatorio_comparativo_unidade') }}" data-tip="Por Unidade">
           <i class="bi bi-graph-up"></i><span class="nav-label">Por Unidade</span>
         </a>
+        <a class="nav-link {{ 'active' if request.endpoint == 'detalhamento' }}"
+           href="{{ url_for('detalhamento') }}" data-tip="Detalhamento">
+          <i class="bi bi-table"></i><span class="nav-label">Detalhamento</span>
+        </a>
       </nav>
 
       {% if session.get('usuario_perfil') == 'admin' %}

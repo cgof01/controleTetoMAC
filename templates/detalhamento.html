@@ -1,0 +1,514 @@
+{% extends "base.html" %}
+{% block title %}Detalhamento — Teto MAC{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* ── Tabela full ───────────────────────────────────────────────── */
+  #wrapTabela { overflow-x: auto; overflow-y: auto; max-height: 62vh; }
+  #tblDet { font-size: 0.72rem; border-collapse: separate; border-spacing: 0; min-width: 3200px; }
+  #tblDet th, #tblDet td { border-bottom: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; padding: 4px 6px; white-space: nowrap; }
+  #tblDet thead tr:first-child th { background: var(--ses-azul); color: #fff; text-align: center; font-size: 0.68rem; position: sticky; top: 0; z-index: 10; }
+  #tblDet thead tr:nth-child(2) th { background: #1e4976; color: #dae8ff; text-align: center; position: sticky; top: 26px; z-index: 10; }
+  #tblDet tbody tr:hover td { background: #eff6ff; }
+  #tblDet tbody tr td { background: #fff; }
+  #tblDet tbody tr:nth-child(even) td { background: #f8fbff; }
+
+  /* sticky cols */
+  .col-sticky-1, .col-sticky-2, .col-sticky-3 {
+    position: sticky; z-index: 5; background: inherit;
+  }
+  .col-sticky-1 { left: 0; min-width: 36px; max-width: 36px; }
+  .col-sticky-2 { left: 36px; min-width: 48px; max-width: 48px; }
+  .col-sticky-3 { left: 84px; min-width: 220px; max-width: 220px; text-overflow: ellipsis; overflow: hidden; }
+  #tblDet thead .col-sticky-1,
+  #tblDet thead .col-sticky-2,
+  #tblDet thead .col-sticky-3 { z-index: 20; }
+  #tblDet tbody .col-sticky-1 td,
+  #tblDet tbody .col-sticky-2 td,
+  #tblDet tbody .col-sticky-3 td { box-shadow: 2px 0 4px rgba(0,0,0,0.06); }
+
+  /* Grupos de colunas */
+  .th-grupo-ident   { background: #1e3a5f !important; }
+  .th-grupo-fundo   { background: #134e4a !important; }
+  .th-grupo-aih     { background: #155e40 !important; }
+  .th-grupo-sia     { background: #1d4e6e !important; }
+  .th-grupo-teto    { background: #3b1f7a !important; }
+  .th-grupo-inc     { background: #7c2d12 !important; }
+  .th-grupo-total   { background: #78350f !important; }
+
+  /* sub-headers */
+  .th-sub-ident { background: #2a5298 !important; }
+  .th-sub-fundo { background: #0f7a6b !important; }
+  .th-sub-aih   { background: #1e8a5a !important; }
+  .th-sub-sia   { background: #1b6fa5 !important; }
+  .th-sub-teto  { background: #5b2db5 !important; }
+  .th-sub-inc   { background: #b35020 !important; }
+  .th-sub-total { background: #92400e !important; }
+
+  .num-col { text-align: right !important; font-variant-numeric: tabular-nums; }
+  .zero-val { color: #adb5bd; }
+
+  /* Modal detalhe */
+  .detalhe-grupo { border-left: 4px solid var(--ses-azul); padding-left: 1rem; margin-bottom: 1.2rem; }
+  .detalhe-grupo.fundo  { border-color: #0f7a6b; }
+  .detalhe-grupo.inc    { border-color: #b35020; }
+  .detalhe-grupo.total  { border-color: #92400e; }
+  .detalhe-item { display: flex; justify-content: space-between; border-bottom: 1px dashed #e9eef5; padding: 3px 0; font-size: 0.82rem; }
+  .detalhe-item .label { color: #64748b; }
+  .detalhe-item .valor { font-weight: 600; font-family: 'Courier New', monospace; }
+
+  /* Chips de grupo visível */
+  .grp-toggle { cursor: pointer; user-select: none; font-size: 0.72rem; padding: 2px 8px; border-radius: 20px; border: 1px solid; }
+  .grp-toggle.off { opacity: 0.45; }
+  .group-col.hidden { display: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+  <div>
+    <h4 class="mb-0 fw-bold"><i class="bi bi-table me-2"></i>Detalhamento Completo</h4>
+    <small class="opacity-75">Todas as colunas da planilha — por unidade, período e filtros</small>
+  </div>
+  <form id="frmPeriodo" class="d-flex gap-2 flex-wrap align-items-center" method="get">
+    <select name="ano" class="form-select form-select-sm" style="width:110px" onchange="this.form.submit()">
+      {% for ano in anos_disponiveis %}
+        <option value="{{ ano }}" {{ 'selected' if ano == ano_sel }}>{{ ano }}</option>
+      {% endfor %}
+    </select>
+    <select name="mes" class="form-select form-select-sm" style="width:130px" onchange="this.form.submit()">
+      {% for num, nome in meses.items() %}
+        <option value="{{ num }}" {{ 'selected' if num == mes_sel }}>{{ nome }}</option>
+      {% endfor %}
+    </select>
+  </form>
+</div>
+
+<!-- Filtros e ações -->
+<div class="card mb-3">
+  <div class="card-body py-2">
+    <div class="row g-2 align-items-end">
+      <div class="col-md-4">
+        <input type="text" id="filtBusca" class="form-control form-control-sm"
+               placeholder="Buscar unidade, CNES ou município…" oninput="debounce()">
+      </div>
+      <div class="col-auto">
+        <select id="filtDRS" class="form-select form-select-sm" onchange="carregar()">
+          <option value="">Todos os DRS</option>
+          {% for drs in drs_lista %}
+          <option value="{{ drs }}">DRS {{ drs }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto">
+        <select id="filtTipo" class="form-select form-select-sm" onchange="carregar()">
+          <option value="">Todos os tipos</option>
+          {% for t in tipos %}
+          <option value="{{ t }}">{{ t }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto ms-auto d-flex gap-2">
+        <a id="linkExport" href="#" class="btn btn-sm btn-outline-success">
+          <i class="bi bi-filetype-csv me-1"></i>Exportar CSV
+        </a>
+      </div>
+    </div>
+    <!-- Toggles de grupos -->
+    <div class="d-flex gap-2 flex-wrap mt-2">
+      <small class="text-muted align-self-center">Mostrar grupos:</small>
+      <span class="grp-toggle badge" style="background:#0f7a6b" data-grupo="fundo" onclick="toggleGrupo(this)">Fundo MAC</span>
+      <span class="grp-toggle badge" style="background:#1e8a5a" data-grupo="aih" onclick="toggleGrupo(this)">AIH</span>
+      <span class="grp-toggle badge" style="background:#1b6fa5" data-grupo="sia" onclick="toggleGrupo(this)">SIA</span>
+      <span class="grp-toggle badge" style="background:#5b2db5" data-grupo="teto" onclick="toggleGrupo(this)">Teto</span>
+      <span class="grp-toggle badge" style="background:#b35020" data-grupo="inc" onclick="toggleGrupo(this)">Incentivos</span>
+    </div>
+  </div>
+</div>
+
+<!-- Info e paginação topo -->
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <small class="text-muted" id="infoRegs">—</small>
+  <div id="pgTopo" class="d-flex gap-1"></div>
+</div>
+
+<!-- Tabela completa -->
+<div id="wrapTabela" class="border rounded">
+  <table id="tblDet">
+    <thead>
+      <tr>
+        <!-- Identificação -->
+        <th colspan="8" class="th-grupo-ident col-sticky-1" style="border-right:2px solid #2a7dd8">
+          <i class="bi bi-person-vcard me-1"></i>Identificação
+        </th>
+        <!-- Fundo -->
+        <th colspan="5" class="th-grupo-fundo group-col" data-grupo="fundo">
+          <i class="bi bi-hospital me-1"></i>FAEC / Hemodiálise
+        </th>
+        <!-- AIH -->
+        <th colspan="4" class="th-grupo-aih group-col" data-grupo="aih">
+          <i class="bi bi-file-medical me-1"></i>AIH
+        </th>
+        <!-- SIA -->
+        <th colspan="4" class="th-grupo-sia group-col" data-grupo="sia">
+          <i class="bi bi-clipboard2-pulse me-1"></i>SIA
+        </th>
+        <!-- Teto -->
+        <th colspan="5" class="th-grupo-teto group-col" data-grupo="teto">
+          <i class="bi bi-bank me-1"></i>Teto
+        </th>
+        <!-- Incentivos -->
+        <th colspan="17" class="th-grupo-inc group-col" data-grupo="inc">
+          <i class="bi bi-star me-1"></i>Incentivos
+        </th>
+        <!-- Total -->
+        <th colspan="1" class="th-grupo-total">
+          <i class="bi bi-sigma me-1"></i>Total
+        </th>
+      </tr>
+      <tr>
+        <!-- Identificação sub -->
+        <th class="th-sub-ident col-sticky-1" style="text-align:center">#</th>
+        <th class="th-sub-ident col-sticky-2">DRS</th>
+        <th class="th-sub-ident col-sticky-3" style="border-right:2px solid #2a7dd8">Unidade</th>
+        <th class="th-sub-ident">TIPO</th>
+        <th class="th-sub-ident">HU</th>
+        <th class="th-sub-ident">Município</th>
+        <th class="th-sub-ident">CNES</th>
+        <th class="th-sub-ident" style="border-right:2px solid #155e40">CNPJ</th>
+        <!-- Fundo sub -->
+        <th class="th-sub-fundo group-col" data-grupo="fundo">AIH FÍSICO</th>
+        <th class="th-sub-fundo group-col" data-grupo="fundo">AIH FAEC</th>
+        <th class="th-sub-fundo group-col" data-grupo="fundo">SIA FAEC</th>
+        <th class="th-sub-fundo group-col" data-grupo="fundo">EQUIP. HEMODI.</th>
+        <th class="th-sub-fundo group-col" data-grupo="fundo" style="border-right:2px solid #1e8a5a">LIM. COMPL.</th>
+        <!-- AIH sub -->
+        <th class="th-sub-aih group-col" data-grupo="aih">MC</th>
+        <th class="th-sub-aih group-col" data-grupo="aih">AC</th>
+        <th class="th-sub-aih group-col" data-grupo="aih">TOTAL AIH</th>
+        <th class="th-sub-aih group-col" data-grupo="aih" style="border-right:2px solid #1b6fa5">PORTARIA 8516</th>
+        <!-- SIA sub -->
+        <th class="th-sub-sia group-col" data-grupo="sia">MC</th>
+        <th class="th-sub-sia group-col" data-grupo="sia">AC</th>
+        <th class="th-sub-sia group-col" data-grupo="sia">TOTAL SIA</th>
+        <th class="th-sub-sia group-col" data-grupo="sia" style="border-right:2px solid #5b2db5">TETO GLOBAL</th>
+        <!-- Teto sub -->
+        <th class="th-sub-teto group-col" data-grupo="teto">TETO MC</th>
+        <th class="th-sub-teto group-col" data-grupo="teto">TETO AC</th>
+        <th class="th-sub-teto group-col" data-grupo="teto">TETO MAC</th>
+        <th class="th-sub-teto group-col" data-grupo="teto">TOTAL TETO MAC</th>
+        <th class="th-sub-teto group-col" data-grupo="teto" style="border-right:2px solid #b35020">T. GLOBAL</th>
+        <!-- Incentivos sub -->
+        <th class="th-sub-inc group-col" data-grupo="inc">INTEGRASUS</th>
+        <th class="th-sub-inc group-col" data-grupo="inc">IAC</th>
+        <th class="th-sub-inc group-col" data-grupo="inc">100% SUS</th>
+        <th class="th-sub-inc group-col" data-grupo="inc">OPO</th>
+        <th class="th-sub-inc group-col" data-grupo="inc">REDE VIVER</th>
+        <th class="th-sub-inc group-col" data-grupo="inc">REDE BRASIL</th>
+        <th class="th-sub-inc group-col" data-grupo="inc">RSME</th>
+        <th class="th-sub-inc group-col" data-grupo="inc">RCE/RCEG</th>
+        <th class="th-sub-inc group-col" data-grupo="inc">RAU/HOSP SOS</th>
+        <th class="th-sub-inc group-col" data-grupo="inc">RCA/RCAN</th>
+        <th class="th-sub-inc group-col" data-grupo="inc">IAPI</th>
+        <th class="th-sub-inc group-col" data-grupo="inc">RESID. MÉD.</th>
+        <th class="th-sub-inc group-col" data-grupo="inc">MELHOR EM CASA</th>
+        <th class="th-sub-inc group-col" data-grupo="inc">CER</th>
+        <th class="th-sub-inc group-col" data-grupo="inc">DOENÇAS RARAS</th>
+        <th class="th-sub-inc group-col" data-grupo="inc">OFICINA ORTOP.</th>
+        <th class="th-sub-inc group-col" data-grupo="inc" style="border-right:2px solid #92400e">IHAC</th>
+        <!-- Total -->
+        <th class="th-sub-total">TOTAL MC+AC+INC.</th>
+      </tr>
+    </thead>
+    <tbody id="tbodyDet">
+      <tr><td colspan="39" class="text-center py-4 text-muted">
+        <span class="spinner-border spinner-border-sm me-2"></span>Carregando…
+      </td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Info e paginação fundo -->
+<div class="d-flex justify-content-between align-items-center mt-2">
+  <small class="text-muted" id="infoRegs2">—</small>
+  <div id="pgBaixo" class="d-flex gap-1"></div>
+</div>
+
+<!-- ── Modal detalhe unidade ────────────────────────────────────── -->
+<div class="modal fade modal-xl" id="modalDetalhe" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header" style="background:var(--ses-azul);color:#fff">
+        <h6 class="modal-title fw-bold" id="mdlTitulo"></h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="mdlCorpo"></div>
+      <div class="modal-footer">
+        <a id="mdlEditar" href="#" class="btn btn-sm btn-primary">
+          <i class="bi bi-pencil me-1"></i>Editar registro
+        </a>
+        <button class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const ANO = {{ ano_sel | tojson }};
+const MES = {{ mes_sel | tojson }};
+const MESES_NOME = Object.fromEntries(
+  Object.entries({{ meses | tojson }}).map(([k,v]) => [parseInt(k), v])
+);
+
+let _page = 1;
+const PER = 50;
+let _total = 0;
+let _debT = null;
+let _gruposOff = new Set();
+
+/* ── Grupos toggle ─────────────────────────────────────────────── */
+function toggleGrupo(el) {
+  const g = el.dataset.grupo;
+  if (_gruposOff.has(g)) {
+    _gruposOff.delete(g);
+    el.classList.remove('off');
+    document.querySelectorAll(`.group-col[data-grupo="${g}"]`).forEach(c => c.classList.remove('hidden'));
+  } else {
+    _gruposOff.add(g);
+    el.classList.add('off');
+    document.querySelectorAll(`.group-col[data-grupo="${g}"]`).forEach(c => c.classList.add('hidden'));
+  }
+}
+
+/* ── Carregar dados ────────────────────────────────────────────── */
+function debounce() {
+  clearTimeout(_debT);
+  _debT = setTimeout(() => carregar(1), 400);
+}
+
+async function carregar(pg = _page) {
+  _page = pg;
+  const busca = document.getElementById('filtBusca').value.trim();
+  const drs   = document.getElementById('filtDRS').value;
+  const tipo  = document.getElementById('filtTipo').value;
+
+  const qs = new URLSearchParams({
+    ano: ANO, mes: MES, page: pg, per_page: PER,
+    ...(drs   ? {drs}   : {}),
+    ...(tipo  ? {tipo}  : {}),
+    ...(busca ? {q: busca} : {})
+  });
+
+  // Atualiza link de exportar
+  const expQs = new URLSearchParams({ano: ANO, mes: MES, per_page: 5000,
+    ...(drs ? {drs} : {}), ...(tipo ? {tipo} : {}), ...(busca ? {q: busca} : {})});
+  document.getElementById('linkExport').href = `/detalhamento/exportar?${expQs}`;
+
+  const tbody = document.getElementById('tbodyDet');
+  tbody.innerHTML = `<tr><td colspan="39" class="text-center py-4">
+    <span class="spinner-border spinner-border-sm me-2"></span>Carregando…</td></tr>`;
+
+  const res  = await fetch(`/api/detalhamento/registros?${qs}`);
+  const data = await res.json();
+  _total = data.total;
+  renderTabela(data.registros, pg);
+  renderPaginacao(pg, data.total);
+}
+
+/* ── Render tabela ─────────────────────────────────────────────── */
+function n(v) {
+  if (!v || v === 0) return `<span class="zero-val">—</span>`;
+  return parseFloat(v).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+function s(v) { return v || '—'; }
+
+function renderTabela(rows, pg) {
+  const tbody = document.getElementById('tbodyDet');
+  if (!rows || !rows.length) {
+    tbody.innerHTML = `<tr><td colspan="39" class="text-center text-muted py-4">Nenhum registro encontrado.</td></tr>`;
+    atualInfo(pg, 0, 0);
+    return;
+  }
+  atualInfo(pg, rows.length, _total);
+  tbody.innerHTML = rows.map((r, i) => `
+    <tr style="cursor:pointer" onclick="verDetalhe(${JSON.stringify(JSON.stringify(r))})">
+      <td class="col-sticky-1 text-center text-muted">${(pg-1)*PER + i + 1}</td>
+      <td class="col-sticky-2 text-center fw-bold">${s(r.drs)}</td>
+      <td class="col-sticky-3" style="border-right:2px solid #c7d9f0" title="${r.unidade}">
+        <div style="max-width:220px;overflow:hidden;text-overflow:ellipsis">${s(r.unidade)}</div>
+        <small class="text-muted">${s(r.municipio)}</small>
+      </td>
+      <td>${s(r.tipo)}</td>
+      <td class="text-center">${s(r.hu)}</td>
+      <td style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.municipio}">${s(r.municipio)}</td>
+      <td class="fw-bold">${s(r.cnes)}</td>
+      <td style="border-right:2px solid #c7d9f0;font-size:0.68rem">${s(r.cnpj)}</td>
+      <td class="num-col group-col" data-grupo="fundo">${n(r.aih_fisico)}</td>
+      <td class="num-col group-col" data-grupo="fundo">${n(r.aih_faec)}</td>
+      <td class="num-col group-col" data-grupo="fundo">${n(r.sia_faec)}</td>
+      <td class="num-col group-col" data-grupo="fundo">${n(r.equip_hemodialise)}</td>
+      <td class="num-col group-col" data-grupo="fundo" style="border-right:2px solid #c7d9f0">${n(r.limite_complementacao)}</td>
+      <td class="num-col group-col" data-grupo="aih">${n(r.aih_mc)}</td>
+      <td class="num-col group-col" data-grupo="aih">${n(r.aih_ac)}</td>
+      <td class="num-col group-col" data-grupo="aih">${n(r.aih_total)}</td>
+      <td class="num-col group-col" data-grupo="aih" style="border-right:2px solid #c7d9f0">${n(r.portaria_ms_gm_8516)}</td>
+      <td class="num-col group-col" data-grupo="sia">${n(r.sia_mc)}</td>
+      <td class="num-col group-col" data-grupo="sia">${n(r.sia_ac)}</td>
+      <td class="num-col group-col" data-grupo="sia">${n(r.sia_total)}</td>
+      <td class="num-col group-col" data-grupo="sia" style="border-right:2px solid #c7d9f0">${n(r.teto_global)}</td>
+      <td class="num-col group-col" data-grupo="teto">${n(r.teto_mc)}</td>
+      <td class="num-col group-col" data-grupo="teto">${n(r.teto_ac)}</td>
+      <td class="num-col group-col" data-grupo="teto">${n(r.teto_mac)}</td>
+      <td class="num-col group-col" data-grupo="teto">${n(r.total_teto_mac)}</td>
+      <td class="num-col group-col" data-grupo="teto" style="border-right:2px solid #c7d9f0">${n(r.teto_global)}</td>
+      <td class="num-col group-col" data-grupo="inc">${n(r.integrasus)}</td>
+      <td class="num-col group-col" data-grupo="inc">${n(r.iac)}</td>
+      <td class="num-col group-col" data-grupo="inc">${n(r.sus_100)}</td>
+      <td class="num-col group-col" data-grupo="inc">${n(r.opo)}</td>
+      <td class="num-col group-col" data-grupo="inc">${n(r.rede_viver_sem_limite)}</td>
+      <td class="num-col group-col" data-grupo="inc">${n(r.rede_brasil_miseria)}</td>
+      <td class="num-col group-col" data-grupo="inc">${n(r.rsme)}</td>
+      <td class="num-col group-col" data-grupo="inc">${n(r.rce_rceg)}</td>
+      <td class="num-col group-col" data-grupo="inc">${n(r.rau_hosp_sos)}</td>
+      <td class="num-col group-col" data-grupo="inc">${n(r.rca_rcan)}</td>
+      <td class="num-col group-col" data-grupo="inc">${n(r.iapi)}</td>
+      <td class="num-col group-col" data-grupo="inc">${n(r.residencia_medica)}</td>
+      <td class="num-col group-col" data-grupo="inc">${n(r.melhor_em_casa)}</td>
+      <td class="num-col group-col" data-grupo="inc">${n(r.cer)}</td>
+      <td class="num-col group-col" data-grupo="inc">${n(r.doencas_raras)}</td>
+      <td class="num-col group-col" data-grupo="inc">${n(r.oficina_ortopedica)}</td>
+      <td class="num-col group-col" data-grupo="inc" style="border-right:2px solid #c7d9f0">${n(r.ihac)}</td>
+      <td class="num-col fw-bold" style="background:#fffbeb">${n(r.total_mc_ac_incentivos)}</td>
+    </tr>
+  `).join('');
+
+  // Reaplicar visibilidade dos grupos
+  _gruposOff.forEach(g => {
+    document.querySelectorAll(`.group-col[data-grupo="${g}"]`).forEach(c => c.classList.add('hidden'));
+  });
+}
+
+/* ── Paginação ─────────────────────────────────────────────────── */
+function renderPaginacao(pag, total) {
+  const pages = Math.ceil(total / PER);
+  const make = (id) => {
+    const div = document.getElementById(id);
+    if (pages <= 1) { div.innerHTML = ''; return; }
+    const st = Math.max(1, pag-3), en = Math.min(pages, pag+3);
+    let b = '';
+    if (pag > 1) b += `<button class="btn btn-sm btn-outline-secondary" onclick="carregar(${pag-1})">‹</button>`;
+    if (st > 1) b += `<button class="btn btn-sm btn-outline-secondary" onclick="carregar(1)">1</button><span class="align-self-center px-1">…</span>`;
+    for (let p = st; p <= en; p++)
+      b += `<button class="btn btn-sm ${p===pag?'btn-primary':'btn-outline-secondary'}" onclick="carregar(${p})">${p}</button>`;
+    if (en < pages) b += `<span class="align-self-center px-1">…</span><button class="btn btn-sm btn-outline-secondary" onclick="carregar(${pages})">${pages}</button>`;
+    if (pag < pages) b += `<button class="btn btn-sm btn-outline-secondary" onclick="carregar(${pag+1})">›</button>`;
+    div.innerHTML = b;
+  };
+  make('pgTopo'); make('pgBaixo');
+}
+
+function atualInfo(pg, rows, total) {
+  const txt = total ? `Mostrando ${(pg-1)*PER+1}–${(pg-1)*PER+rows} de ${total.toLocaleString('pt-BR')} registros` : 'Nenhum registro';
+  document.getElementById('infoRegs').textContent = txt;
+  document.getElementById('infoRegs2').textContent = txt;
+}
+
+/* ── Modal detalhe ─────────────────────────────────────────────── */
+function verDetalhe(jsonStr) {
+  const r = JSON.parse(jsonStr);
+  document.getElementById('mdlTitulo').textContent = r.unidade || 'Unidade';
+  document.getElementById('mdlEditar').href = `/editar/${r.id}`;
+
+  const R = (label, val, moeda=true) => `
+    <div class="detalhe-item">
+      <span class="label">${label}</span>
+      <span class="valor">${moeda && (val || val===0) ? 'R$ ' + parseFloat(val||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) : (val || '—')}</span>
+    </div>`;
+
+  document.getElementById('mdlCorpo').innerHTML = `
+    <div class="row g-3">
+      <div class="col-md-6">
+        <div class="detalhe-grupo">
+          <div class="fw-bold mb-2" style="color:var(--ses-azul)"><i class="bi bi-person-vcard me-1"></i>Identificação</div>
+          ${R('DRS', r.drs, false)}
+          ${R('Tipo', r.tipo, false)}
+          ${R('HU', r.hu, false)}
+          ${R('Município', r.municipio, false)}
+          ${R('CNES', r.cnes, false)}
+          ${R('CNPJ', r.cnpj, false)}
+          ${R('Unidade', r.unidade, false)}
+        </div>
+        <div class="detalhe-grupo fundo">
+          <div class="fw-bold mb-2" style="color:#0f7a6b"><i class="bi bi-hospital me-1"></i>FAEC / Hemodiálise</div>
+          ${R('AIH Físico', r.aih_fisico)}
+          ${R('AIH FAEC', r.aih_faec)}
+          ${R('SIA FAEC', r.sia_faec)}
+          ${R('Equip. Hemodiálise', r.equip_hemodialise)}
+          ${R('Limite Complementação', r.limite_complementacao)}
+        </div>
+        <div class="detalhe-grupo fundo">
+          <div class="fw-bold mb-2" style="color:#1e8a5a"><i class="bi bi-file-medical me-1"></i>AIH</div>
+          ${R('AIH MC', r.aih_mc)}
+          ${R('AIH AC', r.aih_ac)}
+          ${R('AIH Total', r.aih_total)}
+          ${R('Portaria MS/GM 8.516', r.portaria_ms_gm_8516)}
+        </div>
+        <div class="detalhe-grupo fundo">
+          <div class="fw-bold mb-2" style="color:#1b6fa5"><i class="bi bi-clipboard2-pulse me-1"></i>SIA</div>
+          ${R('SIA MC', r.sia_mc)}
+          ${R('SIA AC', r.sia_ac)}
+          ${R('SIA Total', r.sia_total)}
+          ${R('Teto Global', r.teto_global)}
+        </div>
+        <div class="detalhe-grupo">
+          <div class="fw-bold mb-2" style="color:#5b2db5"><i class="bi bi-bank me-1"></i>Teto</div>
+          ${R('Teto MC', r.teto_mc)}
+          ${R('Teto AC', r.teto_ac)}
+          ${R('Teto MAC', r.teto_mac)}
+          ${R('Total Teto MAC', r.total_teto_mac)}
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="detalhe-grupo inc">
+          <div class="fw-bold mb-2" style="color:#b35020"><i class="bi bi-star me-1"></i>Incentivos</div>
+          ${R('INTEGRASUS', r.integrasus)}
+          ${R('IAC', r.iac)}
+          ${R('100% SUS', r.sus_100)}
+          ${R('OPO', r.opo)}
+          ${R('Rede Viver Sem Limite', r.rede_viver_sem_limite)}
+          ${R('Rede Brasil Sem Miséria', r.rede_brasil_miseria)}
+          ${R('RSME', r.rsme)}
+          ${R('RCE / RCEG', r.rce_rceg)}
+          ${R('RAU / Hosp. SOS', r.rau_hosp_sos)}
+          ${R('RCA / RCAN', r.rca_rcan)}
+          ${R('IAPI', r.iapi)}
+          ${R('Residência Médica', r.residencia_medica)}
+          ${R('Melhor em Casa', r.melhor_em_casa)}
+          ${R('CER', r.cer)}
+          ${R('Doenças Raras', r.doencas_raras)}
+          ${R('Oficina Ortopédica', r.oficina_ortopedica)}
+          ${R('IHAC', r.ihac)}
+        </div>
+        <div class="detalhe-grupo total">
+          <div class="fw-bold mb-2" style="color:#92400e"><i class="bi bi-sigma me-1"></i>Total Consolidado</div>
+          <div class="detalhe-item" style="font-size:1rem">
+            <span class="label fw-bold">TOTAL MC + AC + INCENTIVOS</span>
+            <span class="valor" style="color:var(--ses-azul);font-size:1rem">
+              R$ ${parseFloat(r.total_mc_ac_incentivos||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+  new bootstrap.Modal(document.getElementById('modalDetalhe')).show();
+}
+
+/* ── Init ──────────────────────────────────────────────────────── */
+document.addEventListener('DOMContentLoaded', () => {
+  if (ANO && MES) carregar(1);
+});
+</script>
+{% endblock %}

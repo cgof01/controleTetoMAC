@@ -906,6 +906,62 @@ def graficos():
         anos_disponiveis=anos_disponiveis
     )
 
+# ── Detalhamento Completo ─────────────────────────────────────────────────────
+
+@app.route('/detalhamento')
+@login_required
+def detalhamento():
+    anos_meses = db.obter_anos_meses()
+    anos_disponiveis = sorted(set(am['ano'] for am in anos_meses), reverse=True)
+    ano = request.args.get('ano', type=int)
+    mes = request.args.get('mes', type=int)
+    if not ano and anos_meses:
+        ano, mes = anos_meses[0]['ano'], anos_meses[0]['mes']
+    drs_lista = db.obter_drs_lista()
+    tipos = db.detalhamento_tipos(ano, mes) if ano and mes else []
+    return render_template('detalhamento.html',
+        anos_meses=anos_meses, anos_disponiveis=anos_disponiveis,
+        ano_sel=ano, mes_sel=mes, meses=MESES, drs_lista=drs_lista, tipos=tipos
+    )
+
+@app.route('/api/detalhamento/registros')
+@login_required
+def api_detalhamento_registros():
+    ano  = request.args.get('ano', type=int)
+    mes  = request.args.get('mes', type=int)
+    drs  = request.args.get('drs', type=int)
+    tipo = request.args.get('tipo', '').strip() or None
+    busca = request.args.get('q', '').strip() or None
+    page = request.args.get('page', 1, type=int)
+    per_page = min(request.args.get('per_page', 50, type=int), 200)
+    if not ano or not mes:
+        return jsonify({'registros': [], 'total': 0})
+    regs, total = db.detalhamento_registros(ano, mes, drs or None, tipo, busca, page, per_page)
+    return jsonify({'registros': regs, 'total': total, 'page': page, 'per_page': per_page})
+
+@app.route('/detalhamento/exportar')
+@login_required
+def detalhamento_exportar():
+    import csv
+    ano  = request.args.get('ano', type=int)
+    mes  = request.args.get('mes', type=int)
+    drs  = request.args.get('drs', type=int)
+    tipo = request.args.get('tipo', '').strip() or None
+    busca = request.args.get('q', '').strip() or None
+    if not ano or not mes:
+        flash('Selecione um período para exportar.', 'warning')
+        return redirect(url_for('detalhamento'))
+    regs, _ = db.detalhamento_registros(ano, mes, drs or None, tipo, busca, page=1, per_page=5000)
+    output = io.StringIO()
+    if regs:
+        writer = csv.DictWriter(output, fieldnames=list(regs[0].keys()))
+        writer.writeheader()
+        writer.writerows(regs)
+    output.seek(0)
+    nome = f"teto_mac_{ano}_{mes:02d}.csv"
+    return Response(output.getvalue(), mimetype='text/csv;charset=utf-8',
+                    headers={'Content-Disposition': f'attachment;filename={nome}'})
+
 # ── Filtros Jinja ──────────────────────────────────────────────────────────────
 
 @app.template_filter('moeda')
