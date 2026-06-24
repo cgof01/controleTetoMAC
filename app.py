@@ -2,7 +2,7 @@ import os
 import json
 import io
 from functools import wraps
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file, Response, session
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file, Response, session, send_from_directory
 from werkzeug.security import generate_password_hash, check_password_hash
 import database as db
 from database import MESES
@@ -31,6 +31,15 @@ def admin_required(f):
     return decorated
 
 BASE_TETOS = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'TETOS'))
+
+# ── Favicon ───────────────────────────────────────────────────────────────────
+
+@app.route('/favicon.ico')
+def favicon():
+    return send_from_directory(
+        os.path.join(app.root_path, 'static', 'img'),
+        'brasao.png', mimetype='image/png'
+    )
 
 # ── Inicialização ─────────────────────────────────────────────────────────────
 
