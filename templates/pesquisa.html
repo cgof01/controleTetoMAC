@@ -56,18 +56,27 @@
           </div>
           <div class="col-md-3">
             <label class="form-label small fw-bold">Município</label>
-            <input type="text" name="municipio" class="form-control form-control-sm" placeholder="Nome do município"
-              value="{{ filtros.get('municipio', '') }}">
+            <div class="position-relative">
+              <input type="text" name="municipio" id="acMunicipio" class="form-control form-control-sm"
+                placeholder="Digite para buscar…" value="{{ filtros.get('municipio', '') }}"
+                autocomplete="off" oninput="acInput(this,'municipio')">
+            </div>
           </div>
           <div class="col-md-4">
             <label class="form-label small fw-bold">Unidade / Hospital</label>
-            <input type="text" name="unidade" class="form-control form-control-sm" id="inputUnidade"
-              placeholder="Nome, CNES ou CNPJ" value="{{ filtros.get('unidade', '') }}">
+            <div class="position-relative">
+              <input type="text" name="unidade" id="acUnidade" class="form-control form-control-sm"
+                placeholder="Digite para buscar…" value="{{ filtros.get('unidade', '') }}"
+                autocomplete="off" oninput="acInput(this,'unidade')">
+            </div>
           </div>
           <div class="col-md-2">
             <label class="form-label small fw-bold">CNES</label>
-            <input type="text" name="cnes" class="form-control form-control-sm" placeholder="Código CNES"
-              value="{{ filtros.get('cnes', '') }}">
+            <div class="position-relative">
+              <input type="text" name="cnes" id="acCNES" class="form-control form-control-sm"
+                placeholder="Digite para buscar…" value="{{ filtros.get('cnes', '') }}"
+                autocomplete="off" oninput="acInput(this,'cnes')">
+            </div>
           </div>
           <div class="col-md-3">
             <label class="form-label small fw-bold">Tipo</label>
@@ -225,5 +234,68 @@ function confirmarDelete(id, nome) {
   document.getElementById('formDelete').action = '/deletar/' + id;
   new bootstrap.Modal(document.getElementById('modalDelete')).show();
 }
+
+/* ── Autocomplete genérico ── */
+let _acDebs = {};
+
+function acInput(inputEl, campo) {
+  clearTimeout(_acDebs[campo]);
+  _acDebs[campo] = setTimeout(() => acBuscar(inputEl, campo), 280);
+}
+
+async function acBuscar(inputEl, campo) {
+  acFechar(inputEl);
+  const q = inputEl.value.trim();
+  if (q.length < 2) return;
+
+  const anoEl  = document.querySelector('select[name=ano]');
+  const mesEl  = document.querySelector('select[name=mes]');
+  const ano    = anoEl?.value || '';
+  const mes    = mesEl?.value || '';
+
+  const url = `/api/autocomplete?campo=${campo}&q=${encodeURIComponent(q)}` +
+              (ano ? `&ano=${ano}` : '') + (mes ? `&mes=${mes}` : '');
+  const vals = await (await fetch(url)).json();
+  if (!vals.length) return;
+
+  const dd = document.createElement('div');
+  dd.className = 'ac-dropdown';
+  dd.style.cssText =
+    'position:absolute;top:100%;left:0;right:0;z-index:9000;background:#fff;' +
+    'border:1px solid #e2e8f0;border-radius:6px;box-shadow:0 4px 20px rgba(0,0,0,.13);' +
+    'max-height:240px;overflow-y:auto;margin-top:2px';
+
+  vals.forEach(v => {
+    const item = document.createElement('div');
+    item.style.cssText = 'padding:7px 12px;cursor:pointer;font-size:.82rem;border-bottom:1px solid #f8fafc;color:#1e293b';
+    item.textContent = v;
+    item.addEventListener('mouseenter', () => item.style.background = '#eff6ff');
+    item.addEventListener('mouseleave', () => item.style.background = '');
+    item.addEventListener('mousedown', e => {
+      e.preventDefault();
+      inputEl.value = v;
+      acFechar(inputEl);
+    });
+    dd.appendChild(item);
+  });
+
+  inputEl.parentElement.appendChild(dd);
+}
+
+function acFechar(inputEl) {
+  const dd = inputEl.parentElement.querySelector('.ac-dropdown');
+  if (dd) dd.remove();
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.position-relative')) {
+    document.querySelectorAll('.ac-dropdown').forEach(el => el.remove());
+  }
+});
+
+['acMunicipio','acUnidade','acCNES'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('blur', () => setTimeout(() => acFechar(el), 200));
+});
 </script>
 {% endblock %}

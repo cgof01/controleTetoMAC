@@ -949,6 +949,17 @@ def api_detalhamento_registros():
     )
     return jsonify({'registros': regs, 'total': total, 'page': page, 'per_page': per_page})
 
+@app.route('/api/autocomplete')
+@login_required
+def api_autocomplete():
+    campo = request.args.get('campo', '').strip()
+    q     = request.args.get('q', '').strip()
+    ano   = request.args.get('ano', type=int)
+    mes   = request.args.get('mes', type=int)
+    if not campo or len(q) < 2:
+        return jsonify([])
+    return jsonify(db.autocomplete_valores(campo, q, ano, mes))
+
 @app.route('/api/detalhamento/valores-unicos')
 @login_required
 def api_detalhamento_valores_unicos():

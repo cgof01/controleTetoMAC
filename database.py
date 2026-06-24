@@ -881,6 +881,33 @@ def detalhamento_registros(ano, mes, drs=None, tipo=None, busca=None, page=1, pe
         conn.close()
         return [dict(r) for r in rows], total
 
+def autocomplete_valores(campo, q, ano=None, mes=None, limit=15):
+    """Retorna valores únicos de um campo para autocomplete (busca parcial)."""
+    ALLOW = {'municipio', 'unidade', 'cnes'}
+    if campo not in ALLOW or not q:
+        return []
+    if USE_SUPABASE:
+        sb = get_sb()
+        r = sb.table('teto_mac').select(campo)\
+              .ilike(campo, f'%{q}%')\
+              .limit(limit * 5).execute()
+        vals = sorted(set(
+            str(row[campo]) for row in (r.data or [])
+            if row.get(campo) and str(row[campo]).strip()
+        ))
+        return vals[:limit]
+    conn = get_db()
+    where = [f'{campo} LIKE ?', f'{campo} IS NOT NULL', f"TRIM({campo}) != ''"]
+    params = [f'%{q}%']
+    if ano:  where.append('ano = ?');  params.append(ano)
+    if mes:  where.append('mes = ?');  params.append(mes)
+    rows = conn.execute(
+        f"SELECT DISTINCT {campo} FROM teto_mac WHERE {' AND '.join(where)} ORDER BY {campo} LIMIT ?",
+        params + [limit]
+    ).fetchall()
+    conn.close()
+    return [r[0] for r in rows if r[0]]
+
 def detalhamento_valores_unicos(col, ano, mes):
     """Retorna lista de valores únicos de uma coluna para o filtro Excel."""
     if col not in _SORT_ALLOW:

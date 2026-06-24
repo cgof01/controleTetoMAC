@@ -143,12 +143,16 @@
         <option value="">Todos os tipos</option>
         {% for t in tipos %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
       </select>
+      <div class="ac-wrap" style="position:relative">
+        <input id="fMunicipio" type="text" class="form-control form-control-sm" style="width:160px" placeholder="Município…" oninput="acDebounce('fMunicipio','municipio')">
+      </div>
+      <div class="ac-wrap" style="position:relative">
+        <input id="fCNES" type="text" class="form-control form-control-sm" style="width:110px" placeholder="CNES…" oninput="acDebounce('fCNES','cnes')">
+      </div>
       <button class="btn btn-sm btn-outline-secondary" onclick="limpar()">
         <i class="bi bi-x-circle me-1"></i>Limpar
       </button>
-      <div class="ms-auto d-flex align-items-center gap-2">
-        <span class="g-badge badge" style="background:#0d9488" data-g="fundo" onclick="toggleG(this)"><i class="bi bi-eye me-1"></i>Fundo MAC</span>
-        <span class="g-badge badge" style="background:#ea580c" data-g="inc"   onclick="toggleG(this)"><i class="bi bi-eye me-1"></i>Incentivos</span>
+      <div class="ms-auto">
         <a id="lnkCSV" href="#" class="btn btn-sm btn-outline-success"><i class="bi bi-download me-1"></i>CSV</a>
       </div>
     </div>
@@ -289,20 +293,61 @@ function toggleG(el) {
   el.classList.toggle('off', !off);
 }
 
+/* ── Autocomplete ── */
+let _acDebs = {};
+function acDebounce(inputId, campo) {
+  clearTimeout(_acDebs[inputId]);
+  _acDebs[inputId] = setTimeout(() => acBuscar(inputId, campo), 300);
+}
+async function acBuscar(inputId, campo) {
+  const input = document.getElementById(inputId);
+  const q = input.value.trim();
+  acFechar(inputId);
+  if (q.length < 2) { load(1); return; }
+  const r = await fetch(`/api/autocomplete?campo=${campo}&q=${encodeURIComponent(q)}&ano=${ANO}&mes=${MES}`);
+  const vals = await r.json();
+  if (!vals.length) { load(1); return; }
+  const dd = document.createElement('div');
+  dd.id = 'ac_' + inputId;
+  dd.style.cssText = 'position:absolute;top:100%;left:0;z-index:9999;background:#fff;border:1px solid #e2e8f0;border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.12);min-width:' + Math.max(input.offsetWidth, 180) + 'px;max-height:220px;overflow-y:auto;margin-top:2px';
+  vals.forEach(v => {
+    const d = document.createElement('div');
+    d.textContent = v;
+    d.style.cssText = 'padding:6px 12px;cursor:pointer;font-size:.8rem;border-bottom:1px solid #f8fafc;color:#1e293b';
+    d.addEventListener('mouseenter', () => d.style.background = '#eff6ff');
+    d.addEventListener('mouseleave', () => d.style.background = '');
+    d.addEventListener('mousedown', e => { e.preventDefault(); input.value = v; acFechar(inputId); load(1); });
+    dd.appendChild(d);
+  });
+  input.closest('.ac-wrap').appendChild(dd);
+}
+function acFechar(inputId) {
+  const el = document.getElementById('ac_' + inputId);
+  if (el) el.remove();
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('.ac-wrap')) {
+    ['fMunicipio','fCNES'].forEach(id => acFechar(id));
+  }
+});
+
 function debounce() { clearTimeout(_deb); _deb = setTimeout(() => load(1), 380); }
 function limpar() {
-  ['fBusca','fDRS','fTipo'].forEach(id => { const e = document.getElementById(id); if(e) e.value=''; });
+  ['fBusca','fDRS','fTipo','fMunicipio','fCNES'].forEach(id => { const e = document.getElementById(id); if(e) e.value=''; });
   load(1);
 }
 
 async function load(pg = _pg) {
   _pg = pg;
-  const q = document.getElementById('fBusca').value.trim();
-  const drs = document.getElementById('fDRS').value;
+  const q    = document.getElementById('fBusca').value.trim();
+  const drs  = document.getElementById('fDRS').value;
   const tipo = document.getElementById('fTipo').value;
+  const mun  = document.getElementById('fMunicipio').value.trim();
+  const cnes = document.getElementById('fCNES').value.trim();
   const qs = new URLSearchParams({
     ano:ANO, mes:MES, page:pg, per_page:PER, sort:_sort, sort_dir:_dir,
-    ...(drs?{drs}:{}), ...(tipo?{tipo}:{}), ...(q?{q}:{})
+    ...(drs?{drs}:{}), ...(tipo?{tipo}:{}), ...(q?{q}:{}),
+    ...(mun?{cf_municipio:mun}:{}), ...(cnes?{cf_cnes:cnes}:{})
   });
   document.getElementById('lnkCSV').href =
     `/detalhamento/exportar?ano=${ANO}&mes=${MES}&sort=${_sort}&sort_dir=${_dir}` +
