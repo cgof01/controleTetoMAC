@@ -934,9 +934,15 @@ def api_detalhamento_registros():
     busca = request.args.get('q', '').strip() or None
     page = request.args.get('page', 1, type=int)
     per_page = min(request.args.get('per_page', 50, type=int), 200)
+    sort_col = request.args.get('sort', 'drs').strip()
+    sort_dir = request.args.get('sort_dir', 'asc').strip()
+    col_filters = {k[3:]: v for k, v in request.args.items() if k.startswith('cf_') and v.strip()}
     if not ano or not mes:
         return jsonify({'registros': [], 'total': 0})
-    regs, total = db.detalhamento_registros(ano, mes, drs or None, tipo, busca, page, per_page)
+    regs, total = db.detalhamento_registros(
+        ano, mes, drs or None, tipo, busca, page, per_page, sort_col, sort_dir,
+        col_filters or None
+    )
     return jsonify({'registros': regs, 'total': total, 'page': page, 'per_page': per_page})
 
 @app.route('/detalhamento/exportar')

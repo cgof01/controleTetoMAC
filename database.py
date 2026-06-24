@@ -799,7 +799,18 @@ _COLS_DET = [
     'cer','doencas_raras','oficina_ortopedica','ihac','total_mc_ac_incentivos'
 ]
 
-def detalhamento_registros(ano, mes, drs=None, tipo=None, busca=None, page=1, per_page=50):
+_SORT_ALLOW = {
+    'drs','tipo','hu','municipio','cnes','unidade',
+    'aih_fisico','aih_faec','sia_faec','equip_hemodialise','limite_complementacao',
+    'aih_mc','aih_ac','aih_total','portaria_ms_gm_8516',
+    'sia_mc','sia_ac','sia_total','teto_global','teto_mc','teto_ac','teto_mac','total_teto_mac',
+    'integrasus','iac','sus_100','opo','rede_viver_sem_limite','rede_brasil_miseria',
+    'rsme','rce_rceg','rau_hosp_sos','rca_rcan','iapi','residencia_medica','melhor_em_casa',
+    'cer','doencas_raras','oficina_ortopedica','ihac','total_mc_ac_incentivos'
+}
+
+def detalhamento_registros(ano, mes, drs=None, tipo=None, busca=None, page=1, per_page=50,
+                           sort_col='drs', sort_dir='asc', col_filters=None):
     where = ['ano = ?', 'mes = ?']
     params = [ano, mes]
     if drs:
@@ -811,7 +822,22 @@ def detalhamento_registros(ano, mes, drs=None, tipo=None, busca=None, page=1, pe
     if busca:
         where.append('(unidade LIKE ? OR cnes LIKE ? OR municipio LIKE ?)')
         params.extend([f'%{busca}%', f'%{busca}%', f'%{busca}%'])
+    # Filtros de coluna adicionais (cf_*)
+    if col_filters:
+        for col, val in col_filters.items():
+            if col in _SORT_ALLOW and val:
+                try:
+                    float(val)
+                    where.append(f'CAST({col} AS REAL) = ?')
+                    params.append(float(val))
+                except ValueError:
+                    where.append(f'LOWER({col}) LIKE ?')
+                    params.append(f'%{val.lower()}%')
     ws = ' AND '.join(where)
+
+    sc = sort_col if sort_col in _SORT_ALLOW else 'drs'
+    sd = 'DESC' if str(sort_dir).lower() == 'desc' else 'ASC'
+
     if USE_SUPABASE:
         sb = get_sb()
         q = sb.table('teto_mac').select('*').eq('ano', ano).eq('mes', mes)
@@ -821,14 +847,16 @@ def detalhamento_registros(ano, mes, drs=None, tipo=None, busca=None, page=1, pe
         if drs: tc = tc.eq('drs', drs)
         total = (tc.execute()).count or 0
         offset = (page - 1) * per_page
-        rows = q.order('drs').order('unidade').range(offset, offset + per_page - 1).execute()
+        rows = q.order(sc, desc=(sd=='DESC')).range(offset, offset + per_page - 1).execute()
         return rows.data or [], total
     else:
         offset = (page - 1) * per_page
         conn = get_db()
         total = conn.execute(f'SELECT COUNT(*) FROM teto_mac WHERE {ws}', params).fetchone()[0]
+        # Colunas numéricas ordenam como número
+        order_expr = f'CAST({sc} AS REAL) {sd}' if sc not in {'tipo','hu','municipio','cnes','unidade'} else f'{sc} {sd}'
         rows = conn.execute(
-            f"SELECT {','.join(_COLS_DET)} FROM teto_mac WHERE {ws} ORDER BY CAST(drs AS INTEGER), unidade LIMIT ? OFFSET ?",
+            f"SELECT {','.join(_COLS_DET)} FROM teto_mac WHERE {ws} ORDER BY {order_expr} LIMIT ? OFFSET ?",
             params + [per_page, offset]
         ).fetchall()
         conn.close()
