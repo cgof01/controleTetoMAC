@@ -235,9 +235,11 @@
 
 {% block extra_js %}
 <script>
-const ANO = {{ ano_sel or 'null' }};
-const MES = {{ mes_sel or 'null' }};
-const MESES_NOME = {{ meses | tojson }};
+const ANO = {{ ano_sel | tojson }};
+const MES = {{ mes_sel | tojson }};
+const _MESES_RAW = {{ meses | tojson }};
+// tojson converte chaves int→string; normaliza para int
+const MESES_NOME = Object.fromEntries(Object.entries(_MESES_RAW).map(([k,v]) => [parseInt(k), v]));
 
 let paginaAtual = 1;
 const PER_PAGE  = 100;
@@ -404,7 +406,8 @@ function renderTabela(rows, pagina) {
             <i class="bi bi-pencil"></i>
           </a>
           <button class="btn btn-sm btn-outline-danger py-0 px-1" title="Excluir"
-                  onclick="deletarUm(${r.id}, '${(r.unidade||'').replace(/'/g,'\\'')}')">
+                  data-id="${r.id}" data-nome="${(r.unidade||'').replace(/"/g,'&quot;')}"
+                  onclick="deletarUmBtn(this)">
             <i class="bi bi-trash"></i>
           </button>
         </div>
@@ -476,9 +479,13 @@ function deletarSelecionados() {
   new bootstrap.Modal(document.getElementById('modalConfirmDelete')).show();
 }
 
+function deletarUmBtn(btn) {
+  deletarUm(parseInt(btn.dataset.id), btn.dataset.nome);
+}
+
 function deletarUm(id, nome) {
   document.getElementById('modalDeleteMsg').innerHTML =
-    `Excluir o registro <strong>${nome}</strong> (ID ${id})?`;
+    `Excluir o registro <strong>${nome || 'ID ' + id}</strong>?`;
   document.getElementById('btnConfirmDelete').onclick = async () => {
     bootstrap.Modal.getInstance(document.getElementById('modalConfirmDelete')).hide();
     const res = await fetch('/auditoria/deletar-registros', {
