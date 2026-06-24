@@ -3,350 +3,302 @@
 
 {% block extra_css %}
 <style>
+  /* ── variáveis ── */
   :root {
-    --g-ident: #1e3a5f;
-    --g-fundo: #0d9488;
-    --g-inc:   #ea580c;
-    --g-tot:   #b45309;
+    --c-ident: #1e3a5f;
+    --c-fundo: #0d9488;
+    --c-inc:   #ea580c;
+    --c-tot:   #b45309;
+    --c-borda: #e2e8f0;
+    --c-borda2:#cbd5e1;
   }
 
-  #wrapTabela {
-    overflow-x: auto; overflow-y: auto;
-    max-height: 64vh;
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
+  /* ── wrapper ── */
+  #wrapTab {
+    overflow: auto;
+    max-height: 66vh;
+    border: 1px solid var(--c-borda);
+    border-radius: 6px;
     background: #fff;
+    box-shadow: 0 1px 4px rgba(0,0,0,.06);
   }
 
-  #tblDet {
-    font-size: 0.75rem;
+  /* ── tabela base ── */
+  #tbl {
+    font-size: .74rem;
     font-family: 'Segoe UI', system-ui, sans-serif;
     border-collapse: separate;
     border-spacing: 0;
-    min-width: 3400px;
+    min-width: 3200px;
     width: 100%;
   }
-  #tblDet th, #tblDet td {
-    border-bottom: 1px solid #f1f5f9;
+  #tbl th, #tbl td {
     border-right: 1px solid #f1f5f9;
+    border-bottom: 1px solid #f1f5f9;
     white-space: nowrap;
   }
 
-  /* Linha 1 — grupos */
-  #tblDet thead tr.tr-g1 th {
-    background: #f8fafc;
-    color: #1e293b;
-    font-size: 0.67rem; font-weight: 700;
-    text-transform: uppercase; letter-spacing: 0.5px;
-    padding: 6px 10px; text-align: center;
+  /* ═══ CABEÇALHO LINHA 1 — grupos ═══ */
+  #tbl thead .h1 {
+    background: #fff;
+    font-size: .65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    padding: 7px 12px;
+    text-align: center;
     position: sticky; top: 0; z-index: 12;
     border-bottom: 3px solid transparent;
   }
-  .g1-ident { border-bottom-color: var(--g-ident)!important; color: var(--g-ident)!important; }
-  .g1-fundo { border-bottom-color: var(--g-fundo)!important; color: var(--g-fundo)!important; }
-  .g1-inc   { border-bottom-color: var(--g-inc)!important;   color: var(--g-inc)!important;   }
-  .g1-tot   { border-bottom-color: var(--g-tot)!important;   color: var(--g-tot)!important;   }
+  .h1-ident { color: var(--c-ident); border-bottom-color: var(--c-ident) !important; text-align: left !important; }
+  .h1-fundo { color: var(--c-fundo); border-bottom-color: var(--c-fundo) !important; }
+  .h1-inc   { color: var(--c-inc);   border-bottom-color: var(--c-inc)   !important; }
+  .h1-tot   { color: var(--c-tot);   border-bottom-color: var(--c-tot)   !important; }
 
-  /* Linha 2 — sub-grupos */
-  #tblDet thead tr.tr-g2 th {
-    background: #fff;
-    font-size: 0.65rem; font-weight: 600;
-    text-transform: uppercase; letter-spacing: 0.3px;
-    padding: 4px 8px; text-align: center;
-    position: sticky; top: 29px; z-index: 12;
-    border-bottom: 2px solid #e2e8f0; color: #475569;
+  /* ═══ CABEÇALHO LINHA 2 — sub-grupos ═══ */
+  #tbl thead .h2 {
+    background: #f8fafc;
+    font-size: .63rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .3px;
+    padding: 4px 10px;
+    text-align: center;
+    position: sticky; top: 30px; z-index: 12;
+    border-bottom: 2px solid var(--c-borda);
+    color: #475569;
   }
 
-  /* Linha 3 — colunas com sort */
-  #tblDet thead tr.tr-cols th {
+  /* ═══ CABEÇALHO LINHA 3 — colunas + sort ═══ */
+  #tbl thead .h3 {
     background: #f1f5f9;
     color: #374151;
-    font-size: 0.68rem; font-weight: 600;
+    font-size: .68rem;
+    font-weight: 600;
     padding: 0;
-    position: sticky; top: 55px; z-index: 12;
-    border-bottom: 2px solid #cbd5e1;
+    position: sticky; top: 52px; z-index: 12;
+    border-bottom: 2px solid var(--c-borda2);
   }
-  .th-inner {
-    display: flex; align-items: center; gap: 2px;
-    padding: 5px 6px; min-height: 28px;
+  .th-btn {
+    display: flex; align-items: center; gap: 3px;
+    padding: 6px 8px; min-height: 28px;
     cursor: pointer; user-select: none;
   }
-  .th-label { flex: 1; }
-  .th-inner:hover { background: #e2e8f0; }
-  .th-inner.sort-asc, .th-inner.sort-desc { background: #dbeafe; color: var(--ses-azul); }
-  .sort-icon { font-size: 0.6rem; opacity: 0.3; flex-shrink: 0; }
-  .th-inner.sort-asc .sort-icon, .th-inner.sort-desc .sort-icon { opacity: 1; }
+  .th-btn:hover { background: #e2e8f0; }
+  .th-btn.asc, .th-btn.desc { background: #dbeafe; color: #1e40af; }
+  .sort-ic { font-size: .58rem; opacity: .25; flex-shrink: 0; }
+  .th-btn.asc .sort-ic, .th-btn.desc .sort-ic { opacity: 1; }
+  .no-sort { cursor: default !important; }
+  .no-sort:hover { background: none !important; }
 
-  /* Ícone de filtro por coluna */
-  .fi {
-    font-size: 0.65rem; opacity: 0; flex-shrink: 0;
-    padding: 1px 3px; border-radius: 3px;
-    transition: opacity .15s, color .15s;
-    color: #94a3b8; cursor: pointer;
+  /* ═══ STICKY COLUNAS FIXAS ═══ */
+  .s1 { position: sticky; left: 0;   z-index: 6; min-width: 34px;  max-width: 34px;  }
+  .s2 { position: sticky; left: 34px; z-index: 6; min-width: 42px;  max-width: 42px;  }
+  .s3 { position: sticky; left: 76px; z-index: 6; min-width: 220px; max-width: 220px; }
+  #tbl thead .s1, #tbl thead .s2, #tbl thead .s3 { z-index: 22; }
+  #tbl tbody .s3 { box-shadow: 3px 0 5px -2px rgba(0,0,0,.08); }
+
+  /* ═══ SEPARADORES VISUAIS ═══ */
+  .sep { border-right: 2px solid var(--c-borda2) !important; }
+
+  /* ═══ CÉLULAS DE DADOS ═══ */
+  #tbl tbody td {
+    background: #fff;
+    color: #1e293b;
+    padding: 5px 8px;
+    vertical-align: middle;
   }
-  .th-inner:hover .fi { opacity: 0.7; }
-  .fi.on { opacity: 1 !important; color: #ea580c !important; }
+  #tbl tbody tr:nth-child(even) td { background: #f9fafb; }
+  #tbl tbody tr:hover td { background: #eff6ff !important; cursor: pointer; }
+  #tbl tbody tr.row-tot td { background: #fef9c3 !important; font-weight: 700; color: #78350f; }
 
-  /* Sticky colunas */
-  .cs1 { position: sticky; left: 0;   z-index: 6; min-width: 36px;  max-width: 36px; }
-  .cs2 { position: sticky; left: 36px; z-index: 6; min-width: 44px;  max-width: 44px; }
-  .cs3 { position: sticky; left: 80px; z-index: 6; min-width: 230px; max-width: 230px; }
-  #tblDet thead .cs1,
-  #tblDet thead .cs2,
-  #tblDet thead .cs3 { z-index: 20; }
-  #tblDet tbody .cs3 { box-shadow: 3px 0 6px -2px rgba(0,0,0,.09); }
+  .num { text-align: right !important; font-variant-numeric: tabular-nums; color: #334155; }
+  .zero { color: #d1d5db !important; }
 
-  /* Células */
-  #tblDet tbody td {
-    background: #fff; color: #1e293b;
-    padding: 5px 7px; vertical-align: middle;
+  /* ═══ GRUPOS OCULTOS ═══ */
+  .gc.off { display: none !important; }
+
+  /* ═══ BADGES DE GRUPOS ═══ */
+  .g-badge {
+    font-size: .7rem; cursor: pointer; user-select: none;
+    transition: opacity .15s;
   }
-  #tblDet tbody tr:nth-child(even) td { background: #f8faff; }
-  #tblDet tbody tr:hover td { background: #eff6ff !important; cursor: pointer; }
-  #tblDet tbody tr.row-total td { background: #fef9c3 !important; font-weight: 700; color: #78350f; }
+  .g-badge.off { opacity: .4; text-decoration: line-through; }
 
-  .num-col { text-align: right !important; font-variant-numeric: tabular-nums; color: #334155; }
-  .zero-val { color: #cbd5e1 !important; }
-  .col-sep { border-right: 2px solid #cbd5e1 !important; }
-
-  .group-col.hidden { display: none !important; }
-
-  /* Badge filtro ativo */
-  #barraFiltrosAtivos { display: flex; flex-wrap: wrap; gap: 4px; min-height: 0; }
-  .filtro-chip {
-    display: inline-flex; align-items: center; gap: 4px;
-    background: #fff7ed; border: 1px solid #fed7aa;
-    color: #9a3412; border-radius: 20px;
-    font-size: .68rem; padding: 2px 8px; font-weight: 600;
-  }
-  .filtro-chip button {
-    background: none; border: none; padding: 0; cursor: pointer;
-    color: #9a3412; font-size: .75rem; line-height: 1;
-  }
-
-  /* Modal detalhe */
-  .d-grupo { border-left: 4px solid #e2e8f0; padding-left:.9rem; margin-bottom:1.1rem; }
-  .d-grupo.g-ident { border-color:var(--g-ident); }
-  .d-grupo.g-fundo { border-color:var(--g-fundo); }
-  .d-grupo.g-inc   { border-color:var(--g-inc);   }
-  .d-grupo.g-tot   { border-color:var(--g-tot);   }
-  .d-item { display:flex; justify-content:space-between; align-items:center;
-            border-bottom:1px dashed #f1f5f9; padding:3px 0; font-size:.8rem; }
-  .d-item .lbl { color:#64748b; }
-  .d-item .val { font-weight:600; font-family:'Consolas',monospace; font-size:.78rem; }
-
-  .grp-badge { font-size:.7rem; cursor:pointer; user-select:none; transition:opacity .15s; }
-  .grp-badge.off { opacity:.4; text-decoration:line-through; }
+  /* ═══ MODAL ═══ */
+  .dg { border-left: 4px solid var(--c-borda); padding-left: .85rem; margin-bottom: 1rem; }
+  .dg.gi { border-color: var(--c-ident); }
+  .dg.gf { border-color: var(--c-fundo); }
+  .dg.gc2 { border-color: var(--c-inc); }
+  .dg.gt { border-color: var(--c-tot); }
+  .di { display: flex; justify-content: space-between; align-items: center;
+        border-bottom: 1px dashed #f1f5f9; padding: 3px 0; font-size: .79rem; }
+  .di .lb { color: #64748b; }
+  .di .vl { font-weight: 600; font-family: Consolas, monospace; font-size: .77rem; }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="page-header d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+<!-- Cabeçalho da página -->
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
   <div>
-    <h4 class="mb-0 fw-bold"><i class="bi bi-table me-2"></i>Detalhamento Completo</h4>
-    <small class="opacity-75">Todas as colunas — clique no cabeçalho para ordenar, no funil para filtrar</small>
+    <h4 class="mb-0 fw-bold text-dark"><i class="bi bi-table me-2" style="color:var(--ses-azul)"></i>Detalhamento Completo</h4>
+    <small class="text-muted">Clique no cabeçalho para ordenar · Clique na linha para ver detalhes</small>
   </div>
-  <form id="frmPeriodo" class="d-flex gap-2 flex-wrap align-items-center" method="get">
+  <form id="frmP" class="d-flex gap-2 flex-wrap align-items-center" method="get">
     <select name="ano" class="form-select form-select-sm" style="width:110px" onchange="this.form.submit()">
-      {% for ano in anos_disponiveis %}
-        <option value="{{ ano }}" {{ 'selected' if ano == ano_sel }}>{{ ano }}</option>
-      {% endfor %}
+      {% for a in anos_disponiveis %}<option value="{{ a }}" {{ 'selected' if a==ano_sel }}>{{ a }}</option>{% endfor %}
     </select>
     <select name="mes" class="form-select form-select-sm" style="width:130px" onchange="this.form.submit()">
-      {% for num, nome in meses.items() %}
-        <option value="{{ num }}" {{ 'selected' if num == mes_sel }}>{{ nome }}</option>
-      {% endfor %}
+      {% for n, nm in meses.items() %}<option value="{{ n }}" {{ 'selected' if n==mes_sel }}>{{ nm }}</option>{% endfor %}
     </select>
   </form>
 </div>
 
-<!-- Barra de controles -->
-<div class="card mb-2">
+<!-- Barra de filtros globais -->
+<div class="card border-0 shadow-sm mb-3">
   <div class="card-body py-2 px-3">
     <div class="d-flex flex-wrap gap-2 align-items-center">
-      <input type="text" id="filtBusca" class="form-control form-control-sm" style="width:220px"
-             placeholder="Buscar unidade, CNES ou município…" oninput="debounce()">
-      <select id="filtDRS" class="form-select form-select-sm" style="width:110px" onchange="carregar()">
+      <div class="input-group input-group-sm" style="width:230px">
+        <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+        <input type="text" id="fBusca" class="form-control border-start-0"
+               placeholder="Unidade, CNES, município…" oninput="debounce()">
+      </div>
+      <select id="fDRS" class="form-select form-select-sm" style="width:115px" onchange="load()">
         <option value="">Todos DRS</option>
-        {% for drs in drs_lista %}<option value="{{ drs }}">DRS {{ drs }}</option>{% endfor %}
+        {% for d in drs_lista %}<option value="{{ d }}">DRS {{ d }}</option>{% endfor %}
       </select>
-      <select id="filtTipo" class="form-select form-select-sm" style="width:130px" onchange="carregar()">
+      <select id="fTipo" class="form-select form-select-sm" style="width:135px" onchange="load()">
         <option value="">Todos os tipos</option>
         {% for t in tipos %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
       </select>
-      <button class="btn btn-sm btn-outline-danger" onclick="limparTudo()" title="Limpar todos os filtros">
-        <i class="bi bi-x-circle me-1"></i>Limpar filtros
+      <button class="btn btn-sm btn-outline-secondary" onclick="limpar()">
+        <i class="bi bi-x-circle me-1"></i>Limpar
       </button>
-      <div class="ms-auto d-flex gap-2">
-        <span class="grp-badge badge" style="background:#0d9488;color:#fff" data-grupo="fundo" onclick="toggleGrupo(this)">
+      <div class="ms-auto d-flex align-items-center gap-2">
+        <span class="g-badge badge" style="background:#0d9488" data-g="fundo" onclick="toggleG(this)">
           <i class="bi bi-eye me-1"></i>Fundo MAC
         </span>
-        <span class="grp-badge badge" style="background:#ea580c;color:#fff" data-grupo="inc" onclick="toggleGrupo(this)">
+        <span class="g-badge badge" style="background:#ea580c" data-g="inc" onclick="toggleG(this)">
           <i class="bi bi-eye me-1"></i>Incentivos
         </span>
-        <a id="linkExport" href="#" class="btn btn-sm btn-outline-success">
-          <i class="bi bi-filetype-csv me-1"></i>CSV
+        <a id="lnkCSV" href="#" class="btn btn-sm btn-outline-success">
+          <i class="bi bi-download me-1"></i>CSV
         </a>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Chips de filtros ativos -->
-<div id="barraFiltrosAtivos" class="mb-2"></div>
-
 <!-- Info + paginação topo -->
-<div class="d-flex justify-content-between align-items-center mb-1">
-  <small class="text-muted" id="infoRegs">—</small>
-  <div id="pgTopo" class="d-flex gap-1 flex-wrap"></div>
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <small class="text-muted" id="info">Carregando…</small>
+  <div id="pgT" class="d-flex gap-1 flex-wrap"></div>
 </div>
 
-<!-- TABELA -->
-<div id="wrapTabela">
-  <table id="tblDet">
-    <thead>
-      <!-- G1 -->
-      <tr class="tr-g1">
-        <th colspan="8" class="g1-ident cs1" style="text-align:left;border-right:2px solid #cbd5e1">Identificação</th>
-        <th colspan="18" class="g1-fundo group-col" data-grupo="fundo">FUNDO DE AÇÕES ESTRATÉGICAS E COMPENSAÇÃO — MÉDIA E ALTA COMPLEXIDADE</th>
-        <th colspan="17" class="g1-inc group-col" data-grupo="inc">INCENTIVOS</th>
-        <th class="g1-tot">TOTAL MC + AC + INCENTIVOS</th>
-      </tr>
-      <!-- G2 -->
-      <tr class="tr-g2">
-        <th colspan="3" class="cs1" style="border-right:2px solid #cbd5e1"></th>
-        <th colspan="5" style="border-right:2px solid #cbd5e1"></th>
-        <th colspan="5" class="group-col" data-grupo="fundo" style="color:#0d9488">FAEC / Hemodiálise</th>
-        <th colspan="4" class="group-col" data-grupo="fundo" style="color:#0d9488">AIH</th>
-        <th colspan="4" class="group-col" data-grupo="fundo" style="color:#0d9488">SIA</th>
-        <th colspan="5" class="group-col" data-grupo="fundo" style="color:#0d9488;border-right:2px solid #cbd5e1">TETO MAC</th>
-        <th colspan="17" class="group-col" data-grupo="inc" style="color:#ea580c"></th>
-        <th style="color:#b45309"></th>
-      </tr>
-      <!-- Colunas com sort + filtro funil -->
-      <tr class="tr-cols" id="trCols">
-        <th class="cs1"><div class="th-inner" style="cursor:default;justify-content:center">#</div></th>
-        <th class="cs2"><div class="th-inner" onclick="sortBy('drs')" data-sort="drs"><span class="th-label">DRS</span><span class="sort-icon">⇅</span><i class="bi bi-funnel fi" data-col="drs" onclick="event.stopPropagation();abrirFiltro(this,'drs')"></i></div></th>
-        <th class="cs3" style="border-right:2px solid #cbd5e1"><div class="th-inner" onclick="sortBy('unidade')" data-sort="unidade"><span class="th-label">UNIDADES</span><span class="sort-icon">⇅</span><i class="bi bi-funnel fi" data-col="unidade" onclick="event.stopPropagation();abrirFiltro(this,'unidade')"></i></div></th>
-        <th><div class="th-inner" onclick="sortBy('tipo')" data-sort="tipo"><span class="th-label">TIPO</span><span class="sort-icon">⇅</span><i class="bi bi-funnel fi" data-col="tipo" onclick="event.stopPropagation();abrirFiltro(this,'tipo')"></i></div></th>
-        <th><div class="th-inner" onclick="sortBy('hu')" data-sort="hu"><span class="th-label">HU</span><span class="sort-icon">⇅</span><i class="bi bi-funnel fi" data-col="hu" onclick="event.stopPropagation();abrirFiltro(this,'hu')"></i></div></th>
-        <th><div class="th-inner" onclick="sortBy('municipio')" data-sort="municipio"><span class="th-label">MUNICÍPIO</span><span class="sort-icon">⇅</span><i class="bi bi-funnel fi" data-col="municipio" onclick="event.stopPropagation();abrirFiltro(this,'municipio')"></i></div></th>
-        <th><div class="th-inner" onclick="sortBy('cnes')" data-sort="cnes"><span class="th-label">CNES</span><span class="sort-icon">⇅</span><i class="bi bi-funnel fi" data-col="cnes" onclick="event.stopPropagation();abrirFiltro(this,'cnes')"></i></div></th>
-        <th style="border-right:2px solid #cbd5e1"><div class="th-inner" style="cursor:default"><span class="th-label">CNPJ</span></div></th>
-        <!-- FAEC -->
-        <th class="group-col" data-grupo="fundo"><div class="th-inner" onclick="sortBy('aih_fisico')" data-sort="aih_fisico"><span class="th-label">AIH FÍSICO</span><span class="sort-icon">⇅</span><i class="bi bi-funnel fi" data-col="aih_fisico" onclick="event.stopPropagation();abrirFiltro(this,'aih_fisico')"></i></div></th>
-        <th class="group-col" data-grupo="fundo"><div class="th-inner" onclick="sortBy('aih_faec')" data-sort="aih_faec"><span class="th-label">AIH FAEC</span><span class="sort-icon">⇅</span><i class="bi bi-funnel fi" data-col="aih_faec" onclick="event.stopPropagation();abrirFiltro(this,'aih_faec')"></i></div></th>
-        <th class="group-col" data-grupo="fundo"><div class="th-inner" onclick="sortBy('sia_faec')" data-sort="sia_faec"><span class="th-label">SIA FAEC</span><span class="sort-icon">⇅</span><i class="bi bi-funnel fi" data-col="sia_faec" onclick="event.stopPropagation();abrirFiltro(this,'sia_faec')"></i></div></th>
-        <th class="group-col" data-grupo="fundo"><div class="th-inner" onclick="sortBy('equip_hemodialise')" data-sort="equip_hemodialise"><span class="th-label">EQUIP. HEMODIÁLISE (DRC)</span><span class="sort-icon">⇅</span><i class="bi bi-funnel fi" data-col="equip_hemodialise" onclick="event.stopPropagation();abrirFiltro(this,'equip_hemodialise')"></i></div></th>
-        <th class="group-col" data-grupo="fundo" style="border-right:2px solid #e2e8f0"><div class="th-inner" onclick="sortBy('limite_complementacao')" data-sort="limite_complementacao"><span class="th-label">LIMITE COMPLEMENTAÇÃO</span><span class="sort-icon">⇅</span><i class="bi bi-funnel fi" data-col="limite_complementacao" onclick="event.stopPropagation();abrirFiltro(this,'limite_complementacao')"></i></div></th>
-        <!-- AIH -->
-        <th class="group-col" data-grupo="fundo"><div class="th-inner" onclick="sortBy('aih_mc')" data-sort="aih_mc"><span class="th-label">AIH MC</span><span class="sort-icon">⇅</span><i class="bi bi-funnel fi" data-col="aih_mc" onclick="event.stopPropagation();abrirFiltro(this,'aih_mc')"></i></div></th>
-        <th class="group-col" data-grupo="fundo"><div class="th-inner" onclick="sortBy('aih_ac')" data-sort="aih_ac"><span class="th-label">AIH AC</span><span class="sort-icon">⇅</span><i class="bi bi-funnel fi" data-col="aih_ac" onclick="event.stopPropagation();abrirFiltro(this,'aih_ac')"></i></div></th>
-        <th class="group-col" data-grupo="fundo"><div class="th-inner" onclick="sortBy('aih_total')" data-sort="aih_total"><span class="th-label">AIH TOTAL</span><span class="sort-icon">⇅</span><i class="bi bi-funnel fi" data-col="aih_total" onclick="event.stopPropagation();abrirFiltro(this,'aih_total')"></i></div></th>
-        <th class="group-col" data-grupo="fundo" style="border-right:2px solid #e2e8f0"><div class="th-inner" onclick="sortBy('portaria_ms_gm_8516')" data-sort="portaria_ms_gm_8516"><span class="th-label">PORTARIA MS/GM 8.516</span><span class="sort-icon">⇅</span><i class="bi bi-funnel fi" data-col="portaria_ms_gm_8516" onclick="event.stopPropagation();abrirFiltro(this,'portaria_ms_gm_8516')"></i></div></th>
-        <!-- SIA -->
-        <th class="group-col" data-grupo="fundo"><div class="th-inner" onclick="sortBy('sia_mc')" data-sort="sia_mc"><span class="th-label">SIA MC</span><span class="sort-icon">⇅</span><i class="bi bi-funnel fi" data-col="sia_mc" onclick="event.stopPropagation();abrirFiltro(this,'sia_mc')"></i></div></th>
-        <th class="group-col" data-grupo="fundo"><div class="th-inner" onclick="sortBy('sia_ac')" data-sort="sia_ac"><span class="th-label">SIA AC</span><span class="sort-icon">⇅</span><i class="bi bi-funnel fi" data-col="sia_ac" onclick="event.stopPropagation();abrirFiltro(this,'sia_ac')"></i></div></th>
-        <th class="group-col" data-grupo="fundo"><div class="th-inner" onclick="sortBy('sia_total')" data-sort="sia_total"><span class="th-label">SIA TOTAL</span><span class="sort-icon">⇅</span><i class="bi bi-funnel fi" data-col="sia_total" onclick="event.stopPropagation();abrirFiltro(this,'sia_total')"></i></div></th>
-        <th class="group-col" data-grupo="fundo" style="border-right:2px solid #e2e8f0"><div class="th-inner" onclick="sortBy('teto_global')" data-sort="teto_global"><span class="th-label">TETO GLOBAL</span><span class="sort-icon">⇅</span><i class="bi bi-funnel fi" data-col="teto_global" onclick="event.stopPropagation();abrirFiltro(this,'teto_global')"></i></div></th>
-        <!-- TETO MAC -->
-        <th class="group-col" data-grupo="fundo"><div class="th-inner" onclick="sortBy('teto_mc')" data-sort="teto_mc"><span class="th-label">TETO MC</span><span class="sort-icon">⇅</span><i class="bi bi-funnel fi" data-col="teto_mc" onclick="event.stopPropagation();abrirFiltro(this,'teto_mc')"></i></div></th>
-        <th class="group-col" data-grupo="fundo"><div class="th-inner" onclick="sortBy('teto_ac')" data-sort="teto_ac"><span class="th-label">TETO AC</span><span class="sort-icon">⇅</span><i class="bi bi-funnel fi" data-col="teto_ac" onclick="event.stopPropagation();abrirFiltro(this,'teto_ac')"></i></div></th>
-        <th class="group-col" data-grupo="fundo"><div class="th-inner" onclick="sortBy('teto_mac')" data-sort="teto_mac"><span class="th-label">TETO MAC</span><span class="sort-icon">⇅</span><i class="bi bi-funnel fi" data-col="teto_mac" onclick="event.stopPropagation();abrirFiltro(this,'teto_mac')"></i></div></th>
-        <th class="group-col" data-grupo="fundo"><div class="th-inner" onclick="sortBy('total_teto_mac')" data-sort="total_teto_mac"><span class="th-label">TOTAL TETO MAC</span><span class="sort-icon">⇅</span><i class="bi bi-funnel fi" data-col="total_teto_mac" onclick="event.stopPropagation();abrirFiltro(this,'total_teto_mac')"></i></div></th>
-        <th class="group-col" data-grupo="fundo" style="border-right:2px solid #cbd5e1"><div class="th-inner" onclick="sortBy('teto_global')" data-sort="teto_global2"><span class="th-label">T. GLOBAL</span><span class="sort-icon">⇅</span></div></th>
-        <!-- INCENTIVOS -->
-        <th class="group-col" data-grupo="inc"><div class="th-inner" onclick="sortBy('integrasus')" data-sort="integrasus"><span class="th-label">INTEGRASUS</span><span class="sort-icon">⇅</span><i class="bi bi-funnel fi" data-col="integrasus" onclick="event.stopPropagation();abrirFiltro(this,'integrasus')"></i></div></th>
-        <th class="group-col" data-grupo="inc"><div class="th-inner" onclick="sortBy('iac')" data-sort="iac"><span class="th-label">IAC</span><span class="sort-icon">⇅</span><i class="bi bi-funnel fi" data-col="iac" onclick="event.stopPropagation();abrirFiltro(this,'iac')"></i></div></th>
-        <th class="group-col" data-grupo="inc"><div class="th-inner" onclick="sortBy('sus_100')" data-sort="sus_100"><span class="th-label">100% SUS</span><span class="sort-icon">⇅</span><i class="bi bi-funnel fi" data-col="sus_100" onclick="event.stopPropagation();abrirFiltro(this,'sus_100')"></i></div></th>
-        <th class="group-col" data-grupo="inc"><div class="th-inner" onclick="sortBy('opo')" data-sort="opo"><span class="th-label">OPO</span><span class="sort-icon">⇅</span><i class="bi bi-funnel fi" data-col="opo" onclick="event.stopPropagation();abrirFiltro(this,'opo')"></i></div></th>
-        <th class="group-col" data-grupo="inc"><div class="th-inner" onclick="sortBy('rede_viver_sem_limite')" data-sort="rede_viver_sem_limite"><span class="th-label">REDE VIVER SEM LIMITE</span><span class="sort-icon">⇅</span><i class="bi bi-funnel fi" data-col="rede_viver_sem_limite" onclick="event.stopPropagation();abrirFiltro(this,'rede_viver_sem_limite')"></i></div></th>
-        <th class="group-col" data-grupo="inc"><div class="th-inner" onclick="sortBy('rede_brasil_miseria')" data-sort="rede_brasil_miseria"><span class="th-label">REDE BRASIL SEM MISÉRIA</span><span class="sort-icon">⇅</span><i class="bi bi-funnel fi" data-col="rede_brasil_miseria" onclick="event.stopPropagation();abrirFiltro(this,'rede_brasil_miseria')"></i></div></th>
-        <th class="group-col" data-grupo="inc"><div class="th-inner" onclick="sortBy('rsme')" data-sort="rsme"><span class="th-label">RSME</span><span class="sort-icon">⇅</span><i class="bi bi-funnel fi" data-col="rsme" onclick="event.stopPropagation();abrirFiltro(this,'rsme')"></i></div></th>
-        <th class="group-col" data-grupo="inc"><div class="th-inner" onclick="sortBy('rce_rceg')" data-sort="rce_rceg"><span class="th-label">REDE ALYNE</span><span class="sort-icon">⇅</span><i class="bi bi-funnel fi" data-col="rce_rceg" onclick="event.stopPropagation();abrirFiltro(this,'rce_rceg')"></i></div></th>
-        <th class="group-col" data-grupo="inc"><div class="th-inner" onclick="sortBy('rau_hosp_sos')" data-sort="rau_hosp_sos"><span class="th-label">RAU HOSP SOS</span><span class="sort-icon">⇅</span><i class="bi bi-funnel fi" data-col="rau_hosp_sos" onclick="event.stopPropagation();abrirFiltro(this,'rau_hosp_sos')"></i></div></th>
-        <th class="group-col" data-grupo="inc"><div class="th-inner" onclick="sortBy('rca_rcan')" data-sort="rca_rcan"><span class="th-label">RCA_RCAR</span><span class="sort-icon">⇅</span><i class="bi bi-funnel fi" data-col="rca_rcan" onclick="event.stopPropagation();abrirFiltro(this,'rca_rcan')"></i></div></th>
-        <th class="group-col" data-grupo="inc"><div class="th-inner" onclick="sortBy('iapi')" data-sort="iapi"><span class="th-label">iAPI</span><span class="sort-icon">⇅</span><i class="bi bi-funnel fi" data-col="iapi" onclick="event.stopPropagation();abrirFiltro(this,'iapi')"></i></div></th>
-        <th class="group-col" data-grupo="inc"><div class="th-inner" onclick="sortBy('residencia_medica')" data-sort="residencia_medica"><span class="th-label">RESIDÊNCIA MÉDICA</span><span class="sort-icon">⇅</span><i class="bi bi-funnel fi" data-col="residencia_medica" onclick="event.stopPropagation();abrirFiltro(this,'residencia_medica')"></i></div></th>
-        <th class="group-col" data-grupo="inc"><div class="th-inner" onclick="sortBy('melhor_em_casa')" data-sort="melhor_em_casa"><span class="th-label">MELHOR EM CASA</span><span class="sort-icon">⇅</span><i class="bi bi-funnel fi" data-col="melhor_em_casa" onclick="event.stopPropagation();abrirFiltro(this,'melhor_em_casa')"></i></div></th>
-        <th class="group-col" data-grupo="inc"><div class="th-inner" onclick="sortBy('cer')" data-sort="cer"><span class="th-label">CER</span><span class="sort-icon">⇅</span><i class="bi bi-funnel fi" data-col="cer" onclick="event.stopPropagation();abrirFiltro(this,'cer')"></i></div></th>
-        <th class="group-col" data-grupo="inc"><div class="th-inner" onclick="sortBy('doencas_raras')" data-sort="doencas_raras"><span class="th-label">DOENÇAS RARAS</span><span class="sort-icon">⇅</span><i class="bi bi-funnel fi" data-col="doencas_raras" onclick="event.stopPropagation();abrirFiltro(this,'doencas_raras')"></i></div></th>
-        <th class="group-col" data-grupo="inc"><div class="th-inner" onclick="sortBy('oficina_ortopedica')" data-sort="oficina_ortopedica"><span class="th-label">OFICINA ORTOPÉDICA</span><span class="sort-icon">⇅</span><i class="bi bi-funnel fi" data-col="oficina_ortopedica" onclick="event.stopPropagation();abrirFiltro(this,'oficina_ortopedica')"></i></div></th>
-        <th class="group-col" data-grupo="inc" style="border-right:2px solid #cbd5e1"><div class="th-inner" onclick="sortBy('ihac')" data-sort="ihac"><span class="th-label">HOSP. AMIGO DA CRIANÇA</span><span class="sort-icon">⇅</span><i class="bi bi-funnel fi" data-col="ihac" onclick="event.stopPropagation();abrirFiltro(this,'ihac')"></i></div></th>
-        <!-- TOTAL -->
-        <th><div class="th-inner" onclick="sortBy('total_mc_ac_incentivos')" data-sort="total_mc_ac_incentivos"><span class="th-label" style="font-weight:700;color:#b45309">TOTAL MC + AC + INCENTIVOS</span><span class="sort-icon">⇅</span><i class="bi bi-funnel fi" data-col="total_mc_ac_incentivos" onclick="event.stopPropagation();abrirFiltro(this,'total_mc_ac_incentivos')"></i></div></th>
-      </tr>
-    </thead>
-    <tbody id="tbodyDet">
-      <tr><td colspan="44" class="text-center py-5 text-muted">
-        <span class="spinner-border spinner-border-sm me-2"></span>Carregando…
-      </td></tr>
-    </tbody>
-  </table>
+<!-- ── TABELA ── -->
+<div id="wrapTab">
+<table id="tbl">
+<thead>
+<!-- Linha 1: grupos -->
+<tr>
+  <th class="h1 h1-ident s1 sep" colspan="8">Identificação</th>
+  <th class="h1 h1-fundo gc" data-g="fundo" colspan="18">FUNDO DE AÇÕES ESTRATÉGICAS E COMPENSAÇÃO — MÉDIA E ALTA COMPLEXIDADE</th>
+  <th class="h1 h1-inc gc" data-g="inc" colspan="17">INCENTIVOS</th>
+  <th class="h1 h1-tot">TOTAL MC + AC + INCENTIVOS</th>
+</tr>
+<!-- Linha 2: sub-grupos -->
+<tr>
+  <th class="h2 s1" colspan="3" style="border-right:2px solid var(--c-borda2)"></th>
+  <th class="h2 sep" colspan="5"></th>
+  <th class="h2 gc" data-g="fundo" colspan="5" style="color:var(--c-fundo)">FAEC / Hemodiálise</th>
+  <th class="h2 gc" data-g="fundo" colspan="4" style="color:var(--c-fundo)">AIH</th>
+  <th class="h2 gc" data-g="fundo" colspan="4" style="color:var(--c-fundo)">SIA</th>
+  <th class="h2 gc sep" data-g="fundo" colspan="5" style="color:var(--c-fundo)">TETO MAC</th>
+  <th class="h2 gc" data-g="inc" colspan="17" style="color:var(--c-inc)">—</th>
+  <th class="h2"></th>
+</tr>
+<!-- Linha 3: colunas com sort -->
+<tr>
+  <th class="h3 s1"><div class="th-btn no-sort" style="justify-content:center">#</div></th>
+  <th class="h3 s2"><div class="th-btn" onclick="sortBy('drs')" data-s="drs">DRS <span class="sort-ic">⇅</span></div></th>
+  <th class="h3 s3 sep"><div class="th-btn" onclick="sortBy('unidade')" data-s="unidade">UNIDADES <span class="sort-ic">⇅</span></div></th>
+  <th class="h3"><div class="th-btn" onclick="sortBy('tipo')" data-s="tipo">TIPO <span class="sort-ic">⇅</span></div></th>
+  <th class="h3"><div class="th-btn" onclick="sortBy('hu')" data-s="hu">HU <span class="sort-ic">⇅</span></div></th>
+  <th class="h3"><div class="th-btn" onclick="sortBy('municipio')" data-s="municipio">MUNICÍPIO <span class="sort-ic">⇅</span></div></th>
+  <th class="h3"><div class="th-btn" onclick="sortBy('cnes')" data-s="cnes">CNES <span class="sort-ic">⇅</span></div></th>
+  <th class="h3 sep"><div class="th-btn no-sort">CNPJ</div></th>
+  <!-- FAEC -->
+  <th class="h3 gc" data-g="fundo"><div class="th-btn" onclick="sortBy('aih_fisico')" data-s="aih_fisico">AIH FÍSICO <span class="sort-ic">⇅</span></div></th>
+  <th class="h3 gc" data-g="fundo"><div class="th-btn" onclick="sortBy('aih_faec')" data-s="aih_faec">AIH FAEC <span class="sort-ic">⇅</span></div></th>
+  <th class="h3 gc" data-g="fundo"><div class="th-btn" onclick="sortBy('sia_faec')" data-s="sia_faec">SIA FAEC <span class="sort-ic">⇅</span></div></th>
+  <th class="h3 gc" data-g="fundo"><div class="th-btn" onclick="sortBy('equip_hemodialise')" data-s="equip_hemodialise">EQUIP. HEMODIÁLISE (DRC) <span class="sort-ic">⇅</span></div></th>
+  <th class="h3 gc sep" data-g="fundo"><div class="th-btn" onclick="sortBy('limite_complementacao')" data-s="limite_complementacao">LIMITE COMPLEMENTAÇÃO <span class="sort-ic">⇅</span></div></th>
+  <!-- AIH -->
+  <th class="h3 gc" data-g="fundo"><div class="th-btn" onclick="sortBy('aih_mc')" data-s="aih_mc">AIH MC <span class="sort-ic">⇅</span></div></th>
+  <th class="h3 gc" data-g="fundo"><div class="th-btn" onclick="sortBy('aih_ac')" data-s="aih_ac">AIH AC <span class="sort-ic">⇅</span></div></th>
+  <th class="h3 gc" data-g="fundo"><div class="th-btn" onclick="sortBy('aih_total')" data-s="aih_total">AIH TOTAL <span class="sort-ic">⇅</span></div></th>
+  <th class="h3 gc sep" data-g="fundo"><div class="th-btn" onclick="sortBy('portaria_ms_gm_8516')" data-s="portaria_ms_gm_8516">PORTARIA MS/GM 8.516 <span class="sort-ic">⇅</span></div></th>
+  <!-- SIA -->
+  <th class="h3 gc" data-g="fundo"><div class="th-btn" onclick="sortBy('sia_mc')" data-s="sia_mc">SIA MC <span class="sort-ic">⇅</span></div></th>
+  <th class="h3 gc" data-g="fundo"><div class="th-btn" onclick="sortBy('sia_ac')" data-s="sia_ac">SIA AC <span class="sort-ic">⇅</span></div></th>
+  <th class="h3 gc" data-g="fundo"><div class="th-btn" onclick="sortBy('sia_total')" data-s="sia_total">SIA TOTAL <span class="sort-ic">⇅</span></div></th>
+  <th class="h3 gc sep" data-g="fundo"><div class="th-btn" onclick="sortBy('teto_global')" data-s="teto_global">TETO GLOBAL <span class="sort-ic">⇅</span></div></th>
+  <!-- TETO -->
+  <th class="h3 gc" data-g="fundo"><div class="th-btn" onclick="sortBy('teto_mc')" data-s="teto_mc">TETO MC <span class="sort-ic">⇅</span></div></th>
+  <th class="h3 gc" data-g="fundo"><div class="th-btn" onclick="sortBy('teto_ac')" data-s="teto_ac">TETO AC <span class="sort-ic">⇅</span></div></th>
+  <th class="h3 gc" data-g="fundo"><div class="th-btn" onclick="sortBy('teto_mac')" data-s="teto_mac">TETO MAC <span class="sort-ic">⇅</span></div></th>
+  <th class="h3 gc" data-g="fundo"><div class="th-btn" onclick="sortBy('total_teto_mac')" data-s="total_teto_mac">TOTAL TETO MAC <span class="sort-ic">⇅</span></div></th>
+  <th class="h3 gc sep" data-g="fundo"><div class="th-btn" onclick="sortBy('teto_global')" data-s="teto_global_b">T. GLOBAL <span class="sort-ic">⇅</span></div></th>
+  <!-- INCENTIVOS -->
+  <th class="h3 gc" data-g="inc"><div class="th-btn" onclick="sortBy('integrasus')" data-s="integrasus">INTEGRASUS <span class="sort-ic">⇅</span></div></th>
+  <th class="h3 gc" data-g="inc"><div class="th-btn" onclick="sortBy('iac')" data-s="iac">IAC <span class="sort-ic">⇅</span></div></th>
+  <th class="h3 gc" data-g="inc"><div class="th-btn" onclick="sortBy('sus_100')" data-s="sus_100">100% SUS <span class="sort-ic">⇅</span></div></th>
+  <th class="h3 gc" data-g="inc"><div class="th-btn" onclick="sortBy('opo')" data-s="opo">OPO <span class="sort-ic">⇅</span></div></th>
+  <th class="h3 gc" data-g="inc"><div class="th-btn" onclick="sortBy('rede_viver_sem_limite')" data-s="rede_viver_sem_limite">REDE VIVER SEM LIMITE <span class="sort-ic">⇅</span></div></th>
+  <th class="h3 gc" data-g="inc"><div class="th-btn" onclick="sortBy('rede_brasil_miseria')" data-s="rede_brasil_miseria">REDE BRASIL SEM MISÉRIA <span class="sort-ic">⇅</span></div></th>
+  <th class="h3 gc" data-g="inc"><div class="th-btn" onclick="sortBy('rsme')" data-s="rsme">RSME <span class="sort-ic">⇅</span></div></th>
+  <th class="h3 gc" data-g="inc"><div class="th-btn" onclick="sortBy('rce_rceg')" data-s="rce_rceg">REDE ALYNE <span class="sort-ic">⇅</span></div></th>
+  <th class="h3 gc" data-g="inc"><div class="th-btn" onclick="sortBy('rau_hosp_sos')" data-s="rau_hosp_sos">RAU HOSP SOS <span class="sort-ic">⇅</span></div></th>
+  <th class="h3 gc" data-g="inc"><div class="th-btn" onclick="sortBy('rca_rcan')" data-s="rca_rcan">RCA_RCAR <span class="sort-ic">⇅</span></div></th>
+  <th class="h3 gc" data-g="inc"><div class="th-btn" onclick="sortBy('iapi')" data-s="iapi">iAPI <span class="sort-ic">⇅</span></div></th>
+  <th class="h3 gc" data-g="inc"><div class="th-btn" onclick="sortBy('residencia_medica')" data-s="residencia_medica">RESIDÊNCIA MÉDICA <span class="sort-ic">⇅</span></div></th>
+  <th class="h3 gc" data-g="inc"><div class="th-btn" onclick="sortBy('melhor_em_casa')" data-s="melhor_em_casa">MELHOR EM CASA <span class="sort-ic">⇅</span></div></th>
+  <th class="h3 gc" data-g="inc"><div class="th-btn" onclick="sortBy('cer')" data-s="cer">CER <span class="sort-ic">⇅</span></div></th>
+  <th class="h3 gc" data-g="inc"><div class="th-btn" onclick="sortBy('doencas_raras')" data-s="doencas_raras">DOENÇAS RARAS <span class="sort-ic">⇅</span></div></th>
+  <th class="h3 gc" data-g="inc"><div class="th-btn" onclick="sortBy('oficina_ortopedica')" data-s="oficina_ortopedica">OFICINA ORTOPÉDICA <span class="sort-ic">⇅</span></div></th>
+  <th class="h3 gc sep" data-g="inc"><div class="th-btn" onclick="sortBy('ihac')" data-s="ihac">HOSP. AMIGO DA CRIANÇA <span class="sort-ic">⇅</span></div></th>
+  <!-- TOTAL -->
+  <th class="h3"><div class="th-btn" onclick="sortBy('total_mc_ac_incentivos')" data-s="total_mc_ac_incentivos" style="color:var(--c-tot);font-weight:700">TOTAL MC+AC+INCENTIVOS <span class="sort-ic">⇅</span></div></th>
+</tr>
+</thead>
+<tbody id="tbody">
+  <tr><td colspan="44" class="text-center py-5 text-muted">
+    <div class="spinner-border spinner-border-sm me-2"></div>Carregando…
+  </td></tr>
+</tbody>
+</table>
 </div>
 
 <!-- Paginação fundo -->
 <div class="d-flex justify-content-between align-items-center mt-2">
-  <small class="text-muted" id="infoRegs2">—</small>
-  <div id="pgBaixo" class="d-flex gap-1 flex-wrap"></div>
-</div>
-
-<!-- ══ DROPDOWN FILTRO EXCEL (único, reposicionado) ══ -->
-<div id="fdPanel" style="display:none;position:fixed;z-index:10000;
-  background:#fff;border:1px solid #e2e8f0;border-radius:8px;
-  box-shadow:0 8px 32px rgba(0,0,0,.18);min-width:220px;max-width:300px">
-  <!-- Header -->
-  <div style="display:flex;align-items:center;justify-content:space-between;
-    padding:8px 12px;border-bottom:1px solid #f1f5f9">
-    <span style="font-size:.75rem;font-weight:700;color:#1e293b" id="fdTitulo"></span>
-    <button onclick="fecharFd()" style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:1.1rem;line-height:1;padding:0">×</button>
-  </div>
-  <!-- Painel NUMÉRICO -->
-  <div id="fdNum" style="display:none;padding:10px 12px">
-    <div class="mb-2">
-      <label style="font-size:.7rem;color:#64748b;font-weight:600">Maior ou igual a (≥)</label>
-      <input type="number" step="0.01" id="fdMin" class="form-control form-control-sm mt-1" placeholder="Mínimo">
-    </div>
-    <div>
-      <label style="font-size:.7rem;color:#64748b;font-weight:600">Menor ou igual a (≤)</label>
-      <input type="number" step="0.01" id="fdMax" class="form-control form-control-sm mt-1" placeholder="Máximo">
-    </div>
-  </div>
-  <!-- Painel CATEGÓRICO / TEXTO -->
-  <div id="fdCat" style="display:none">
-    <div style="padding:8px 10px">
-      <input type="text" id="fdSearch" class="form-control form-control-sm" placeholder="Pesquisar…" oninput="fdFiltrarLista()">
-    </div>
-    <div style="padding:0 10px 6px;display:flex;align-items:center;gap:6px">
-      <input type="checkbox" id="fdSelAll" onchange="fdToggleAll()">
-      <label for="fdSelAll" style="font-size:.72rem;color:#374151;cursor:pointer;margin:0">(Selecionar tudo)</label>
-    </div>
-    <div id="fdLista" style="max-height:210px;overflow-y:auto;border-top:1px solid #f8fafc"></div>
-  </div>
-  <!-- Footer -->
-  <div style="display:flex;gap:6px;padding:8px 10px;border-top:1px solid #f1f5f9">
-    <button class="btn btn-primary btn-sm flex-grow-1" onclick="fdAplicar()">
-      <i class="bi bi-check2 me-1"></i>Aplicar
-    </button>
-    <button class="btn btn-outline-danger btn-sm" onclick="fdLimpar()">
-      <i class="bi bi-x me-1"></i>Limpar
-    </button>
-  </div>
+  <small class="text-muted" id="info2"></small>
+  <div id="pgB" class="d-flex gap-1 flex-wrap"></div>
 </div>
 
 <!-- Modal detalhe -->
-<div class="modal fade modal-xl" id="modalDetalhe" tabindex="-1">
+<div class="modal fade" id="mdl" tabindex="-1">
   <div class="modal-dialog modal-xl modal-dialog-scrollable">
     <div class="modal-content">
-      <div class="modal-header" style="background:var(--ses-azul);color:#fff">
+      <div class="modal-header py-2" style="background:var(--ses-azul)">
         <div>
-          <h6 class="modal-title fw-bold mb-0" id="mdlTitulo">Detalhe</h6>
-          <small id="mdlSub" class="opacity-75"></small>
+          <h6 class="modal-title fw-bold mb-0 text-white" id="mdlT"></h6>
+          <small class="text-white opacity-75" id="mdlS"></small>
         </div>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
-      <div class="modal-body p-3" id="mdlCorpo"></div>
-      <div class="modal-footer py-2">
+      <div class="modal-body p-3" id="mdlB"></div>
+      <div class="modal-footer py-1">
         <button class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Fechar</button>
       </div>
     </div>
@@ -356,413 +308,230 @@
 
 {% block extra_js %}
 <script>
-const ANO = {{ ano_sel | tojson }};
-const MES = {{ mes_sel | tojson }};
-const MESES_NOME = Object.fromEntries(
-  Object.entries({{ meses | tojson }}).map(([k,v]) => [parseInt(k), v])
-);
+const ANO  = {{ ano_sel | tojson }};
+const MES  = {{ mes_sel | tojson }};
 
-let _page = 1, _total = 0, _sort = 'drs', _sortDir = 'asc', _debT = null;
-let _gruposOff = new Set();
+let _pg = 1, _tot = 0, _sort = 'drs', _dir = 'asc', _deb = null;
+let _offG = new Set();
+const PER = 50;
 
-/* ── Filtros Excel ── */
-const _filters = {};    // { col: { type:'cat'|'num', values:Set } | { type:'num', gte, lte } }
-let _fdCol = null, _fdType = null, _fdAllVals = [];
-
-const COLS_NUM = new Set([
-  'aih_fisico','aih_faec','sia_faec','equip_hemodialise','limite_complementacao',
-  'aih_mc','aih_ac','aih_total','portaria_ms_gm_8516',
-  'sia_mc','sia_ac','sia_total','teto_global','teto_mc','teto_ac','teto_mac','total_teto_mac',
-  'integrasus','iac','sus_100','opo','rede_viver_sem_limite','rede_brasil_miseria',
-  'rsme','rce_rceg','rau_hosp_sos','rca_rcan','iapi','residencia_medica','melhor_em_casa',
-  'cer','doencas_raras','oficina_ortopedica','ihac','total_mc_ac_incentivos'
-]);
-
-/* ── Formatar números ── */
-function n(v) {
+/* ── helpers ── */
+const fmtN = v => {
   const f = parseFloat(v);
-  if (!f || f === 0) return '<span class="zero-val">—</span>';
+  if (!f) return '<span class="zero">—</span>';
   return f.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
-}
-function s(v) { return (v !== null && v !== undefined && v !== '') ? v : '—'; }
+};
+const fmtS = v => (v !== null && v !== undefined && v !== '') ? v : '—';
 
 /* ── Sort ── */
 function sortBy(col) {
-  if (_sort === col) _sortDir = _sortDir === 'asc' ? 'desc' : 'asc';
-  else { _sort = col; _sortDir = 'asc'; }
-  document.querySelectorAll('.th-inner').forEach(el => {
-    el.classList.remove('sort-asc','sort-desc');
-    const ic = el.querySelector('.sort-icon');
+  if (_sort === col) _dir = _dir === 'asc' ? 'desc' : 'asc';
+  else { _sort = col; _dir = 'asc'; }
+  document.querySelectorAll('.th-btn').forEach(b => {
+    b.classList.remove('asc','desc');
+    const ic = b.querySelector('.sort-ic');
     if (ic) ic.textContent = '⇅';
   });
-  const act = document.querySelector(`.th-inner[data-sort="${col}"]`);
+  const act = document.querySelector(`.th-btn[data-s="${col}"]`);
   if (act) {
-    act.classList.add(_sortDir === 'asc' ? 'sort-asc' : 'sort-desc');
-    const ic = act.querySelector('.sort-icon');
-    if (ic) ic.textContent = _sortDir === 'asc' ? '↑' : '↓';
+    act.classList.add(_dir);
+    const ic = act.querySelector('.sort-ic');
+    if (ic) ic.textContent = _dir === 'asc' ? '↑' : '↓';
   }
-  carregar(1);
+  load(1);
 }
 
 /* ── Grupos toggle ── */
-function toggleGrupo(el) {
-  const g = el.dataset.grupo, off = _gruposOff.has(g);
+function toggleG(el) {
+  const g = el.dataset.g, off = _offG.has(g);
   if (off) {
-    _gruposOff.delete(g);
-    document.querySelectorAll(`.group-col[data-grupo="${g}"]`).forEach(c => c.classList.remove('hidden'));
+    _offG.delete(g);
+    document.querySelectorAll(`[data-g="${g}"]`).forEach(e => e.classList.remove('off'));
     el.innerHTML = el.innerHTML.replace('bi-eye-slash','bi-eye');
   } else {
-    _gruposOff.add(g);
-    document.querySelectorAll(`.group-col[data-grupo="${g}"]`).forEach(c => c.classList.add('hidden'));
+    _offG.add(g);
+    document.querySelectorAll(`[data-g="${g}"]`).forEach(e => e.classList.add('off'));
     el.innerHTML = el.innerHTML.replace('bi-eye','bi-eye-slash');
   }
   el.classList.toggle('off', !off);
 }
 
-/* ══ FILTRO EXCEL ══ */
-async function abrirFiltro(iconEl, col) {
-  const panel = document.getElementById('fdPanel');
-  if (_fdCol === col && panel.style.display !== 'none') { fecharFd(); return; }
-  _fdCol = col;
-  _fdType = COLS_NUM.has(col) ? 'num' : 'cat';
-
-  // Posicionar
-  const rect = iconEl.getBoundingClientRect();
-  const PW = 260;
-  let left = rect.left;
-  if (left + PW > window.innerWidth - 10) left = window.innerWidth - PW - 10;
-  panel.style.cssText += `;display:block;left:${left}px;top:${rect.bottom + 6}px;width:${PW}px`;
-
-  const label = col.replace(/_/g,' ').toUpperCase();
-  document.getElementById('fdTitulo').textContent = label;
-
-  if (_fdType === 'num') {
-    document.getElementById('fdNum').style.display = 'block';
-    document.getElementById('fdCat').style.display = 'none';
-    const f = _filters[col];
-    document.getElementById('fdMin').value = f?.gte || '';
-    document.getElementById('fdMax').value = f?.lte || '';
-  } else {
-    document.getElementById('fdNum').style.display = 'none';
-    document.getElementById('fdCat').style.display = 'block';
-    document.getElementById('fdSearch').value = '';
-    document.getElementById('fdLista').innerHTML =
-      '<div class="text-center py-3 text-muted" style="font-size:.72rem"><span class="spinner-border spinner-border-sm"></span> Carregando…</div>';
-
-    const resp = await fetch(`/api/detalhamento/valores-unicos?col=${col}&ano=${ANO}&mes=${MES}`);
-    _fdAllVals = await resp.json();
-    fdRenderLista(_fdAllVals);
-  }
+/* ── Filtros globais ── */
+function debounce() { clearTimeout(_deb); _deb = setTimeout(() => load(1), 380); }
+function limpar() {
+  document.getElementById('fBusca').value = '';
+  document.getElementById('fDRS').value = '';
+  document.getElementById('fTipo').value = '';
+  load(1);
 }
 
-function fdRenderLista(vals) {
-  const search = (document.getElementById('fdSearch').value || '').toLowerCase();
-  const shown  = search ? vals.filter(v => String(v).toLowerCase().includes(search)) : vals;
-  const sel    = (_filters[_fdCol]?.values) || new Set();
-  const allChk = shown.length > 0 && shown.every(v => sel.has(String(v)));
-  const someChk = shown.some(v => sel.has(String(v)));
-  document.getElementById('fdSelAll').checked = allChk;
-  document.getElementById('fdSelAll').indeterminate = !allChk && someChk;
-
-  document.getElementById('fdLista').innerHTML = shown.length
-    ? shown.map(v => {
-        const vs = String(v).replace(/"/g, '&quot;');
-        const chk = sel.has(String(v)) ? 'checked' : '';
-        const lbl = String(v) || '(vazio)';
-        return `<label style="display:flex;align-items:center;gap:8px;padding:4px 10px;
-          cursor:pointer;font-size:.73rem;color:#374151;border-bottom:1px solid #f8fafc"
-          onmouseenter="this.style.background='#f8fafc'" onmouseleave="this.style.background=''">
-          <input type="checkbox" value="${vs}" ${chk} style="flex-shrink:0">
-          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${lbl}</span>
-        </label>`;
-      }).join('')
-    : '<div class="text-center py-3 text-muted" style="font-size:.72rem">Nenhum valor encontrado</div>';
-}
-
-function fdFiltrarLista() {
-  const sel = new Set(
-    [...document.querySelectorAll('#fdLista input:checked')].map(c => c.value)
-  );
-  fdRenderLista(_fdAllVals);
-  // Restore checked state
-  document.querySelectorAll('#fdLista input[type=checkbox]').forEach(cb => {
-    if (sel.has(cb.value)) cb.checked = true;
-  });
-}
-
-function fdToggleAll() {
-  const all = document.getElementById('fdSelAll').checked;
-  document.querySelectorAll('#fdLista input[type=checkbox]').forEach(c => c.checked = all);
-}
-
-function fdAplicar() {
-  if (_fdType === 'num') {
-    const gte = document.getElementById('fdMin').value.trim();
-    const lte = document.getElementById('fdMax').value.trim();
-    if (gte || lte) _filters[_fdCol] = { type:'num', gte, lte };
-    else delete _filters[_fdCol];
-  } else {
-    const checked = [...document.querySelectorAll('#fdLista input:checked')].map(c => c.value);
-    if (checked.length > 0 && checked.length < _fdAllVals.length)
-      _filters[_fdCol] = { type:'cat', values: new Set(checked) };
-    else delete _filters[_fdCol];
-  }
-  fecharFd();
-  atualizarChipsFiltro();
-  carregar(1);
-}
-
-function fdLimpar() {
-  delete _filters[_fdCol];
-  fecharFd();
-  atualizarChipsFiltro();
-  carregar(1);
-}
-
-function fecharFd() {
-  document.getElementById('fdPanel').style.display = 'none';
-  _fdCol = null;
-}
-
-function atualizarChipsFiltro() {
-  // Ícones de funil com cor
-  document.querySelectorAll('.fi[data-col]').forEach(el => {
-    el.classList.toggle('on', !!_filters[el.dataset.col]);
-  });
-  // Chips visíveis acima da tabela
-  const bar = document.getElementById('barraFiltrosAtivos');
-  bar.innerHTML = Object.entries(_filters).map(([col, f]) => {
-    const lbl = col.replace(/_/g,' ').toUpperCase();
-    let desc = '';
-    if (f.type === 'num') {
-      if (f.gte && f.lte) desc = `≥ ${f.gte} e ≤ ${f.lte}`;
-      else if (f.gte) desc = `≥ ${f.gte}`;
-      else desc = `≤ ${f.lte}`;
-    } else {
-      const vals = [...f.values];
-      desc = vals.length <= 3 ? vals.join(', ') : `${vals.slice(0,2).join(', ')} +${vals.length-2}`;
-    }
-    return `<span class="filtro-chip">
-      <i class="bi bi-funnel-fill" style="font-size:.6rem"></i>
-      <strong>${lbl}:</strong> ${desc}
-      <button onclick="removerFiltro('${col}')" title="Remover filtro">×</button>
-    </span>`;
-  }).join('');
-}
-
-function removerFiltro(col) {
-  delete _filters[col];
-  atualizarChipsFiltro();
-  carregar(1);
-}
-
-function limparTudo() {
-  Object.keys(_filters).forEach(k => delete _filters[k]);
-  ['filtBusca','filtDRS','filtTipo'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.value = '';
-  });
-  atualizarChipsFiltro();
-  carregar(1);
-}
-
-// Fechar ao clicar fora
-document.addEventListener('click', e => {
-  const p = document.getElementById('fdPanel');
-  if (p && p.style.display !== 'none' && !p.contains(e.target) && !e.target.closest('.fi'))
-    fecharFd();
-}, true);
-
-/* ── Carregar dados ── */
-function debounce() { clearTimeout(_debT); _debT = setTimeout(() => carregar(1), 380); }
-
-function buildFilterParams() {
-  const out = {};
-  Object.entries(_filters).forEach(([col, f]) => {
-    if (f.type === 'num') {
-      if (f.gte) out[`cf_${col}__gte`] = f.gte;
-      if (f.lte) out[`cf_${col}__lte`] = f.lte;
-    } else {
-      out[`cf_${col}`] = [...f.values].join('|');
-    }
-  });
-  return out;
-}
-
-async function carregar(pg = _page) {
-  _page = pg;
-  const busca = document.getElementById('filtBusca').value.trim();
-  const drs   = document.getElementById('filtDRS').value;
-  const tipo  = document.getElementById('filtTipo').value;
-  const cfObj = buildFilterParams();
+/* ── Carregar ── */
+async function load(pg = _pg) {
+  _pg = pg;
+  const q    = document.getElementById('fBusca').value.trim();
+  const drs  = document.getElementById('fDRS').value;
+  const tipo = document.getElementById('fTipo').value;
 
   const qs = new URLSearchParams({
-    ano: ANO, mes: MES, page: pg, per_page: 50,
-    sort: _sort, sort_dir: _sortDir,
-    ...(drs ? {drs} : {}),
+    ano: ANO, mes: MES, page: pg, per_page: PER,
+    sort: _sort, sort_dir: _dir,
+    ...(drs  ? {drs}  : {}),
     ...(tipo ? {tipo} : {}),
-    ...(busca ? {q: busca} : {}),
-    ...cfObj
+    ...(q    ? {q}    : {})
   });
 
-  // Link de export
-  document.getElementById('linkExport').href =
-    `/detalhamento/exportar?ano=${ANO}&mes=${MES}&sort=${_sort}&sort_dir=${_sortDir}` +
+  document.getElementById('lnkCSV').href =
+    `/detalhamento/exportar?ano=${ANO}&mes=${MES}&sort=${_sort}&sort_dir=${_dir}` +
     (drs ? `&drs=${drs}` : '') + (tipo ? `&tipo=${encodeURIComponent(tipo)}` : '') +
-    (busca ? `&q=${encodeURIComponent(busca)}` : '') +
-    Object.entries(cfObj).map(([k,v]) => `&${k}=${encodeURIComponent(v)}`).join('');
+    (q   ? `&q=${encodeURIComponent(q)}` : '');
 
-  const tbody = document.getElementById('tbodyDet');
-  tbody.innerHTML = `<tr><td colspan="44" class="text-center py-5 text-muted">
-    <span class="spinner-border spinner-border-sm me-2"></span>Carregando…</td></tr>`;
+  document.getElementById('tbody').innerHTML =
+    `<tr><td colspan="44" class="text-center py-5 text-muted">
+      <div class="spinner-border spinner-border-sm me-2"></div>Carregando…</td></tr>`;
 
   const res  = await fetch(`/api/detalhamento/registros?${qs}`);
   const data = await res.json();
-  _total = data.total;
+  _tot = data.total;
   renderTabela(data.registros, pg);
-  renderPaginacao(pg, data.total);
+  renderPag(pg, data.total);
 }
 
 /* ── Render tabela ── */
 function renderTabela(rows, pg) {
-  const tbody = document.getElementById('tbodyDet');
-  if (!rows || !rows.length) {
-    tbody.innerHTML = `<tr><td colspan="44" class="text-center text-muted py-5">Nenhum registro encontrado.</td></tr>`;
+  if (!rows?.length) {
+    document.getElementById('tbody').innerHTML =
+      `<tr><td colspan="44" class="text-center text-muted py-5">Nenhum registro encontrado.</td></tr>`;
     setInfo(pg, 0, 0); return;
   }
-  setInfo(pg, rows.length, _total);
+  setInfo(pg, rows.length, _tot);
 
-  const GF = 'group-col" data-grupo="fundo"';
-  const GI = 'group-col" data-grupo="inc"';
+  const GF = 'gc" data-g="fundo"';
+  const GI = 'gc" data-g="inc"';
 
-  tbody.innerHTML = rows.map((r, i) => {
+  document.getElementById('tbody').innerHTML = rows.map((r, i) => {
     const isT = /^(total|subtotal|geral)$/i.test((r.unidade||'').trim());
-    const enc = encodeURIComponent(JSON.stringify(r));
-    return `<tr class="${isT?'row-total':''}" onclick="verDetalhe('${enc}')">
-      <td class="cs1 text-center text-muted" style="font-size:.65rem">${(pg-1)*50+i+1}</td>
-      <td class="cs2 text-center fw-bold">${s(r.drs)}</td>
-      <td class="cs3 col-sep">
-        <div style="max-width:228px;overflow:hidden;text-overflow:ellipsis;font-weight:600" title="${r.unidade||''}">${s(r.unidade)}</div>
-        <small class="text-muted" style="font-size:.65rem">${s(r.municipio)}</small>
+    return `<tr class="${isT?'row-tot':''}" onclick="verDet(${JSON.stringify(JSON.stringify(r))})">
+      <td class="s1 text-center" style="color:#94a3b8;font-size:.65rem">${(pg-1)*PER+i+1}</td>
+      <td class="s2 text-center fw-bold" style="color:var(--c-ident)">${fmtS(r.drs)}</td>
+      <td class="s3 sep">
+        <div style="max-width:218px;overflow:hidden;text-overflow:ellipsis;font-weight:600;color:#0f172a" title="${r.unidade||''}">${fmtS(r.unidade)}</div>
+        <small style="color:#94a3b8;font-size:.63rem">${fmtS(r.municipio)}</small>
       </td>
-      <td style="font-size:.7rem">${s(r.tipo)}</td>
-      <td class="text-center">${s(r.hu)}</td>
-      <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis" title="${r.municipio||''}">${s(r.municipio)}</td>
-      <td class="fw-bold">${s(r.cnes)}</td>
-      <td class="col-sep" style="font-size:.65rem;color:#94a3b8">${s(r.cnpj)}</td>
-      <td class="num-col ${GF}">${n(r.aih_fisico)}</td>
-      <td class="num-col ${GF}">${n(r.aih_faec)}</td>
-      <td class="num-col ${GF}">${n(r.sia_faec)}</td>
-      <td class="num-col ${GF}">${n(r.equip_hemodialise)}</td>
-      <td class="num-col col-sep ${GF}">${n(r.limite_complementacao)}</td>
-      <td class="num-col ${GF}">${n(r.aih_mc)}</td>
-      <td class="num-col ${GF}">${n(r.aih_ac)}</td>
-      <td class="num-col ${GF}">${n(r.aih_total)}</td>
-      <td class="num-col col-sep ${GF}">${n(r.portaria_ms_gm_8516)}</td>
-      <td class="num-col ${GF}">${n(r.sia_mc)}</td>
-      <td class="num-col ${GF}">${n(r.sia_ac)}</td>
-      <td class="num-col ${GF}">${n(r.sia_total)}</td>
-      <td class="num-col col-sep ${GF}">${n(r.teto_global)}</td>
-      <td class="num-col ${GF}">${n(r.teto_mc)}</td>
-      <td class="num-col ${GF}">${n(r.teto_ac)}</td>
-      <td class="num-col ${GF}">${n(r.teto_mac)}</td>
-      <td class="num-col ${GF}">${n(r.total_teto_mac)}</td>
-      <td class="num-col col-sep ${GF}">${n(r.teto_global)}</td>
-      <td class="num-col ${GI}">${n(r.integrasus)}</td>
-      <td class="num-col ${GI}">${n(r.iac)}</td>
-      <td class="num-col ${GI}">${n(r.sus_100)}</td>
-      <td class="num-col ${GI}">${n(r.opo)}</td>
-      <td class="num-col ${GI}">${n(r.rede_viver_sem_limite)}</td>
-      <td class="num-col ${GI}">${n(r.rede_brasil_miseria)}</td>
-      <td class="num-col ${GI}">${n(r.rsme)}</td>
-      <td class="num-col ${GI}">${n(r.rce_rceg)}</td>
-      <td class="num-col ${GI}">${n(r.rau_hosp_sos)}</td>
-      <td class="num-col ${GI}">${n(r.rca_rcan)}</td>
-      <td class="num-col ${GI}">${n(r.iapi)}</td>
-      <td class="num-col ${GI}">${n(r.residencia_medica)}</td>
-      <td class="num-col ${GI}">${n(r.melhor_em_casa)}</td>
-      <td class="num-col ${GI}">${n(r.cer)}</td>
-      <td class="num-col ${GI}">${n(r.doencas_raras)}</td>
-      <td class="num-col ${GI}">${n(r.oficina_ortopedica)}</td>
-      <td class="num-col col-sep ${GI}">${n(r.ihac)}</td>
-      <td class="num-col fw-bold" style="color:#b45309;background:${isT?'#fef9c3':'#fffbeb'}">${n(r.total_mc_ac_incentivos)}</td>
+      <td style="font-size:.7rem;color:#334155">${fmtS(r.tipo)}</td>
+      <td class="text-center">${fmtS(r.hu)}</td>
+      <td style="max-width:130px;overflow:hidden;text-overflow:ellipsis;color:#475569" title="${r.municipio||''}">${fmtS(r.municipio)}</td>
+      <td style="font-family:Consolas,monospace;font-size:.72rem">${fmtS(r.cnes)}</td>
+      <td class="sep" style="font-size:.63rem;color:#cbd5e1">${fmtS(r.cnpj)}</td>
+      <td class="num ${GF}">${fmtN(r.aih_fisico)}</td>
+      <td class="num ${GF}">${fmtN(r.aih_faec)}</td>
+      <td class="num ${GF}">${fmtN(r.sia_faec)}</td>
+      <td class="num ${GF}">${fmtN(r.equip_hemodialise)}</td>
+      <td class="num sep ${GF}">${fmtN(r.limite_complementacao)}</td>
+      <td class="num ${GF}">${fmtN(r.aih_mc)}</td>
+      <td class="num ${GF}">${fmtN(r.aih_ac)}</td>
+      <td class="num ${GF}">${fmtN(r.aih_total)}</td>
+      <td class="num sep ${GF}">${fmtN(r.portaria_ms_gm_8516)}</td>
+      <td class="num ${GF}">${fmtN(r.sia_mc)}</td>
+      <td class="num ${GF}">${fmtN(r.sia_ac)}</td>
+      <td class="num ${GF}">${fmtN(r.sia_total)}</td>
+      <td class="num sep ${GF}">${fmtN(r.teto_global)}</td>
+      <td class="num ${GF}">${fmtN(r.teto_mc)}</td>
+      <td class="num ${GF}">${fmtN(r.teto_ac)}</td>
+      <td class="num ${GF}">${fmtN(r.teto_mac)}</td>
+      <td class="num ${GF}">${fmtN(r.total_teto_mac)}</td>
+      <td class="num sep ${GF}">${fmtN(r.teto_global)}</td>
+      <td class="num ${GI}">${fmtN(r.integrasus)}</td>
+      <td class="num ${GI}">${fmtN(r.iac)}</td>
+      <td class="num ${GI}">${fmtN(r.sus_100)}</td>
+      <td class="num ${GI}">${fmtN(r.opo)}</td>
+      <td class="num ${GI}">${fmtN(r.rede_viver_sem_limite)}</td>
+      <td class="num ${GI}">${fmtN(r.rede_brasil_miseria)}</td>
+      <td class="num ${GI}">${fmtN(r.rsme)}</td>
+      <td class="num ${GI}">${fmtN(r.rce_rceg)}</td>
+      <td class="num ${GI}">${fmtN(r.rau_hosp_sos)}</td>
+      <td class="num ${GI}">${fmtN(r.rca_rcan)}</td>
+      <td class="num ${GI}">${fmtN(r.iapi)}</td>
+      <td class="num ${GI}">${fmtN(r.residencia_medica)}</td>
+      <td class="num ${GI}">${fmtN(r.melhor_em_casa)}</td>
+      <td class="num ${GI}">${fmtN(r.cer)}</td>
+      <td class="num ${GI}">${fmtN(r.doencas_raras)}</td>
+      <td class="num ${GI}">${fmtN(r.oficina_ortopedica)}</td>
+      <td class="num sep ${GI}">${fmtN(r.ihac)}</td>
+      <td class="num fw-bold" style="color:var(--c-tot);background:${isT?'#fef9c3':'#fffbeb'}">${fmtN(r.total_mc_ac_incentivos)}</td>
     </tr>`;
   }).join('');
 
-  _gruposOff.forEach(g =>
-    document.querySelectorAll(`.group-col[data-grupo="${g}"]`).forEach(c => c.classList.add('hidden'))
-  );
+  _offG.forEach(g => document.querySelectorAll(`.gc[data-g="${g}"]`).forEach(e => e.classList.add('off')));
 }
 
 /* ── Paginação ── */
-function renderPaginacao(pag, total) {
-  const pages = Math.ceil(total / 50);
-  ['pgTopo','pgBaixo'].forEach(id => {
+function renderPag(pg, tot) {
+  const pages = Math.ceil(tot / PER);
+  ['pgT','pgB'].forEach(id => {
     const div = document.getElementById(id);
     if (pages <= 1) { div.innerHTML = ''; return; }
-    const st = Math.max(1, pag-3), en = Math.min(pages, pag+3);
-    let b = pag > 1 ? `<button class="btn btn-sm btn-outline-secondary" onclick="carregar(${pag-1})">‹</button>` : '';
-    if (st > 1) b += `<button class="btn btn-sm btn-outline-secondary" onclick="carregar(1)">1</button><span class="px-1 text-muted">…</span>`;
+    const st = Math.max(1, pg-3), en = Math.min(pages, pg+3);
+    let b = pg > 1 ? `<button class="btn btn-sm btn-outline-secondary" onclick="load(${pg-1})">‹</button>` : '';
+    if (st > 1) b += `<button class="btn btn-sm btn-outline-secondary" onclick="load(1)">1</button><span class="text-muted px-1">…</span>`;
     for (let p = st; p <= en; p++)
-      b += `<button class="btn btn-sm ${p===pag?'btn-primary':'btn-outline-secondary'}" onclick="carregar(${p})">${p}</button>`;
-    if (en < pages) b += `<span class="px-1 text-muted">…</span><button class="btn btn-sm btn-outline-secondary" onclick="carregar(${pages})">${pages}</button>`;
-    if (pag < pages) b += `<button class="btn btn-sm btn-outline-secondary" onclick="carregar(${pag+1})">›</button>`;
+      b += `<button class="btn btn-sm ${p===pg?'btn-primary':'btn-outline-secondary'}" onclick="load(${p})">${p}</button>`;
+    if (en < pages) b += `<span class="text-muted px-1">…</span><button class="btn btn-sm btn-outline-secondary" onclick="load(${pages})">${pages}</button>`;
+    if (pg < pages) b += `<button class="btn btn-sm btn-outline-secondary" onclick="load(${pg+1})">›</button>`;
     div.innerHTML = b;
   });
 }
 
-function setInfo(pg, rows, total) {
-  const txt = total
-    ? `Mostrando ${(pg-1)*50+1}–${(pg-1)*50+rows} de <strong>${total.toLocaleString('pt-BR')}</strong> registros`
+function setInfo(pg, rows, tot) {
+  const t = tot
+    ? `Mostrando ${(pg-1)*PER+1}–${(pg-1)*PER+rows} de <strong>${tot.toLocaleString('pt-BR')}</strong> registros`
     : 'Nenhum registro';
-  document.getElementById('infoRegs').innerHTML = txt;
-  document.getElementById('infoRegs2').innerHTML = txt;
+  document.getElementById('info').innerHTML = t;
+  document.getElementById('info2').innerHTML = t;
 }
 
 /* ── Modal detalhe ── */
-function verDetalhe(enc) {
-  const r = JSON.parse(decodeURIComponent(enc));
-  document.getElementById('mdlTitulo').textContent = r.unidade || 'Unidade';
-  document.getElementById('mdlSub').textContent =
-    `${s(r.municipio)} · CNES ${s(r.cnes)} · DRS ${s(r.drs)} · ${s(r.tipo)}`;
+function verDet(json) {
+  const r = JSON.parse(json);
+  document.getElementById('mdlT').textContent = r.unidade || 'Unidade';
+  document.getElementById('mdlS').textContent =
+    `${fmtS(r.municipio)} · CNES ${fmtS(r.cnes)} · DRS ${fmtS(r.drs)} · ${fmtS(r.tipo)}`;
 
-  const R = (lbl, val, moeda=true) => {
-    const v = moeda
-      ? (parseFloat(val||0)===0 ? '<span class="text-muted">—</span>'
-          : 'R$ '+parseFloat(val||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}))
-      : (val||'—');
-    return `<div class="d-item"><span class="lbl">${lbl}</span><span class="val">${v}</span></div>`;
+  const R = (l, v, m=true) => {
+    const fmt = m
+      ? (parseFloat(v||0)===0
+          ? '<span class="text-muted">—</span>'
+          : 'R$ '+parseFloat(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}))
+      : (v||'—');
+    return `<div class="di"><span class="lb">${l}</span><span class="vl">${fmt}</span></div>`;
   };
 
-  document.getElementById('mdlCorpo').innerHTML = `
+  document.getElementById('mdlB').innerHTML = `
   <div class="row g-3">
     <div class="col-md-4">
-      <div class="d-grupo g-ident">
-        <div class="fw-bold small mb-1" style="color:var(--g-ident)"><i class="bi bi-hospital me-1"></i>Identificação</div>
+      <div class="dg gi">
+        <div class="fw-bold small mb-1" style="color:var(--c-ident)"><i class="bi bi-hospital me-1"></i>Identificação</div>
         ${R('DRS',r.drs,false)}${R('Tipo',r.tipo,false)}${R('HU',r.hu,false)}
         ${R('Município',r.municipio,false)}${R('CNES',r.cnes,false)}${R('CNPJ',r.cnpj,false)}
       </div>
-      <div class="d-grupo g-fundo mt-2">
-        <div class="fw-bold small mb-1" style="color:var(--g-fundo)"><i class="bi bi-file-medical me-1"></i>FAEC / Hemodiálise</div>
+      <div class="dg gf mt-2">
+        <div class="fw-bold small mb-1" style="color:var(--c-fundo)"><i class="bi bi-file-medical me-1"></i>FAEC / Hemodiálise</div>
         ${R('AIH Físico',r.aih_fisico)}${R('AIH FAEC',r.aih_faec)}${R('SIA FAEC',r.sia_faec)}
         ${R('Equip. Hemodiálise (DRC)',r.equip_hemodialise)}${R('Limite Complementação',r.limite_complementacao)}
       </div>
-      <div class="d-grupo g-fundo mt-2">
-        <div class="fw-bold small mb-1" style="color:var(--g-fundo)"><i class="bi bi-clipboard2-pulse me-1"></i>AIH / SIA</div>
+      <div class="dg gf mt-2">
+        <div class="fw-bold small mb-1" style="color:var(--c-fundo)"><i class="bi bi-clipboard2-pulse me-1"></i>AIH / SIA</div>
         ${R('AIH MC',r.aih_mc)}${R('AIH AC',r.aih_ac)}${R('AIH Total',r.aih_total)}
         ${R('Portaria MS/GM 8.516',r.portaria_ms_gm_8516)}
-        ${R('SIA MC',r.sia_mc)}${R('SIA AC',r.sia_ac)}${R('SIA Total',r.sia_total)}
-        ${R('Teto Global',r.teto_global)}
+        ${R('SIA MC',r.sia_mc)}${R('SIA AC',r.sia_ac)}${R('SIA Total',r.sia_total)}${R('Teto Global',r.teto_global)}
       </div>
-      <div class="d-grupo g-fundo mt-2">
-        <div class="fw-bold small mb-1" style="color:var(--g-fundo)"><i class="bi bi-bank me-1"></i>Teto MAC</div>
-        ${R('Teto MC',r.teto_mc)}${R('Teto AC',r.teto_ac)}${R('Teto MAC',r.teto_mac)}
-        ${R('Total Teto MAC',r.total_teto_mac)}
+      <div class="dg gf mt-2">
+        <div class="fw-bold small mb-1" style="color:var(--c-fundo)"><i class="bi bi-bank me-1"></i>Teto MAC</div>
+        ${R('Teto MC',r.teto_mc)}${R('Teto AC',r.teto_ac)}${R('Teto MAC',r.teto_mac)}${R('Total Teto MAC',r.total_teto_mac)}
       </div>
     </div>
     <div class="col-md-4">
-      <div class="d-grupo g-inc">
-        <div class="fw-bold small mb-1" style="color:var(--g-inc)"><i class="bi bi-star me-1"></i>Incentivos</div>
+      <div class="dg gc2">
+        <div class="fw-bold small mb-1" style="color:var(--c-inc)"><i class="bi bi-star me-1"></i>Incentivos</div>
         ${R('INTEGRASUS',r.integrasus)}${R('IAC',r.iac)}${R('100% SUS',r.sus_100)}${R('OPO',r.opo)}
         ${R('Rede Viver Sem Limite',r.rede_viver_sem_limite)}${R('Rede Brasil Sem Miséria',r.rede_brasil_miseria)}
         ${R('RSME',r.rsme)}${R('Rede Alyne',r.rce_rceg)}${R('RAU Hosp. SOS',r.rau_hosp_sos)}
@@ -772,22 +541,21 @@ function verDetalhe(enc) {
       </div>
     </div>
     <div class="col-md-4">
-      <div class="d-grupo g-tot">
-        <div class="fw-bold small mb-2" style="color:var(--g-tot)"><i class="bi bi-sigma me-1"></i>Total Consolidado</div>
-        <div class="text-center mt-2 py-3 rounded" style="background:#fff7ed">
-          <div style="font-size:.7rem;color:#9a3412;font-weight:600;margin-bottom:4px">TOTAL MC + AC + INCENTIVOS</div>
-          <span style="font-size:1.3rem;font-weight:700;color:#b45309;font-family:Consolas,monospace">
+      <div class="dg gt">
+        <div class="fw-bold small mb-2" style="color:var(--c-tot)"><i class="bi bi-sigma me-1"></i>Total Consolidado</div>
+        <div class="text-center py-3 rounded" style="background:#fff7ed;border:1px solid #fed7aa">
+          <div style="font-size:.68rem;font-weight:700;color:#9a3412;text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Total MC + AC + Incentivos</div>
+          <div style="font-size:1.4rem;font-weight:700;color:var(--c-tot);font-family:Consolas,monospace">
             R$ ${parseFloat(r.total_mc_ac_incentivos||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}
-          </span>
+          </div>
         </div>
       </div>
     </div>
   </div>`;
 
-  new bootstrap.Modal(document.getElementById('modalDetalhe')).show();
+  new bootstrap.Modal(document.getElementById('mdl')).show();
 }
 
-/* ── Init ── */
-document.addEventListener('DOMContentLoaded', () => { if (ANO && MES) carregar(1); });
+document.addEventListener('DOMContentLoaded', () => { if (ANO && MES) load(1); });
 </script>
 {% endblock %}
