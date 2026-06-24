@@ -98,6 +98,21 @@
   </div>
 </div>
 
+{% if not todos_anos and (kpis.total_unidades or 0) == 0 %}
+<div class="alert alert-warning d-flex align-items-center gap-2 mb-3" role="alert">
+  <i class="bi bi-exclamation-triangle-fill fs-5"></i>
+  <div>
+    Nenhum dado encontrado para <strong>{{ mes_sel | mes_nome }}/{{ ano_sel }}</strong>.
+    Selecione outro período ou
+    {% if session.get('usuario_perfil') == 'admin' %}
+    <a href="{{ url_for('importar') }}" class="alert-link">importe os dados da planilha</a>.
+    {% else %}
+    solicite ao administrador a importação dos dados.
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
 <!-- Stats gerais -->
 <div class="row g-3 mb-3">
   <div class="col-12">
@@ -226,7 +241,9 @@
           <div class="col-auto"><a href="{{ url_for('relatorio_resumo_drs', ano=ano_sel, mes=mes_sel) }}" class="btn btn-outline-success btn-sm"><i class="bi bi-table me-1"></i>Resumo DRS</a></div>
           <div class="col-auto"><a href="{{ url_for('exportar_excel', ano=ano_sel, mes=mes_sel) }}" class="btn btn-outline-warning btn-sm"><i class="bi bi-file-excel me-1"></i>Exportar Excel</a></div>
           {% endif %}
+          {% if session.get('usuario_perfil') == 'admin' %}
           <div class="col-auto"><a href="{{ url_for('importar') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-cloud-upload me-1"></i>Importar Planilha</a></div>
+          {% endif %}
           <div class="col-auto"><a href="{{ url_for('graficos') }}" class="btn btn-outline-info btn-sm"><i class="bi bi-bar-chart-line me-1"></i>Análises Detalhadas</a></div>
           <div class="col-auto"><a href="{{ url_for('pesquisa') }}" class="btn btn-outline-primary btn-sm"><i class="bi bi-search me-1"></i>Pesquisa Geral</a></div>
         </div>
