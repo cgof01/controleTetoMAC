@@ -10,115 +10,144 @@
   <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
   <style>
     :root {
-      --ses-azul: #1e3a5f;
+      --ses-azul:       #1e3a5f;
       --ses-azul-claro: #2a5298;
-      --ses-verde: #1a7a4a;
-      --ses-laranja: #e07b00;
-      --sidebar-w: 248px;
+      --ses-verde:      #1a7a4a;
+      --ses-laranja:    #e07b00;
+      --sb-wide:  248px;
+      --sb-slim:   56px;
     }
 
-    /* ── Base ── */
+    /* ── Base ─────────────────────────────────────────────────────── */
     body { background: #f0f4f8; font-family: 'Segoe UI', sans-serif; }
 
-    /* ── Navbar ── */
+    /* ── Navbar ───────────────────────────────────────────────────── */
     .navbar {
       background: linear-gradient(135deg, var(--ses-azul) 0%, var(--ses-azul-claro) 100%);
       box-shadow: 0 2px 10px rgba(0,0,0,0.3);
       height: 64px; padding: 0;
       position: sticky; top: 0; z-index: 1100;
     }
-    .navbar .container-fluid { padding: 0 1rem; gap: 0.75rem; }
+    .navbar .container-fluid { padding: 0 0.75rem; gap: 0.6rem; }
     .navbar-brand { padding: 0; margin: 0; }
     .navbar-brand img { height: 60px; width: auto; display: block; }
-    .navbar-texto { font-size: 0.88rem; font-weight: 700; color: #fff; letter-spacing: 0.3px; line-height: 1.3; white-space: nowrap; }
+    .navbar-texto {
+      font-size: 0.88rem; font-weight: 700; color: #fff;
+      letter-spacing: 0.3px; line-height: 1.3; white-space: nowrap;
+    }
 
-    /* Hamburger button */
+    /* Hamburger ── 3 linhas que viram ≡ / state indicator */
     .hamburger {
       background: none; border: none; cursor: pointer;
-      padding: 6px 8px; display: flex; flex-direction: column;
-      justify-content: center; gap: 5px; border-radius: 6px;
-      transition: background 0.2s;
+      padding: 7px 9px; border-radius: 7px;
+      display: flex; flex-direction: column; gap: 5px;
+      transition: background 0.2s; flex-shrink: 0;
     }
     .hamburger:hover { background: rgba(255,255,255,0.15); }
     .hamburger span {
-      display: block; width: 22px; height: 2px;
-      background: #fff; border-radius: 2px;
-      transition: transform 0.3s, opacity 0.3s, width 0.3s;
-      transform-origin: center;
+      display: block; height: 2px; background: #fff;
+      border-radius: 2px; transition: width 0.25s;
     }
-    .hamburger.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
-    .hamburger.open span:nth-child(2) { opacity: 0; width: 0; }
-    .hamburger.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+    .hamburger span:nth-child(1) { width: 22px; }
+    .hamburger span:nth-child(2) { width: 16px; }
+    .hamburger span:nth-child(3) { width: 22px; }
+    /* Quando recolhida, muda proporções para indicar "expandir" */
+    body.sb-slim .hamburger span:nth-child(2) { width: 22px; }
 
-    /* ── Overlay (mobile) ── */
-    .sidebar-overlay {
-      display: none; position: fixed; inset: 0;
-      background: rgba(0,0,0,0.45); z-index: 1040;
-    }
-    .sidebar-overlay.active { display: block; }
-
-    /* ── Sidebar ── */
+    /* ── Sidebar ──────────────────────────────────────────────────── */
     .sidebar {
       position: fixed; top: 64px; left: 0;
-      width: var(--sidebar-w);
       height: calc(100vh - 64px);
+      width: var(--sb-wide);
       background: #fff;
-      border-right: 1px solid #e0e6ed;
-      box-shadow: 3px 0 12px rgba(0,0,0,0.08);
+      border-right: 1px solid #e2e8f0;
+      box-shadow: 2px 0 8px rgba(0,0,0,0.07);
       z-index: 1050;
-      overflow-y: auto; overflow-x: hidden;
-      transform: translateX(0);
-      transition: transform 0.3s cubic-bezier(.4,0,.2,1);
+      overflow-x: hidden; overflow-y: auto;
+      transition: width 0.25s cubic-bezier(.4,0,.2,1);
       display: flex; flex-direction: column;
     }
-    .sidebar.closed { transform: translateX(calc(-1 * var(--sidebar-w))); }
+    body.sb-slim .sidebar { width: var(--sb-slim); }
 
-    /* Nav links */
+    /* Headings e divisórias */
     .sidebar-heading {
-      font-size: 0.68rem; font-weight: 700; color: #9ca3af;
+      font-size: 0.67rem; font-weight: 700; color: #94a3b8;
       text-transform: uppercase; letter-spacing: 1.2px;
-      padding: 1rem 1.1rem 0.3rem;
+      padding: 1rem 1rem 0.3rem;
+      white-space: nowrap; overflow: hidden;
+      transition: opacity 0.2s;
     }
+    body.sb-slim .sidebar-heading { opacity: 0; pointer-events: none; }
+    .sidebar-divider { height: 1px; background: #e9eef5; margin: 0.4rem 0.8rem; }
+    body.sb-slim .sidebar-divider { margin: 0.4rem 0.5rem; }
+
+    /* Links */
     .sidebar .nav-link {
-      color: #374151; padding: 0.6rem 1rem;
-      border-radius: 8px; margin: 1px 8px;
+      color: #374151;
+      padding: 0.6rem 1rem;
+      border-radius: 8px; margin: 1px 6px;
       display: flex; align-items: center; gap: 0.7rem;
       font-size: 0.875rem; font-weight: 500;
-      transition: background 0.18s, color 0.18s;
-      white-space: nowrap;
+      white-space: nowrap; overflow: hidden;
+      transition: background 0.18s, color 0.18s, padding 0.25s;
     }
-    .sidebar .nav-link i { font-size: 1rem; flex-shrink: 0; color: #6b7280; transition: color 0.18s; }
-    .sidebar .nav-link:hover { background: #f0f4ff; color: var(--ses-azul); }
-    .sidebar .nav-link:hover i { color: var(--ses-azul); }
-    .sidebar .nav-link.active { background: var(--ses-azul); color: #fff; }
-    .sidebar .nav-link.active i { color: #fff; }
-    .sidebar .nav-link.sair { color: #dc3545; }
-    .sidebar .nav-link.sair i { color: #dc3545; }
-    .sidebar .nav-link.sair:hover { background: #fff1f2; color: #b91c1c; }
-    .sidebar-divider { height: 1px; background: #e5e7eb; margin: 0.5rem 1rem; }
+    .sidebar .nav-link i {
+      font-size: 1.05rem; flex-shrink: 0;
+      width: 22px; text-align: center;
+      color: #64748b; transition: color 0.18s;
+    }
+    .sidebar .nav-link .nav-label { transition: opacity 0.15s; }
+    .sidebar .nav-link:hover         { background: #eff6ff; color: var(--ses-azul); }
+    .sidebar .nav-link:hover i       { color: var(--ses-azul); }
+    .sidebar .nav-link.active        { background: var(--ses-azul); color: #fff; }
+    .sidebar .nav-link.active i      { color: #fff; }
+    .sidebar .nav-link.sair          { color: #dc3545; }
+    .sidebar .nav-link.sair i        { color: #dc3545; }
+    .sidebar .nav-link.sair:hover    { background: #fff1f2; }
 
-    /* ── Conteúdo principal ── */
+    /* Estado recolhido: centraliza ícone, oculta texto */
+    body.sb-slim .sidebar .nav-link {
+      padding: 0.65rem 0; margin: 1px 4px;
+      justify-content: center;
+    }
+    body.sb-slim .sidebar .nav-link .nav-label { opacity: 0; width: 0; overflow: hidden; }
+
+    /* Tooltip ao passar o mouse no modo slim */
+    body.sb-slim .sidebar .nav-link { position: relative; }
+    body.sb-slim .sidebar .nav-link::after {
+      content: attr(data-tip);
+      position: absolute; left: calc(100% + 12px); top: 50%;
+      transform: translateY(-50%);
+      background: rgba(15, 30, 55, 0.92); color: #fff;
+      padding: 5px 12px; border-radius: 6px;
+      font-size: 0.8rem; font-weight: 500;
+      white-space: nowrap; pointer-events: none;
+      opacity: 0; transition: opacity 0.15s; z-index: 9999;
+    }
+    body.sb-slim .sidebar .nav-link:hover::after { opacity: 1; }
+
+    /* ── Conteúdo ─────────────────────────────────────────────────── */
     .main-content {
+      margin-left: var(--sb-wide);
       min-height: calc(100vh - 64px);
-      margin-left: var(--sidebar-w);
-      transition: margin-left 0.3s cubic-bezier(.4,0,.2,1);
       padding: 1.5rem;
+      transition: margin-left 0.25s cubic-bezier(.4,0,.2,1);
     }
-    .main-content.expanded { margin-left: 0; }
+    body.sb-slim .main-content { margin-left: var(--sb-slim); }
 
-    /* ── Cards e UI ── */
+    /* ── Cards e UI ───────────────────────────────────────────────── */
     .card { border: none; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); }
     .card-header { border-radius: 12px 12px 0 0 !important; font-weight: 600; }
     .kpi-card { border-left: 4px solid var(--ses-azul); }
-    .kpi-card.verde { border-left-color: var(--ses-verde); }
+    .kpi-card.verde  { border-left-color: var(--ses-verde); }
     .kpi-card.laranja { border-left-color: var(--ses-laranja); }
-    .kpi-card.roxo { border-left-color: #6f42c1; }
+    .kpi-card.roxo   { border-left-color: #6f42c1; }
     .kpi-valor { font-size: 1.6rem; font-weight: 700; color: var(--ses-azul); }
     .kpi-label { font-size: 0.8rem; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; }
-    .kpi-icon { font-size: 2rem; opacity: 0.15; }
+    .kpi-icon  { font-size: 2rem; opacity: 0.15; }
     .badge-drs { background: var(--ses-azul); font-size: 0.75rem; }
     .table-hover tbody tr:hover { background-color: #e8f0fe; }
-    .btn-ses { background: var(--ses-azul); border-color: var(--ses-azul); color: white; }
+    .btn-ses       { background: var(--ses-azul); border-color: var(--ses-azul); color: white; }
     .btn-ses:hover { background: var(--ses-azul-claro); color: white; }
     .page-header { background: linear-gradient(135deg, var(--ses-azul) 0%, var(--ses-azul-claro) 100%); color: white; padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem; }
     .breadcrumb-item.active { color: rgba(255,255,255,0.8); }
@@ -128,10 +157,20 @@
     footer { background: var(--ses-azul); color: rgba(255,255,255,0.7); font-size: 0.8rem; padding: 0.8rem 0; }
     .flash-container { position: fixed; top: 74px; right: 20px; z-index: 9999; min-width: 300px; }
 
-    /* ── Responsivo ── */
+    /* ── Responsivo ───────────────────────────────────────────────── */
     @media (max-width: 767px) {
+      .sidebar { transform: translateX(calc(-1 * var(--sb-wide))); width: var(--sb-wide) !important; }
+      body.sb-open .sidebar { transform: translateX(0); }
       .main-content { margin-left: 0 !important; padding: 1rem; }
       .navbar-texto { display: none !important; }
+      .sidebar-overlay { display: block !important; }
+      body.sb-open .sidebar-overlay { opacity: 1; pointer-events: auto; }
+    }
+    .sidebar-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.4); z-index: 1040;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.25s;
     }
     @media print {
       .sidebar, .navbar, .sidebar-overlay, .no-print, footer { display: none !important; }
@@ -142,30 +181,20 @@
 </head>
 <body>
 
-  <!-- Overlay (fecha sidebar ao clicar fora no mobile) -->
   <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
   <!-- Navbar -->
   <nav class="navbar navbar-dark">
     <div class="container-fluid">
-      <!-- Hamburger -->
-      <button class="hamburger" id="hamburger" title="Menu" aria-label="Abrir/fechar menu">
-        <span></span>
-        <span></span>
-        <span></span>
+      <button class="hamburger" id="hamburger" title="Recolher / Expandir menu" aria-label="Menu">
+        <span></span><span></span><span></span>
       </button>
-
-      <!-- Logo -->
       <a class="navbar-brand" href="/">
         <img src="{{ url_for('static', filename='img/logo1.png') }}" alt="Logo SES-SP">
       </a>
-
-      <!-- Título -->
       <span class="navbar-texto d-none d-lg-block">
         COORDENADORIA DE GESTÃO ORÇAMENTÁRIA E FINANCEIRA — GCSS
       </span>
-
-      <!-- Usuário -->
       <div class="d-flex ms-auto align-items-center pe-2">
         {% if session.get('usuario_id') %}
         <span class="text-white-50 small d-none d-md-inline">
@@ -178,35 +207,42 @@
 
   <!-- Sidebar -->
   <aside id="mainSidebar" class="sidebar">
-    <div class="pt-2 pb-3">
+    <div class="pt-2 pb-4">
 
       <div class="sidebar-heading">Principal</div>
       <nav class="nav flex-column">
-        <a class="nav-link {{ 'active' if request.endpoint == 'dashboard' }}" href="{{ url_for('dashboard') }}">
-          <i class="bi bi-speedometer2"></i> Dashboard
+        <a class="nav-link {{ 'active' if request.endpoint == 'dashboard' }}"
+           href="{{ url_for('dashboard') }}" data-tip="Dashboard">
+          <i class="bi bi-speedometer2"></i><span class="nav-label">Dashboard</span>
         </a>
-        <a class="nav-link {{ 'active' if request.endpoint == 'pesquisa' }}" href="{{ url_for('pesquisa') }}">
-          <i class="bi bi-search"></i> Pesquisar
+        <a class="nav-link {{ 'active' if request.endpoint == 'pesquisa' }}"
+           href="{{ url_for('pesquisa') }}" data-tip="Pesquisar">
+          <i class="bi bi-search"></i><span class="nav-label">Pesquisar</span>
         </a>
-        <a class="nav-link {{ 'active' if request.endpoint == 'inserir' }}" href="{{ url_for('inserir') }}">
-          <i class="bi bi-plus-square"></i> Inserir Registro
+        <a class="nav-link {{ 'active' if request.endpoint == 'inserir' }}"
+           href="{{ url_for('inserir') }}" data-tip="Inserir Registro">
+          <i class="bi bi-plus-square"></i><span class="nav-label">Inserir Registro</span>
         </a>
-        <a class="nav-link {{ 'active' if request.endpoint == 'graficos' }}" href="{{ url_for('graficos') }}">
-          <i class="bi bi-bar-chart-line"></i> Gráficos
+        <a class="nav-link {{ 'active' if request.endpoint == 'graficos' }}"
+           href="{{ url_for('graficos') }}" data-tip="Gráficos">
+          <i class="bi bi-bar-chart-line"></i><span class="nav-label">Gráficos</span>
         </a>
       </nav>
 
       <div class="sidebar-divider"></div>
       <div class="sidebar-heading">Relatórios</div>
       <nav class="nav flex-column">
-        <a class="nav-link {{ 'active' if request.endpoint == 'relatorios' }}" href="{{ url_for('relatorios') }}">
-          <i class="bi bi-file-earmark-text"></i> Relatórios
+        <a class="nav-link {{ 'active' if request.endpoint == 'relatorios' }}"
+           href="{{ url_for('relatorios') }}" data-tip="Relatórios">
+          <i class="bi bi-file-earmark-text"></i><span class="nav-label">Relatórios</span>
         </a>
-        <a class="nav-link {{ 'active' if request.endpoint == 'relatorio_resumo_drs' }}" href="{{ url_for('relatorio_resumo_drs') }}">
-          <i class="bi bi-diagram-3"></i> Resumo DRS
+        <a class="nav-link {{ 'active' if request.endpoint == 'relatorio_resumo_drs' }}"
+           href="{{ url_for('relatorio_resumo_drs') }}" data-tip="Resumo DRS">
+          <i class="bi bi-diagram-3"></i><span class="nav-label">Resumo DRS</span>
         </a>
-        <a class="nav-link {{ 'active' if request.endpoint == 'relatorio_comparativo_unidade' }}" href="{{ url_for('relatorio_comparativo_unidade') }}">
-          <i class="bi bi-graph-up"></i> Por Unidade
+        <a class="nav-link {{ 'active' if request.endpoint == 'relatorio_comparativo_unidade' }}"
+           href="{{ url_for('relatorio_comparativo_unidade') }}" data-tip="Por Unidade">
+          <i class="bi bi-graph-up"></i><span class="nav-label">Por Unidade</span>
         </a>
       </nav>
 
@@ -214,11 +250,13 @@
       <div class="sidebar-divider"></div>
       <div class="sidebar-heading">Administração</div>
       <nav class="nav flex-column">
-        <a class="nav-link {{ 'active' if request.endpoint == 'importar' }}" href="{{ url_for('importar') }}">
-          <i class="bi bi-cloud-upload"></i> Importar XLS
+        <a class="nav-link {{ 'active' if request.endpoint == 'importar' }}"
+           href="{{ url_for('importar') }}" data-tip="Importar XLS">
+          <i class="bi bi-cloud-upload"></i><span class="nav-label">Importar XLS</span>
         </a>
-        <a class="nav-link {{ 'active' if request.endpoint == 'usuarios' }}" href="{{ url_for('usuarios') }}">
-          <i class="bi bi-people"></i> Usuários
+        <a class="nav-link {{ 'active' if request.endpoint == 'usuarios' }}"
+           href="{{ url_for('usuarios') }}" data-tip="Usuários">
+          <i class="bi bi-people"></i><span class="nav-label">Usuários</span>
         </a>
       </nav>
       {% endif %}
@@ -226,20 +264,20 @@
       <div class="sidebar-divider"></div>
       <div class="sidebar-heading">Conta</div>
       <nav class="nav flex-column">
-        <a class="nav-link {{ 'active' if request.endpoint == 'alterar_senha' }}" href="{{ url_for('alterar_senha') }}">
-          <i class="bi bi-key"></i> Alterar Senha
+        <a class="nav-link {{ 'active' if request.endpoint == 'alterar_senha' }}"
+           href="{{ url_for('alterar_senha') }}" data-tip="Alterar Senha">
+          <i class="bi bi-key"></i><span class="nav-label">Alterar Senha</span>
         </a>
-        <a class="nav-link sair" href="{{ url_for('logout') }}">
-          <i class="bi bi-box-arrow-right"></i> Sair
+        <a class="nav-link sair" href="{{ url_for('logout') }}" data-tip="Sair">
+          <i class="bi bi-box-arrow-right"></i><span class="nav-label">Sair</span>
         </a>
       </nav>
 
     </div>
   </aside>
 
-  <!-- Conteúdo principal -->
+  <!-- Conteúdo -->
   <main class="main-content" id="mainContent">
-    <!-- Flash messages -->
     <div class="flash-container">
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% for category, message in messages %}
@@ -250,13 +288,13 @@
         {% endfor %}
       {% endwith %}
     </div>
-
     {% block content %}{% endblock %}
   </main>
 
   <footer class="text-center">
     <div class="container">
-      Secretaria de Estado da Saúde de SP — CGOF/GCSS — Sistema de Controle de Teto MAC &nbsp;|&nbsp; {{ now().year if now is defined else '2026' }}
+      Secretaria de Estado da Saúde de SP — CGOF/GCSS — Sistema de Controle de Teto MAC &nbsp;|&nbsp;
+      {{ now().year if now is defined else '2026' }}
     </div>
   </footer>
 
@@ -267,75 +305,54 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
   <script>
-    // Auto-dismiss alerts
     setTimeout(() => {
       document.querySelectorAll('.alert').forEach(a => bootstrap.Alert.getOrCreateInstance(a)?.close());
     }, 5000);
 
     function moeda(v) {
       if (!v) return 'R$ 0,00';
-      return 'R$ ' + parseFloat(v).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+      return 'R$ ' + parseFloat(v).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
     }
     function numBR(v) {
-      if (!v) return '0';
-      return parseInt(v).toLocaleString('pt-BR');
+      return v ? parseInt(v).toLocaleString('pt-BR') : '0';
     }
 
-    // ── Sidebar toggle ──────────────────────────────────────────────────────────
+    /* ── Sidebar toggle ─────────────────────────────────────────── */
     (function () {
-      const sidebar  = document.getElementById('mainSidebar');
-      const content  = document.getElementById('mainContent');
-      const hamburger = document.getElementById('hamburger');
-      const overlay  = document.getElementById('sidebarOverlay');
-      if (!sidebar) return;
-
+      const btn     = document.getElementById('hamburger');
+      const overlay = document.getElementById('sidebarOverlay');
       const isMobile = () => window.innerWidth < 768;
 
-      function isOpen() { return !sidebar.classList.contains('closed'); }
-
-      function open() {
-        sidebar.classList.remove('closed');
-        hamburger.classList.add('open');
+      // Desktop: sb-slim = ícones apenas | Mobile: sb-open = drawer aberto
+      function applyState(slim) {
         if (isMobile()) {
-          overlay.classList.add('active');
-          content.classList.add('expanded');
+          document.body.classList.toggle('sb-open', !slim);
         } else {
-          content.classList.remove('expanded');
+          document.body.classList.toggle('sb-slim', slim);
         }
-        localStorage.setItem('sidebar_open', '1');
+        localStorage.setItem('sb_slim', slim ? '1' : '0');
       }
 
-      function close() {
-        sidebar.classList.add('closed');
-        hamburger.classList.remove('open');
-        overlay.classList.remove('active');
-        content.classList.add('expanded');
-        localStorage.setItem('sidebar_open', '0');
-      }
-
-      function toggle() { isOpen() ? close() : open(); }
-
-      // Estado inicial
-      const saved = localStorage.getItem('sidebar_open');
-      if (saved === '0' || (saved === null && isMobile())) {
-        sidebar.classList.add('closed');
-        content.classList.add('expanded');
-      } else {
-        hamburger.classList.add('open');
-      }
-
-      hamburger.addEventListener('click', toggle);
-      overlay.addEventListener('click', close);
-
-      // Fecha ao redimensionar para mobile
-      window.addEventListener('resize', () => {
-        if (isMobile() && isOpen()) {
-          overlay.classList.add('active');
-          content.classList.add('expanded');
-        } else if (!isMobile() && isOpen()) {
-          overlay.classList.remove('active');
-          content.classList.remove('expanded');
+      function toggle() {
+        if (isMobile()) {
+          const open = document.body.classList.toggle('sb-open');
+          localStorage.setItem('sb_slim', open ? '0' : '1');
+        } else {
+          const slim = document.body.classList.toggle('sb-slim');
+          localStorage.setItem('sb_slim', slim ? '1' : '0');
         }
+      }
+
+      // Restaurar estado salvo
+      const saved = localStorage.getItem('sb_slim');
+      if (!isMobile()) {
+        if (saved === '1') document.body.classList.add('sb-slim');
+      }
+
+      btn.addEventListener('click', toggle);
+      overlay.addEventListener('click', () => {
+        document.body.classList.remove('sb-open');
+        localStorage.setItem('sb_slim', '1');
       });
     })();
   </script>
