@@ -859,11 +859,46 @@ def detalhamento_registros(ano, mes, drs=None, tipo=None, busca=None, page=1, pe
 
     if USE_SUPABASE:
         sb = get_sb()
-        q = sb.table('teto_mac').select('*').eq('ano', ano).eq('mes', mes)
-        if drs: q = q.eq('drs', drs)
-        if tipo: q = q.eq('tipo', tipo)
+        q  = sb.table('teto_mac').select('*').eq('ano', ano).eq('mes', mes)
         tc = sb.table('teto_mac').select('id', count='exact').eq('ano', ano).eq('mes', mes)
-        if drs: tc = tc.eq('drs', drs)
+        if drs:
+            q  = q.eq('drs', drs)
+            tc = tc.eq('drs', drs)
+        if tipo:
+            q  = q.eq('tipo', tipo)
+            tc = tc.eq('tipo', tipo)
+        if busca:
+            orq = f'unidade.ilike.%{busca}%,cnes.ilike.%{busca}%,municipio.ilike.%{busca}%'
+            q  = q.or_(orq)
+            tc = tc.or_(orq)
+        if col_filters:
+            for key, val in col_filters.items():
+                if not val:
+                    continue
+                if key.endswith('__gte'):
+                    col = key[:-5]
+                    if col in _SORT_ALLOW:
+                        try:
+                            q  = q.gte(col, float(val))
+                            tc = tc.gte(col, float(val))
+                        except Exception:
+                            pass
+                elif key.endswith('__lte'):
+                    col = key[:-5]
+                    if col in _SORT_ALLOW:
+                        try:
+                            q  = q.lte(col, float(val))
+                            tc = tc.lte(col, float(val))
+                        except Exception:
+                            pass
+                elif key in _SORT_ALLOW:
+                    if '|' in val:
+                        vals_list = [v.strip() for v in val.split('|') if v.strip()]
+                        q  = q.in_(key, vals_list)
+                        tc = tc.in_(key, vals_list)
+                    else:
+                        q  = q.filter(key, 'ilike', f'%{val}%')
+                        tc = tc.filter(key, 'ilike', f'%{val}%')
         total = (tc.execute()).count or 0
         offset = (page - 1) * per_page
         rows = q.order(sc, desc=(sd=='DESC')).range(offset, offset + per_page - 1).execute()
@@ -889,13 +924,18 @@ def autocomplete_valores(campo, q, ano=None, mes=None, limit=15):
     if USE_SUPABASE:
         sb = get_sb()
         r = sb.table('teto_mac').select(campo)\
-              .ilike(campo, f'%{q}%')\
+              .filter(campo, 'ilike', f'%{q}%')\
               .limit(limit * 5).execute()
-        vals = sorted(set(
-            str(row[campo]) for row in (r.data or [])
-            if row.get(campo) and str(row[campo]).strip()
-        ))
-        return vals[:limit]
+        seen = set(); result = []
+        for row in (r.data or []):
+            # r.data pode ser list[dict] ou list[Row] dependendo da versão
+            v = row.get(campo) if isinstance(row, dict) else getattr(row, campo, None)
+            if v is None:
+                continue
+            vs = str(v).strip()
+            if vs and vs not in seen:
+                seen.add(vs); result.append(vs)
+        return sorted(result)[:limit]
     conn = get_db()
     where = [f'{campo} LIKE ?', f'{campo} IS NOT NULL', f"TRIM({campo}) != ''"]
     params = [f'%{q}%']
