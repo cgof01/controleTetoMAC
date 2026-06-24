@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: controle-teto-mac
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: USE_SUPABASE
+        value: "True"
+      - key: FLASK_SECRET_KEY
+        generateValue: true
+    autoDeploy: true

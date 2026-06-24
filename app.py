@@ -8,7 +8,7 @@ import database as db
 from database import MESES
 
 app = Flask(__name__)
-app.secret_key = 'teto-mac-ses-sp-2024-cgof'
+app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'teto-mac-ses-sp-2024-cgof')
 
 def login_required(f):
     @wraps(f)

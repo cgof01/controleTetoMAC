@@ -1,8 +1,7 @@
-# Configuração do Sistema Teto MAC
-# Supabase (https) — não requer abertura de porta no firewall
+import os
 
-SUPABASE_URL = "https://nqqcgnjyaxgcxhqviprr.supabase.co"
-SUPABASE_KEY = "sb_publishable__6YN43KozIVDxTLEDFMQyQ_5q6AnWD5"
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://nqqcgnjyaxgcxhqviprr.supabase.co")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "sb_publishable__6YN43KozIVDxTLEDFMQyQ_5q6AnWD5")
 
-# Troque para False para usar SQLite local (desenvolvimento/offline)
-USE_SUPABASE = True
+_use = os.environ.get("USE_SUPABASE", "True")
+USE_SUPABASE = _use.lower() not in ("false", "0", "no")
