@@ -323,7 +323,7 @@ function calcularTotal() {
 })();
 
 // ── Portarias ──────────────────────────────────────────────────────────────────
-let portariasCnes = "{{ r.get('cnes', '') | e }}";
+let portariasCnes = "{{ (registro.cnes if registro else '') | e }}";
 
 document.addEventListener('DOMContentLoaded', function () {
   if (portariasCnes) {
