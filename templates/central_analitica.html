@@ -555,9 +555,10 @@ function renderTable(data, dims, mets) {
   </tr></thead><tbody>`;
 
   data.forEach((row, i) => {
-    const rank = i < 3 ? ['🥇','🥈','🥉'][i] : (i+1);
+    const rankColors = ['#d97706','#6b7280','#92400e'];
+    const rank = `<span style="font-weight:800;font-size:.82rem;color:${i<3?rankColors[i]:'#94a3b8'}">${i+1}</span>`;
     html += `<tr>
-      <td style="color:#94a3b8;font-size:.75rem;text-align:center">${rank}</td>
+      <td style="text-align:center">${rank}</td>
       ${allCols.map(c => {
         if(isDim(c)) {
           const val = row[c]!=null?String(row[c]):'—';
