@@ -1377,3 +1377,109 @@ def _init_sqlite():
     """)
     conn.commit()
     conn.close()
+
+# ── Portarias ─────────────────────────────────────────────────────────────────
+
+_PORTARIAS_DB  = os.path.join(os.path.dirname(__file__), 'portarias.db')
+PORTARIAS_DIR  = os.path.join(os.path.dirname(__file__), 'uploads', 'portarias')
+_portarias_ok  = False
+
+def _portarias_conn():
+    global _portarias_ok
+    import sqlite3 as _sl
+    if not _portarias_ok:
+        _init_portarias_db(_sl)
+    conn = _sl.connect(_PORTARIAS_DB)
+    conn.row_factory = _sl.Row
+    return conn
+
+def _init_portarias_db(sl):
+    global _portarias_ok
+    os.makedirs(PORTARIAS_DIR, exist_ok=True)
+    conn = sl.connect(_PORTARIAS_DB)
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS portarias (
+            id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+            cnes               TEXT NOT NULL,
+            nome_original      TEXT NOT NULL,
+            nome_arquivo       TEXT NOT NULL,
+            descricao          TEXT DEFAULT '',
+            tamanho_kb         INTEGER DEFAULT 0,
+            tamanho_original_kb INTEGER DEFAULT 0,
+            validado           INTEGER DEFAULT 0,
+            validado_em        TEXT,
+            validado_por       TEXT,
+            created_at         TEXT DEFAULT (datetime('now','localtime'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_port_cnes ON portarias(cnes);
+    """)
+    conn.commit()
+    conn.close()
+    _portarias_ok = True
+
+def listar_portarias(cnes):
+    try:
+        conn = _portarias_conn()
+        rows = conn.execute(
+            "SELECT * FROM portarias WHERE cnes=? ORDER BY created_at DESC", (str(cnes),)
+        ).fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
+    except Exception:
+        return []
+
+def salvar_portaria(cnes, nome_original, nome_arquivo, tamanho_kb, tamanho_original_kb, descricao=''):
+    conn = _portarias_conn()
+    cur = conn.execute("""
+        INSERT INTO portarias
+            (cnes, nome_original, nome_arquivo, tamanho_kb, tamanho_original_kb, descricao)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, (str(cnes), nome_original, nome_arquivo, tamanho_kb, tamanho_original_kb, descricao or ''))
+    conn.commit()
+    new_id = cur.lastrowid
+    conn.close()
+    return new_id
+
+def buscar_portaria(pid):
+    try:
+        conn = _portarias_conn()
+        row  = conn.execute("SELECT * FROM portarias WHERE id=?", (int(pid),)).fetchone()
+        conn.close()
+        return dict(row) if row else None
+    except Exception:
+        return None
+
+def validar_portaria(pid, usuario_nome):
+    from datetime import datetime
+    agora = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+    conn  = _portarias_conn()
+    conn.execute(
+        "UPDATE portarias SET validado=1, validado_em=?, validado_por=? WHERE id=?",
+        (agora, usuario_nome, int(pid))
+    )
+    conn.commit()
+    conn.close()
+
+def desvalidar_portaria(pid):
+    conn = _portarias_conn()
+    conn.execute(
+        "UPDATE portarias SET validado=0, validado_em=NULL, validado_por=NULL WHERE id=?",
+        (int(pid),)
+    )
+    conn.commit()
+    conn.close()
+
+def deletar_portaria_db(pid):
+    p = buscar_portaria(pid)
+    if p:
+        arq = os.path.join(PORTARIAS_DIR, p['nome_arquivo'])
+        if os.path.exists(arq):
+            try:
+                os.unlink(arq)
+            except Exception:
+                pass
+        conn = _portarias_conn()
+        conn.execute("DELETE FROM portarias WHERE id=?", (int(pid),))
+        conn.commit()
+        conn.close()
+    return p

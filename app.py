@@ -5,7 +5,7 @@ from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file, Response, session, send_from_directory
 from werkzeug.security import generate_password_hash, check_password_hash
 import database as db
-from database import MESES
+from database import MESES, PORTARIAS_DIR
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'teto-mac-ses-sp-2024-cgof')
@@ -1055,6 +1055,117 @@ def detalhamento_exportar():
     nome = f"teto_mac_{ano}_{mes:02d}.csv"
     return Response(output.getvalue(), mimetype='text/csv;charset=utf-8',
                     headers={'Content-Disposition': f'attachment;filename={nome}'})
+
+# ── Portarias ────────────────────────────────────────────────────────────────
+
+def _comprimir_pdf(src, dst):
+    """Tenta comprimir PDF com pypdf ou pikepdf. Retorna True se conseguiu."""
+    try:
+        from pypdf import PdfReader, PdfWriter
+        reader = PdfReader(src)
+        writer = PdfWriter()
+        for page in reader.pages:
+            page.compress_content_streams()
+            writer.add_page(page)
+        writer.compress_identical_objects(remove_identicals=True, remove_orphans=True)
+        with open(dst, 'wb') as f:
+            writer.write(f)
+        return True
+    except Exception:
+        pass
+    try:
+        import pikepdf
+        with pikepdf.open(src) as pdf:
+            pdf.save(dst, compress_streams=True,
+                     object_stream_mode=pikepdf.ObjectStreamMode.generate)
+        return True
+    except Exception:
+        pass
+    return False
+
+@app.route('/api/portarias/<cnes>')
+@login_required
+def api_portarias(cnes):
+    return jsonify(db.listar_portarias(cnes))
+
+@app.route('/portaria/upload', methods=['POST'])
+@login_required
+def portaria_upload():
+    import tempfile, shutil, time
+    cnes     = request.form.get('cnes', '').strip()
+    descricao = request.form.get('descricao', '').strip()
+    arquivo  = request.files.get('arquivo')
+
+    if not cnes:
+        return jsonify({'ok': False, 'msg': 'CNES obrigatório'}), 400
+    if not arquivo or not arquivo.filename:
+        return jsonify({'ok': False, 'msg': 'Arquivo não enviado'}), 400
+    if not arquivo.filename.lower().endswith('.pdf'):
+        return jsonify({'ok': False, 'msg': 'Apenas arquivos PDF são aceitos'}), 400
+
+    os.makedirs(PORTARIAS_DIR, exist_ok=True)
+
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
+    arquivo.save(tmp.name)
+    tmp.close()
+    tamanho_original_kb = max(1, os.path.getsize(tmp.name) // 1024)
+
+    nome_arquivo = f"{cnes}_{int(time.time())}.pdf"
+    dst = os.path.join(PORTARIAS_DIR, nome_arquivo)
+
+    comprimido = _comprimir_pdf(tmp.name, dst)
+    if not comprimido:
+        shutil.copy2(tmp.name, dst)
+    os.unlink(tmp.name)
+
+    tamanho_kb = max(1, os.path.getsize(dst) // 1024)
+    # se a "compressão" ficou maior, substituir pelo original
+    if comprimido and tamanho_kb > tamanho_original_kb:
+        arquivo.stream.seek(0)
+        with open(dst, 'wb') as f:
+            f.write(arquivo.stream.read())
+        tamanho_kb = tamanho_original_kb
+
+    pid = db.salvar_portaria(
+        cnes, arquivo.filename, nome_arquivo,
+        tamanho_kb, tamanho_original_kb, descricao
+    )
+    return jsonify({'ok': True, 'portaria': db.buscar_portaria(pid)})
+
+@app.route('/portaria/<int:pid>/ver')
+@login_required
+def portaria_ver(pid):
+    p = db.buscar_portaria(pid)
+    if not p:
+        return 'Portaria não encontrada', 404
+    filepath = os.path.join(PORTARIAS_DIR, p['nome_arquivo'])
+    if not os.path.exists(filepath):
+        return 'Arquivo não encontrado no servidor', 404
+    return send_file(filepath, mimetype='application/pdf',
+                     download_name=p['nome_original'])
+
+@app.route('/portaria/<int:pid>/validar', methods=['POST'])
+@login_required
+def portaria_validar(pid):
+    p = db.buscar_portaria(pid)
+    if not p:
+        return jsonify({'ok': False, 'msg': 'Portaria não encontrada'}), 404
+    if p['validado']:
+        db.desvalidar_portaria(pid)
+        return jsonify({'ok': True, 'validado': False})
+    db.validar_portaria(pid, session.get('usuario_nome', 'Sistema'))
+    p2 = db.buscar_portaria(pid)
+    return jsonify({'ok': True, 'validado': True,
+                    'validado_em': p2['validado_em'],
+                    'validado_por': p2['validado_por']})
+
+@app.route('/portaria/<int:pid>/deletar', methods=['POST'])
+@login_required
+def portaria_deletar(pid):
+    p = db.deletar_portaria_db(pid)
+    if not p:
+        return jsonify({'ok': False, 'msg': 'Portaria não encontrada'}), 404
+    return jsonify({'ok': True})
 
 # ── Filtros Jinja ──────────────────────────────────────────────────────────────
 
