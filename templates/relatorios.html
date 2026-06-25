@@ -60,13 +60,13 @@
 .rel-loading { display:flex; align-items:center; justify-content:center; height:160px; color:#94a3b8; gap:.5rem; }
 .rel-empty   { display:flex; align-items:center; justify-content:center; height:100px; color:#94a3b8; flex-direction:column; gap:.4rem; }
 
-/* ── Badges / rank ───────────────────────────────────── */
-.rk-1 { background:#fbbf24; color:#78350f; }
-.rk-2 { background:#94a3b8; color:#fff; }
-.rk-3 { background:#b45309; color:#fff; }
-.rk-n { background:#f1f5f9; color:#64748b; }
-.rk-badge { width:22px; height:22px; border-radius:50%; font-size:.68rem; font-weight:700;
-  display:inline-flex; align-items:center; justify-content:center; }
+/* ── Rank numbers ────────────────────────────────────── */
+.rk-badge { display:inline-block; min-width:20px; text-align:center;
+  font-size:.82rem; font-weight:800; font-variant-numeric:tabular-nums; }
+.rk-1 { color:#d97706; }
+.rk-2 { color:#6b7280; }
+.rk-3 { color:#92400e; }
+.rk-n { color:#94a3b8; font-weight:600; }
 </style>
 {% endblock %}
 
