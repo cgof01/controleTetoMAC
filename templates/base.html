@@ -230,19 +230,15 @@
       </nav>
 
       <div class="sidebar-divider"></div>
-      <div class="sidebar-heading">Relatórios</div>
+      <div class="sidebar-heading">Análise &amp; Relatórios</div>
       <nav class="nav flex-column">
+        <a class="nav-link {{ 'active' if request.endpoint == 'central_analitica' }}"
+           href="{{ url_for('central_analitica') }}" data-tip="Central de Relatórios">
+          <i class="bi bi-graph-up-arrow"></i><span class="nav-label">Central de Relatórios</span>
+        </a>
         <a class="nav-link {{ 'active' if request.endpoint == 'relatorios' }}"
            href="{{ url_for('relatorios') }}" data-tip="Relatórios">
-          <i class="bi bi-file-earmark-text"></i><span class="nav-label">Relatórios</span>
-        </a>
-        <a class="nav-link {{ 'active' if request.endpoint == 'relatorio_resumo_drs' }}"
-           href="{{ url_for('relatorio_resumo_drs') }}" data-tip="Resumo DRS">
-          <i class="bi bi-diagram-3"></i><span class="nav-label">Resumo DRS</span>
-        </a>
-        <a class="nav-link {{ 'active' if request.endpoint == 'relatorio_comparativo_unidade' }}"
-           href="{{ url_for('relatorio_comparativo_unidade') }}" data-tip="Por Unidade">
-          <i class="bi bi-graph-up"></i><span class="nav-label">Por Unidade</span>
+          <i class="bi bi-file-earmark-bar-graph"></i><span class="nav-label">Relatórios</span>
         </a>
         <a class="nav-link {{ 'active' if request.endpoint == 'detalhamento' }}"
            href="{{ url_for('detalhamento') }}" data-tip="Detalhamento">

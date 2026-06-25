@@ -524,6 +524,136 @@ def relatorio_incentivos(ano, mes):
         return [{'campo': k, 'label': lbl, 'total': r.get(k) or 0} for k, lbl in INCENTIVOS]
 
 
+# ── Central de Relatórios Analíticos ─────────────────────────────────────────
+
+_DIMS_ALLOW = {'drs', 'tipo', 'hu', 'municipio', 'cnes', 'cnpj', 'unidade'}
+_METS_ALLOW = {
+    'aih_fisico', 'aih_faec', 'sia_faec', 'equip_hemodialise', 'limite_complementacao',
+    'aih_mc', 'aih_ac', 'aih_total', 'sia_mc', 'sia_ac', 'sia_total',
+    'teto_global', 'teto_mc', 'teto_ac', 'teto_mac', 'total_teto_mac',
+    'portaria_ms_gm_8516', 'integrasus', 'iac', 'sus_100', 'opo',
+    'rede_viver_sem_limite', 'rede_brasil_miseria', 'rsme', 'rce_rceg',
+    'rau_hosp_sos', 'rca_rcan', 'iapi', 'residencia_medica', 'melhor_em_casa',
+    'cer', 'doencas_raras', 'oficina_ortopedica', 'ihac', 'total_mc_ac_incentivos'
+}
+_INC = ('integrasus+iac+sus_100+opo+rede_viver_sem_limite+rede_brasil_miseria+rsme+rce_rceg+'
+        'rau_hosp_sos+rca_rcan+iapi+residencia_medica+melhor_em_casa+cer+doencas_raras+'
+        'oficina_ortopedica+ihac')
+_FAEC = 'aih_fisico+aih_faec+sia_faec+equip_hemodialise+limite_complementacao'
+
+
+def kpis_central(ano, mes):
+    """KPIs completos para a Central de Relatórios."""
+    if USE_SUPABASE:
+        sb = get_sb()
+        cols = ('drs,municipio,cnes,aih_fisico,aih_faec,sia_faec,equip_hemodialise,'
+                'limite_complementacao,aih_mc,aih_ac,sia_mc,sia_ac,teto_mac,total_teto_mac,'
+                'integrasus,iac,sus_100,opo,rede_viver_sem_limite,rede_brasil_miseria,rsme,'
+                'rce_rceg,rau_hosp_sos,rca_rcan,iapi,residencia_medica,melhor_em_casa,cer,'
+                'doencas_raras,oficina_ortopedica,ihac,total_mc_ac_incentivos')
+        r = sb.table('teto_mac').select(cols).eq('ano', ano).eq('mes', mes).limit(20000).execute()
+        data = r.data or []
+        drs_s, mun_s, cnes_s = set(), set(), set()
+        faec = aih = sia = inc = teto = geral = 0.0
+        for row in data:
+            if row.get('drs'):       drs_s.add(str(row['drs']))
+            if row.get('municipio'): mun_s.add(str(row['municipio']).strip())
+            if row.get('cnes'):      cnes_s.add(str(row['cnes']))
+            faec  += sum(row.get(k) or 0 for k in ['aih_fisico','aih_faec','sia_faec','equip_hemodialise','limite_complementacao'])
+            aih   += (row.get('aih_mc') or 0) + (row.get('aih_ac') or 0)
+            sia   += (row.get('sia_mc') or 0) + (row.get('sia_ac') or 0)
+            inc   += sum(row.get(k) or 0 for k in ['integrasus','iac','sus_100','opo',
+                         'rede_viver_sem_limite','rede_brasil_miseria','rsme','rce_rceg',
+                         'rau_hosp_sos','rca_rcan','iapi','residencia_medica','melhor_em_casa',
+                         'cer','doencas_raras','oficina_ortopedica','ihac'])
+            teto  += (row.get('teto_mac') or 0) + (row.get('total_teto_mac') or 0)
+            geral += row.get('total_mc_ac_incentivos') or 0
+        return {'total_teto_mac': teto, 'total_faec': faec, 'total_aih': aih,
+                'total_sia': sia, 'total_incentivos': inc, 'total_geral': geral,
+                'count_drs': len(drs_s), 'count_municipios': len(mun_s),
+                'count_unidades': len(data), 'count_cnes': len(cnes_s)}
+    else:
+        conn = get_db()
+        row = conn.execute(f"""
+            SELECT SUM(teto_mac+total_teto_mac) as total_teto_mac,
+                   SUM({_FAEC}) as total_faec,
+                   SUM(aih_mc+aih_ac) as total_aih,
+                   SUM(sia_mc+sia_ac) as total_sia,
+                   SUM({_INC}) as total_incentivos,
+                   SUM(total_mc_ac_incentivos) as total_geral,
+                   COUNT(DISTINCT CAST(drs AS INTEGER)) as count_drs,
+                   COUNT(DISTINCT LOWER(TRIM(COALESCE(municipio,'')))) as count_municipios,
+                   COUNT(*) as count_unidades,
+                   COUNT(DISTINCT COALESCE(cnes,'')) as count_cnes
+            FROM teto_mac WHERE ano=? AND mes=?
+        """, (ano, mes)).fetchone()
+        conn.close()
+        return dict(row) if row else {}
+
+
+def consulta_analitica(ano, mes, dimensoes=None, metricas=None, filtros=None, ordenar_por=None, limite=500):
+    """Consulta genérica para o construtor de relatórios."""
+    dimensoes = [d for d in (dimensoes or []) if d in _DIMS_ALLOW]
+    metricas  = [m for m in (metricas  or ['total_mc_ac_incentivos']) if m in _METS_ALLOW]
+    if not metricas:
+        metricas = ['total_mc_ac_incentivos']
+    filtros = filtros or {}
+
+    if USE_SUPABASE:
+        sb = get_sb()
+        col_set = list(dict.fromkeys(dimensoes + metricas))
+        q = sb.table('teto_mac').select(','.join(col_set) if col_set else '*').eq('ano', ano).eq('mes', mes)
+        for k, v in filtros.items():
+            if k not in _DIMS_ALLOW or not v:
+                continue
+            if isinstance(v, list) and v:
+                q = q.in_(k, v)
+            elif isinstance(v, str) and v:
+                q = q.filter(k, 'ilike', f'%{v}%')
+        r = q.limit(20000).execute()
+        data = r.data or []
+        seen = {}
+        for row in data:
+            key = tuple(str(row.get(d) or '') for d in dimensoes) if dimensoes else ('_total_',)
+            if key not in seen:
+                seen[key] = {d: row.get(d) for d in dimensoes}
+                for m in metricas:
+                    seen[key][m] = 0.0
+                seen[key]['_count'] = 0
+            for m in metricas:
+                seen[key][m] += row.get(m) or 0
+            seen[key]['_count'] += 1
+        result = list(seen.values())
+    else:
+        conn = get_db()
+        where  = ['ano = ?', 'mes = ?']
+        params = [ano, mes]
+        for k, v in filtros.items():
+            if k not in _DIMS_ALLOW or not v:
+                continue
+            if isinstance(v, list) and v:
+                placeholders = ','.join('?' for _ in v)
+                where.append(f'{k} IN ({placeholders})')
+                params.extend(v)
+            elif isinstance(v, str) and v:
+                where.append(f'LOWER({k}) LIKE ?')
+                params.append(f'%{v.lower()}%')
+        sel_mets = ', '.join(f'SUM(COALESCE({m},0)) as {m}' for m in metricas) + ', COUNT(*) as _count'
+        if dimensoes:
+            g = ', '.join(dimensoes)
+            sql = f"SELECT {g}, {sel_mets} FROM teto_mac WHERE {' AND '.join(where)} GROUP BY {g}"
+        else:
+            sql = f"SELECT {sel_mets} FROM teto_mac WHERE {' AND '.join(where)}"
+        rows = conn.execute(sql, params).fetchall()
+        conn.close()
+        result = [dict(r) for r in rows]
+
+    sort_key = ordenar_por if ordenar_por in metricas else (metricas[0] if metricas else None)
+    if sort_key:
+        result.sort(key=lambda x: x.get(sort_key) or 0, reverse=True)
+    return result[:limite]
+
+
 def relatorio_resumo_drs(ano, mes):
     if USE_SUPABASE:
         r = get_sb().rpc('get_resumo_drs', {'p_ano': ano, 'p_mes': mes}).execute()

@@ -1,0 +1,935 @@
+{% extends "base.html" %}
+{% block title %}Central de Relatórios Analíticos — Teto MAC{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── Layout ──────────────────────────────────────────────────────────── */
+.ca-header {
+  background: linear-gradient(135deg,#1e3a5f 0%,#2a5298 100%);
+  color:#fff; padding:.85rem 1.2rem; border-radius:12px; margin-bottom:.8rem;
+  display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap;
+}
+.ca-header h5 { margin:0; font-weight:700; font-size:1rem; }
+.ca-header small { opacity:.75; font-size:.78rem; }
+
+.ca-kpi-row { display:flex; gap:.5rem; flex-wrap:wrap; margin-bottom:.8rem; }
+.ca-kpi {
+  background:#fff; border:1px solid #e2e8f0; border-radius:10px;
+  padding:.6rem .9rem; flex:1; min-width:115px;
+  border-top:3px solid var(--c,#1e3a5f);
+}
+.ca-kpi .kv { font-size:.92rem; font-weight:700; color:#1e3a5f; white-space:nowrap; }
+.ca-kpi .kl { font-size:.68rem; color:#64748b; text-transform:uppercase; letter-spacing:.04em; }
+.ca-kpi .ki { font-size:1.3rem; float:right; opacity:.18; margin-top:-4px; }
+
+.ca-wrap {
+  display:flex; height:calc(100vh - 220px); min-height:500px;
+  border:1px solid #e2e8f0; border-radius:12px; overflow:hidden;
+  background:#fff; box-shadow:0 2px 12px rgba(0,0,0,.06);
+}
+
+/* ── Sidebar ──────────────────────────────────────────────────────────── */
+.ca-sb {
+  width:236px; min-width:236px; background:#f8fafc;
+  border-right:1px solid #e2e8f0; overflow-y:auto; display:flex; flex-direction:column;
+  transition:width .2s;
+}
+.ca-sb.collapsed { width:0; min-width:0; overflow:hidden; }
+.sb-sec { padding:10px 10px 4px; }
+.sb-ttl {
+  font-size:.66rem; font-weight:700; text-transform:uppercase;
+  letter-spacing:.08em; color:#94a3b8; margin-bottom:5px;
+  padding-bottom:4px; border-bottom:1px solid #e9eef5;
+}
+.sb-row { display:flex; align-items:center; gap:6px; padding:2px 0; cursor:pointer; }
+.sb-row label { font-size:.8rem; cursor:pointer; margin:0; flex:1; }
+.sb-row input[type=checkbox] { accent-color:#1e3a5f; flex-shrink:0; }
+.sb-btn {
+  display:block; width:calc(100% - 20px); margin:0 10px 6px;
+  font-size:.8rem; padding:.35rem .6rem;
+}
+.sb-select, .sb-input {
+  width:100%; font-size:.78rem; padding:4px 6px;
+  border:1px solid #d1d5db; border-radius:6px; background:#fff;
+  margin-bottom:4px;
+}
+
+/* ── Main panel ──────────────────────────────────────────────────────── */
+.ca-main { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+.ca-toolbar {
+  display:flex; align-items:center; gap:.5rem; padding:.6rem .9rem;
+  border-bottom:1px solid #e2e8f0; flex-wrap:wrap; background:#fafbfc;
+}
+.ca-tab-nav { display:flex; gap:2px; }
+.ca-tab {
+  background:none; border:none; padding:.35rem .75rem; border-radius:6px;
+  font-size:.82rem; font-weight:500; color:#64748b; cursor:pointer;
+}
+.ca-tab.active { background:#eff6ff; color:#1e3a5f; font-weight:600; }
+.ca-tab:hover:not(.active) { background:#f1f5f9; }
+.ca-content { flex:1; overflow:auto; }
+
+/* ── Construtor ──────────────────────────────────────────────────────── */
+.chart-box {
+  height:260px; border-bottom:1px solid #e2e8f0;
+  padding:.6rem; position:relative; background:#fff;
+}
+.chart-placeholder {
+  display:flex; align-items:center; justify-content:center;
+  height:100%; color:#94a3b8; flex-direction:column; gap:.4rem;
+}
+.chart-placeholder i { font-size:2.5rem; }
+
+.rel-table { width:100%; font-size:.8rem; border-collapse:collapse; }
+.rel-table th {
+  background:#f1f5f9; padding:6px 8px; text-align:left;
+  white-space:nowrap; font-size:.73rem; font-weight:700;
+  position:sticky; top:0; z-index:2; border-bottom:2px solid #e2e8f0;
+  cursor:pointer; user-select:none;
+}
+.rel-table th:hover { background:#e2e8f0; }
+.rel-table th.num, .rel-table td.num { text-align:right; }
+.rel-table td { padding:5px 8px; border-bottom:1px solid #f1f5f9; }
+.rel-table tr:hover td { background:#f8faff; }
+.rel-table .tot-row td { background:#f0f7ff; font-weight:700; border-top:2px solid #bfdbfe; }
+.drill-lnk { color:#2a7dd8; cursor:pointer; }
+.drill-lnk:hover { text-decoration:underline; color:#1e3a5f; }
+.sort-arrow { color:#cbd5e1; font-size:.7rem; }
+.sort-arrow.asc { color:#1e3a5f; }
+.sort-arrow.desc { color:#1e3a5f; }
+
+/* ── Drill breadcrumb ────────────────────────────────────────────────── */
+.drill-crumb {
+  display:flex; align-items:center; gap:4px; padding:.4rem .8rem;
+  background:#fffbeb; border-bottom:1px solid #fde68a; flex-wrap:wrap;
+}
+.crumb-item {
+  background:#fff; border:1px solid #e2e8f0; border-radius:5px;
+  padding:2px 8px; font-size:.78rem; cursor:pointer; color:#1e3a5f;
+}
+.crumb-item:hover { background:#eff6ff; }
+.crumb-item.active { background:#1e3a5f; color:#fff; cursor:default; }
+.crumb-sep { color:#94a3b8; font-size:.8rem; }
+
+/* ── Templates ───────────────────────────────────────────────────────── */
+.tpl-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:10px; padding:14px; }
+.tpl-card {
+  border:1px solid #e2e8f0; border-radius:10px; padding:14px 12px;
+  cursor:pointer; transition:.15s; background:#fff;
+}
+.tpl-card:hover { border-color:#2a7dd8; box-shadow:0 3px 14px rgba(42,125,216,.15); transform:translateY(-2px); }
+.tpl-icon { font-size:1.7rem; margin-bottom:6px; }
+.tpl-name { font-size:.84rem; font-weight:700; color:#1e3a5f; }
+.tpl-desc { font-size:.73rem; color:#64748b; margin-top:3px; line-height:1.35; }
+.tpl-tags { margin-top:6px; display:flex; gap:4px; flex-wrap:wrap; }
+.tpl-tag { font-size:.65rem; padding:1px 6px; border-radius:10px; background:#f1f5f9; color:#475569; }
+
+/* ── Loading ─────────────────────────────────────────────────────────── */
+.ca-loading { display:flex; align-items:center; justify-content:center; height:160px; color:#94a3b8; gap:.5rem; }
+.ca-empty   { display:flex; align-items:center; justify-content:center; height:160px; color:#94a3b8; flex-direction:column; gap:.5rem; }
+
+/* ── Badges ──────────────────────────────────────────────────────────── */
+.tag-dim { background:#dbeafe; color:#1e3a5f; }
+.tag-met { background:#dcfce7; color:#166534; }
+
+@media print {
+  .ca-sb, .ca-toolbar, .ca-header .d-flex, .no-print { display:none!important; }
+  .ca-wrap { height:auto; border:none; }
+  .chart-box { page-break-inside:avoid; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Header compacto -->
+<div class="ca-header no-print">
+  <div>
+    <h5><i class="bi bi-graph-up-arrow me-2"></i>Central de Relatórios Analíticos</h5>
+    <small>CGOF/SES-SP — Construa, explore e exporte relatórios do Teto MAC</small>
+  </div>
+  <div class="d-flex gap-2 align-items-center flex-wrap">
+    <select id="selAno" class="form-select form-select-sm" style="width:90px">
+      {% for ano in anos_disponiveis %}
+        <option value="{{ ano }}" {{ 'selected' if ano == ultimo.ano }}>{{ ano }}</option>
+      {% endfor %}
+    </select>
+    <select id="selMes" class="form-select form-select-sm" style="width:125px">
+      {% for num, nome in meses.items() %}
+        <option value="{{ num }}" {{ 'selected' if num == ultimo.mes }}>{{ nome }}</option>
+      {% endfor %}
+    </select>
+    <button class="btn btn-light btn-sm" onclick="recarregar()"><i class="bi bi-arrow-clockwise me-1"></i>Atualizar</button>
+    <button class="btn btn-success btn-sm" onclick="exportCSV()"><i class="bi bi-filetype-csv me-1"></i>CSV</button>
+    <button class="btn btn-success btn-sm" onclick="exportExcel()"><i class="bi bi-file-excel me-1"></i>Excel</button>
+    <button class="btn btn-secondary btn-sm" onclick="window.print()"><i class="bi bi-printer me-1"></i>Print</button>
+  </div>
+</div>
+
+<!-- KPIs -->
+<div class="ca-kpi-row" id="kpiRow">
+  <div class="ca-kpi" style="--c:#1e3a5f"><i class="bi bi-currency-dollar ki"></i><div class="kv" id="kTeto">—</div><div class="kl">Teto MAC</div></div>
+  <div class="ca-kpi" style="--c:#2a7dd8"><i class="bi bi-layers ki"></i><div class="kv" id="kFaec">—</div><div class="kl">FAEC</div></div>
+  <div class="ca-kpi" style="--c:#1a7a4a"><i class="bi bi-activity ki"></i><div class="kv" id="kAih">—</div><div class="kl">AIH (MC+AC)</div></div>
+  <div class="ca-kpi" style="--c:#1a7a4a"><i class="bi bi-activity ki"></i><div class="kv" id="kSia">—</div><div class="kl">SIA (MC+AC)</div></div>
+  <div class="ca-kpi" style="--c:#6f42c1"><i class="bi bi-award ki"></i><div class="kv" id="kInc">—</div><div class="kl">Incentivos</div></div>
+  <div class="ca-kpi" style="--c:#e07b00"><i class="bi bi-cash-stack ki"></i><div class="kv" id="kGeral">—</div><div class="kl">Total Geral</div></div>
+  <div class="ca-kpi" style="--c:#64748b"><i class="bi bi-diagram-3 ki"></i><div class="kv" id="kDRS">—</div><div class="kl">DRS</div></div>
+  <div class="ca-kpi" style="--c:#64748b"><i class="bi bi-geo-alt ki"></i><div class="kv" id="kMun">—</div><div class="kl">Municípios</div></div>
+  <div class="ca-kpi" style="--c:#64748b"><i class="bi bi-hospital ki"></i><div class="kv" id="kUn">—</div><div class="kl">Unidades</div></div>
+  <div class="ca-kpi" style="--c:#64748b"><i class="bi bi-upc ki"></i><div class="kv" id="kCnes">—</div><div class="kl">CNES</div></div>
+</div>
+
+<!-- Main wrapper -->
+<div class="ca-wrap">
+
+  <!-- ── Sidebar ──────────────────────────────────────────── -->
+  <div class="ca-sb" id="caSb">
+
+    <!-- Periodo (mobile) -->
+    <div class="sb-sec d-none">
+      <div class="sb-ttl">Período</div>
+    </div>
+
+    <!-- Dimensões -->
+    <div class="sb-sec">
+      <div class="sb-ttl"><i class="bi bi-grid-3x3-gap-fill me-1"></i>Dimensões (Agrupar por)</div>
+      <div id="sbDims"></div>
+    </div>
+
+    <!-- Métricas -->
+    <div class="sb-sec">
+      <div class="sb-ttl"><i class="bi bi-calculator me-1"></i>Métricas — FAEC</div>
+      <div id="sbMetFaec"></div>
+      <div class="sb-ttl mt-2"><i class="bi bi-calculator me-1"></i>MAC</div>
+      <div id="sbMetMac"></div>
+      <div class="sb-ttl mt-2"><i class="bi bi-calculator me-1"></i>Incentivos</div>
+      <div id="sbMetInc"></div>
+      <div class="sb-ttl mt-2"><i class="bi bi-calculator me-1"></i>Consolidado</div>
+      <div id="sbMetTot"></div>
+    </div>
+
+    <!-- Visualização -->
+    <div class="sb-sec">
+      <div class="sb-ttl"><i class="bi bi-bar-chart me-1"></i>Visualização</div>
+      <div id="sbChart"></div>
+    </div>
+
+    <!-- Limite -->
+    <div class="sb-sec">
+      <div class="sb-ttl">Registros / Ranking</div>
+      <select id="sbLimite" class="sb-select" onchange="loadData()">
+        <option value="20">Top 20</option>
+        <option value="50">Top 50</option>
+        <option value="100">Top 100</option>
+        <option value="200">Top 200</option>
+        <option value="500" selected>Todos (até 500)</option>
+      </select>
+    </div>
+
+    <!-- Filtros -->
+    <div class="sb-sec">
+      <div class="sb-ttl"><i class="bi bi-funnel me-1"></i>Filtros</div>
+      <select id="fDRS" class="sb-select" onchange="loadData()">
+        <option value="">Todos os DRS</option>
+        {% for d in range(1,18) %}<option value="{{ d }}">DRS {{ d }}</option>{% endfor %}
+      </select>
+      <select id="fTipo" class="sb-select" onchange="loadData()">
+        <option value="">Todos os Tipos</option>
+        <option>PRIVADOS</option><option>PRÓPRIOS</option><option>FIXO</option><option>PRODUÇÃO</option>
+      </select>
+      <select id="fHU" class="sb-select" onchange="loadData()">
+        <option value="">HU — Todos</option>
+        <option value="S">HU — Sim</option>
+        <option value="N">HU — Não</option>
+      </select>
+      <input type="text" id="fMun" class="sb-input" placeholder="Município…" oninput="debLoad()">
+      <input type="text" id="fBusca" class="sb-input" placeholder="Unidade / CNES…" oninput="debLoad()">
+    </div>
+
+    <!-- Ações -->
+    <div class="sb-sec pb-3">
+      <button class="btn btn-ses btn-sm sb-btn" onclick="loadData()"><i class="bi bi-play-fill me-1"></i>Gerar Relatório</button>
+      <button class="btn btn-outline-secondary btn-sm sb-btn" onclick="limpar()"><i class="bi bi-x-circle me-1"></i>Limpar</button>
+    </div>
+  </div><!-- /sidebar -->
+
+  <!-- ── Main ──────────────────────────────────────────────── -->
+  <div class="ca-main">
+
+    <!-- Toolbar -->
+    <div class="ca-toolbar no-print">
+      <button class="btn btn-sm btn-light border" onclick="toggleSb()" title="Painel de campos">
+        <i class="bi bi-layout-sidebar-inset"></i>
+      </button>
+      <div class="ca-tab-nav">
+        <button class="ca-tab active" data-tab="construtor" onclick="switchTab('construtor',this)"><i class="bi bi-sliders me-1"></i>Construtor</button>
+        <button class="ca-tab" data-tab="templates"  onclick="switchTab('templates',this)"><i class="bi bi-grid me-1"></i>Templates</button>
+        <button class="ca-tab" data-tab="drilldown"  onclick="switchTab('drilldown',this)"><i class="bi bi-diagram-2 me-1"></i>Drill-Down</button>
+      </div>
+      <div class="ms-auto d-flex gap-1 align-items-center" id="toolbarMeta" style="font-size:.77rem;color:#64748b"></div>
+    </div>
+
+    <!-- ── Construtor ─────────────────────────────── -->
+    <div id="panelConstrutor" class="ca-content">
+      <!-- Drill breadcrumb -->
+      <div class="drill-crumb" id="drillBar" style="display:none!important"></div>
+
+      <!-- Chart -->
+      <div class="chart-box">
+        <div class="chart-placeholder" id="chartPlaceholder">
+          <i class="bi bi-bar-chart-line"></i>
+          <small>Selecione dimensões e métricas, depois clique em <strong>Gerar Relatório</strong></small>
+        </div>
+        <canvas id="mainChart" style="display:none"></canvas>
+      </div>
+
+      <!-- Table -->
+      <div style="overflow:auto;flex:1">
+        <div id="tableWrap">
+          <div class="ca-empty">
+            <i class="bi bi-inbox" style="font-size:2rem"></i>
+            <small>Nenhum dado carregado</small>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Templates ──────────────────────────────── -->
+    <div id="panelTemplates" class="ca-content" style="display:none">
+      <div class="tpl-grid" id="tplGrid"></div>
+    </div>
+
+    <!-- ── Drill-Down ─────────────────────────────── -->
+    <div id="panelDrilldown" class="ca-content" style="display:none">
+      <div style="padding:14px">
+        <p class="text-muted small mb-3"><i class="bi bi-info-circle me-1"></i>Navegue pela hierarquia clicando nas células. A ordem é: <strong>DRS → Município → Unidade → CNES</strong>.</p>
+        <div class="drill-crumb mb-2" id="ddCrumb">
+          <span class="crumb-item active">SP — Todos os DRS</span>
+        </div>
+        <div id="ddTable"><div class="ca-empty"><i class="bi bi-diagram-2" style="font-size:2rem"></i><small>Clique em "Drill-Down" para iniciar</small></div></div>
+      </div>
+    </div>
+
+  </div><!-- /ca-main -->
+</div><!-- /ca-wrap -->
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ── Constantes ─────────────────────────────────────────────────────────────
+const ANO_INIT = {{ ultimo.ano }};
+const MES_INIT = {{ ultimo.mes }};
+
+const FIELD_LABELS = {
+  drs:'DRS', municipio:'Município', unidade:'Unidade', cnes:'CNES',
+  cnpj:'CNPJ', tipo:'Tipo', hu:'HU',
+  aih_fisico:'AIH Físico', aih_faec:'AIH FAEC', sia_faec:'SIA FAEC',
+  equip_hemodialise:'Equip. Hemodiálise', limite_complementacao:'Lim. Complementação',
+  aih_mc:'AIH MC', aih_ac:'AIH AC', aih_total:'AIH Total',
+  sia_mc:'SIA MC', sia_ac:'SIA AC', sia_total:'SIA Total',
+  teto_global:'Teto Global', teto_mc:'Teto MC', teto_ac:'Teto AC',
+  teto_mac:'Teto MAC', total_teto_mac:'Total Teto MAC',
+  portaria_ms_gm_8516:'Portaria 8516',
+  integrasus:'IntegraSUS', iac:'IAC', sus_100:'100% SUS', opo:'OPO',
+  rede_viver_sem_limite:'Rede Viver S/ Limite', rede_brasil_miseria:'Rede Brasil S/ Miséria',
+  rsme:'RSME', rce_rceg:'RCE/RCEG (Rede Alyne)',
+  rau_hosp_sos:'RAU/Hosp. SOS', rca_rcan:'RCA/RCAN', iapi:'IAPI',
+  residencia_medica:'Residência Médica', melhor_em_casa:'Melhor em Casa',
+  cer:'CER', doencas_raras:'Doenças Raras', oficina_ortopedica:'Oficina Ortopédica',
+  ihac:'IHAC', total_mc_ac_incentivos:'Total MC+AC+Incentivos',
+  _count:'Registros'
+};
+
+const DIMS = ['drs','municipio','unidade','cnes','cnpj','tipo','hu'];
+const METS_FAEC = ['aih_fisico','aih_faec','sia_faec','equip_hemodialise','limite_complementacao'];
+const METS_MAC  = ['aih_mc','aih_ac','sia_mc','sia_ac'];
+const METS_INC  = ['integrasus','iac','sus_100','opo','rede_viver_sem_limite','rede_brasil_miseria',
+                   'rsme','rce_rceg','rau_hosp_sos','rca_rcan','iapi','residencia_medica',
+                   'melhor_em_casa','cer','doencas_raras','oficina_ortopedica','ihac'];
+const METS_TOT  = ['teto_mac','total_teto_mac','total_mc_ac_incentivos'];
+
+const CORES = ['#1e3a5f','#2a7dd8','#1a7a4a','#e07b00','#dc3545','#6f42c1',
+               '#17a2b8','#fd7e14','#20c997','#6610f2','#e83e8c','#0dcaf0',
+               '#198754','#ffc107','#0d6efd','#6c757d','#d63384'];
+
+// ── Estado ──────────────────────────────────────────────────────────────────
+let STATE = {
+  dimensoes: ['drs'],
+  metricas: ['total_mc_ac_incentivos'],
+  chart_type: 'bar-h',
+  sort_col: null,
+  sort_dir: 'desc',
+  drill_stack: [],
+  limite: 500
+};
+let _data = [];
+let _mainChart = null;
+let _sortCol = null, _sortDir = 'desc';
+
+// ── Utils ───────────────────────────────────────────────────────────────────
+function moedaK(v) {
+  const n = Number(v)||0;
+  if(n>=1e9) return 'R$'+(n/1e9).toFixed(1)+'B';
+  if(n>=1e6) return 'R$'+(n/1e6).toFixed(1)+'M';
+  if(n>=1e3) return 'R$'+(n/1e3).toFixed(0)+'K';
+  return 'R$'+n.toFixed(0);
+}
+function moedaFull(v) {
+  if(v==null||v==='') return '—';
+  return 'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+function numBR(v) { return Number(v||0).toLocaleString('pt-BR'); }
+function isNumericField(f) { return !DIMS.includes(f) && f !== '_count'; }
+
+let _debT;
+function debLoad() { clearTimeout(_debT); _debT = setTimeout(loadData, 450); }
+
+function getAnoMes() {
+  return { ano: +document.getElementById('selAno').value, mes: +document.getElementById('selMes').value };
+}
+
+// ── Sidebar render ──────────────────────────────────────────────────────────
+function renderSb() {
+  // Dimensões
+  document.getElementById('sbDims').innerHTML = DIMS.map(d =>
+    `<label class="sb-row">
+       <input type="checkbox" id="dim_${d}" value="${d}" onchange="onDimChange()" ${STATE.dimensoes.includes(d)?'checked':''}>
+       <span>${FIELD_LABELS[d]}</span>
+     </label>`
+  ).join('');
+
+  // Métricas por grupo
+  [['sbMetFaec',METS_FAEC],['sbMetMac',METS_MAC],['sbMetInc',METS_INC],['sbMetTot',METS_TOT]].forEach(([id,list])=>{
+    document.getElementById(id).innerHTML = list.map(m =>
+      `<label class="sb-row">
+         <input type="checkbox" id="met_${m}" value="${m}" onchange="onMetChange()" ${STATE.metricas.includes(m)?'checked':''}>
+         <span>${FIELD_LABELS[m]}</span>
+       </label>`
+    ).join('');
+  });
+
+  // Visualização
+  const CHARTS = [
+    ['bar-h','Barras Horizontais','bar-chart'],
+    ['bar','Barras Verticais','bar-chart-line'],
+    ['bar-stacked','Barras Empilhadas','layers'],
+    ['line','Linha Temporal','graph-up'],
+    ['pie','Pizza','pie-chart'],
+    ['doughnut','Rosca','pie-chart-fill'],
+  ];
+  document.getElementById('sbChart').innerHTML = CHARTS.map(([v,l,ic])=>
+    `<label class="sb-row">
+       <input type="radio" name="chartType" value="${v}" onchange="STATE.chart_type=this.value;renderChart(_data)" ${STATE.chart_type===v?'checked':''}>
+       <i class="bi bi-${ic} me-1" style="font-size:.85rem;color:#64748b"></i> <span>${l}</span>
+     </label>`
+  ).join('');
+}
+
+function onDimChange() {
+  STATE.dimensoes = DIMS.filter(d => document.getElementById(`dim_${d}`)?.checked);
+  STATE.drill_stack = [];
+}
+function onMetChange() {
+  STATE.metricas = [...METS_FAEC,...METS_MAC,...METS_INC,...METS_TOT]
+    .filter(m => document.getElementById(`met_${m}`)?.checked);
+  if(!STATE.metricas.length) STATE.metricas = ['total_mc_ac_incentivos'];
+}
+
+function toggleSb() {
+  document.getElementById('caSb').classList.toggle('collapsed');
+}
+
+// ── KPIs ────────────────────────────────────────────────────────────────────
+async function loadKPIs() {
+  const {ano, mes} = getAnoMes();
+  const kpi = await fetch(`/api/kpis-central?ano=${ano}&mes=${mes}`).then(r=>r.json()).catch(()=>({}));
+  document.getElementById('kTeto').textContent  = moedaK(kpi.total_teto_mac||0);
+  document.getElementById('kFaec').textContent  = moedaK(kpi.total_faec||0);
+  document.getElementById('kAih').textContent   = moedaK(kpi.total_aih||0);
+  document.getElementById('kSia').textContent   = moedaK(kpi.total_sia||0);
+  document.getElementById('kInc').textContent   = moedaK(kpi.total_incentivos||0);
+  document.getElementById('kGeral').textContent = moedaK(kpi.total_geral||0);
+  document.getElementById('kDRS').textContent   = kpi.count_drs||'—';
+  document.getElementById('kMun').textContent   = kpi.count_municipios||'—';
+  document.getElementById('kUn').textContent    = kpi.count_unidades||'—';
+  document.getElementById('kCnes').textContent  = kpi.count_cnes||'—';
+}
+
+// ── Data loading ─────────────────────────────────────────────────────────────
+async function loadData() {
+  const {ano, mes} = getAnoMes();
+  const filtros = {};
+  const drs  = document.getElementById('fDRS')?.value;
+  const tipo = document.getElementById('fTipo')?.value;
+  const hu   = document.getElementById('fHU')?.value;
+  const mun  = document.getElementById('fMun')?.value?.trim();
+  const busca= document.getElementById('fBusca')?.value?.trim();
+  if(drs)  filtros.drs   = drs;
+  if(tipo) filtros.tipo  = tipo;
+  if(hu)   filtros.hu    = hu;
+  if(mun)  filtros.municipio = mun;
+
+  // Drill stack extras
+  for(const drillItem of STATE.drill_stack) {
+    filtros[drillItem.dim] = drillItem.val;
+  }
+
+  // Build dims based on drill level (exclude already-filtered dims)
+  const dimsFilt = STATE.dimensoes.filter(d => !STATE.drill_stack.some(s=>s.dim===d));
+
+  document.getElementById('tableWrap').innerHTML = '<div class="ca-loading"><div class="spinner-border spinner-border-sm text-primary"></div> Carregando…</div>';
+
+  const body = {
+    ano, mes,
+    dimensoes: dimsFilt,
+    metricas: STATE.metricas,
+    filtros,
+    ordenar_por: STATE.metricas[0],
+    limite: +document.getElementById('sbLimite').value || 500
+  };
+
+  try {
+    const r = await fetch('/api/analitico', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    _data = await r.json();
+    // Apply client-side busca on unidade/cnes if present
+    if(busca) {
+      const q = busca.toLowerCase();
+      _data = _data.filter(row => {
+        const u = (row.unidade||'').toLowerCase();
+        const c = (row.cnes||'').toLowerCase();
+        return u.includes(q)||c.includes(q);
+      });
+    }
+  } catch(e) {
+    _data = [];
+  }
+
+  const displayDims = dimsFilt;
+  renderTable(_data, displayDims, STATE.metricas);
+  renderChart(_data, displayDims);
+  updateDrillBar();
+  updateMeta(_data.length);
+}
+
+function updateMeta(n) {
+  document.getElementById('toolbarMeta').textContent = `${n} resultado${n!==1?'s':''}`;
+}
+
+// ── Table rendering ───────────────────────────────────────────────────────────
+function renderTable(data, dims, mets) {
+  if(!data||!data.length) {
+    document.getElementById('tableWrap').innerHTML = '<div class="ca-empty"><i class="bi bi-inbox" style="font-size:2rem"></i><small>Nenhum resultado</small></div>';
+    return;
+  }
+
+  // Sort
+  if(_sortCol) {
+    data = [...data].sort((a,b)=>{
+      const av=a[_sortCol]??'', bv=b[_sortCol]??'';
+      if(typeof av==='number') return _sortDir==='asc'?(av-bv):(bv-av);
+      return _sortDir==='asc'?String(av).localeCompare(String(bv)):String(bv).localeCompare(String(av));
+    });
+  }
+
+  const allCols = [...dims, ...mets, ...(_data[0]?._count!==undefined?['_count']:[])];
+  const isDim   = c => dims.includes(c);
+  const drillable = (dim, i) => {
+    const hierarchy = ['drs','municipio','unidade','cnes'];
+    const idx = hierarchy.indexOf(dim);
+    return idx >= 0 && idx < hierarchy.length - 1;
+  };
+
+  // Totals
+  const totals = {};
+  mets.forEach(m => { totals[m] = data.reduce((s,r)=>s+(r[m]||0),0); });
+  if('_count' in (data[0]||{})) totals._count = data.reduce((s,r)=>s+(r._count||0),0);
+
+  const sortArrow = col => {
+    if(_sortCol !== col) return `<span class="sort-arrow">↕</span>`;
+    return `<span class="sort-arrow ${_sortDir}">${_sortDir==='asc'?'↑':'↓'}</span>`;
+  };
+
+  let html = `<table class="rel-table"><thead><tr>
+    <th style="width:40px">#</th>
+    ${allCols.map(c=>`<th class="${isDim(c)?'':'num'}" onclick="sortBy('${c}')">${FIELD_LABELS[c]||c} ${sortArrow(c)}</th>`).join('')}
+  </tr></thead><tbody>`;
+
+  data.forEach((row, i) => {
+    const rank = i < 3 ? ['🥇','🥈','🥉'][i] : (i+1);
+    html += `<tr>
+      <td style="color:#94a3b8;font-size:.75rem;text-align:center">${rank}</td>
+      ${allCols.map(c => {
+        if(isDim(c)) {
+          const val = row[c]!=null?String(row[c]):'—';
+          const canDrill = drillable(c);
+          return `<td>${canDrill
+            ? `<span class="drill-lnk" onclick="drillInto('${c}','${String(row[c]||'').replace(/'/g,"\\'")}',${i})">${val}</span>`
+            : val}</td>`;
+        } else {
+          const v = row[c]||0;
+          const num = isNumericField(c) ? moedaFull(v) : numBR(v);
+          return `<td class="num">${num}</td>`;
+        }
+      }).join('')}
+    </tr>`;
+  });
+
+  // Totals row (only if more than 1 row)
+  if(data.length > 1) {
+    html += `<tr class="tot-row">
+      <td></td>
+      ${allCols.map(c => isDim(c)
+        ? `<td><strong>TOTAL</strong></td>`
+        : `<td class="num">${isNumericField(c)?moedaFull(totals[c]||0):numBR(totals[c]||0)}</td>`
+      ).join('')}
+    </tr>`;
+  }
+
+  html += '</tbody></table>';
+  document.getElementById('tableWrap').innerHTML = html;
+}
+
+function sortBy(col) {
+  if(_sortCol === col) {
+    _sortDir = _sortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    _sortCol = col;
+    _sortDir = isNumericField(col) ? 'desc' : 'asc';
+  }
+  renderTable(_data, STATE.dimensoes.filter(d=>!STATE.drill_stack.some(s=>s.dim===d)), STATE.metricas);
+}
+
+// ── Chart rendering ────────────────────────────────────────────────────────────
+function renderChart(data, dims) {
+  dims = dims || STATE.dimensoes.filter(d=>!STATE.drill_stack.some(s=>s.dim===d));
+  const mets = STATE.metricas;
+  const chartEl = document.getElementById('mainChart');
+  const placeholder = document.getElementById('chartPlaceholder');
+
+  if(!data||!data.length) {
+    if(_mainChart) { _mainChart.destroy(); _mainChart=null; }
+    chartEl.style.display = 'none';
+    placeholder.style.display = 'flex';
+    return;
+  }
+
+  placeholder.style.display = 'none';
+  chartEl.style.display = 'block';
+  if(_mainChart) { _mainChart.destroy(); _mainChart=null; }
+
+  const MAX_LABELS = 30;
+  const dataSlice = data.slice(0, MAX_LABELS);
+
+  let labels, datasets, chartType = STATE.chart_type;
+
+  if(dims.length === 0) {
+    // No dimension: show each metric as a bar (summary)
+    const row = data[0] || {};
+    labels = mets.map(m => FIELD_LABELS[m]||m);
+    datasets = [{
+      label:'Total', data: mets.map(m=>row[m]||0),
+      backgroundColor: CORES.map(c=>c+'cc'), borderColor:CORES,
+      borderWidth:1.5, borderRadius:5
+    }];
+    chartType = 'bar-h';
+  } else {
+    labels = dataSlice.map(row => {
+      const parts = dims.map(d=>{
+        const v = row[d];
+        return v!=null?String(v):'—';
+      });
+      return parts.join(' / ').substring(0,30);
+    });
+
+    if(mets.length === 1) {
+      datasets = [{
+        label: FIELD_LABELS[mets[0]]||mets[0],
+        data: dataSlice.map(row=>row[mets[0]]||0),
+        backgroundColor: CORES.map(c=>c+'cc'), borderColor:CORES,
+        borderWidth:1.5, borderRadius:4,
+        fill: chartType==='line'?true:undefined,
+        tension: chartType==='line'?0.4:undefined,
+        pointRadius: chartType==='line'?3:undefined,
+      }];
+    } else {
+      datasets = mets.map((m,i)=>({
+        label: FIELD_LABELS[m]||m,
+        data: dataSlice.map(row=>row[m]||0),
+        backgroundColor: CORES[i%CORES.length]+'cc',
+        borderColor: CORES[i%CORES.length],
+        borderWidth:1.5, borderRadius:4,
+        fill: chartType==='line'?false:undefined,
+        tension: chartType==='line'?0.4:undefined,
+        pointRadius: chartType==='line'?3:undefined,
+      }));
+    }
+  }
+
+  const isHoriz = chartType === 'bar-h';
+  const isStacked = chartType === 'bar-stacked';
+  const isPie = chartType === 'pie' || chartType === 'doughnut';
+
+  const chartConfig = {
+    type: isPie ? chartType : (chartType==='line'?'line':'bar'),
+    data: {labels, datasets},
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      indexAxis: isHoriz?'y':'x',
+      scales: isPie||chartType==='line'&&false ? undefined : {
+        x: { stacked:isStacked, grid:{display:!isHoriz}, ticks:{font:{size:10}, callback:isHoriz?moedaK:undefined} },
+        y: { stacked:isStacked, grid:{display:isHoriz}, ticks:{font:{size:10}, callback:!isHoriz?moedaK:undefined} }
+      },
+      plugins: {
+        legend:{
+          display: datasets.length>1||isPie,
+          position: isPie?'right':'bottom',
+          labels:{usePointStyle:true,font:{size:10},padding:8}
+        },
+        tooltip:{callbacks:{label:c=>
+          (datasets.length>1?(c.dataset.label+': '):'') + moedaFull(c.raw)
+        }}
+      },
+      cutout: chartType==='doughnut'?'50%':undefined,
+    }
+  };
+
+  _mainChart = new Chart(chartEl.getContext('2d'), chartConfig);
+}
+
+// ── Drill-down ─────────────────────────────────────────────────────────────────
+const DRILL_HIER = ['drs','municipio','unidade','cnes'];
+
+function drillInto(dim, val) {
+  STATE.drill_stack.push({dim, val});
+  loadData();
+}
+
+function updateDrillBar() {
+  const bar = document.getElementById('drillBar');
+  if(!STATE.drill_stack.length) {
+    bar.style.display = 'none!important';
+    bar.style.setProperty('display','none','important');
+    return;
+  }
+  bar.style.removeProperty('display');
+  let html = '<span class="crumb-item" onclick="drillReset()">🏠 Raiz</span>';
+  STATE.drill_stack.forEach((s,i) => {
+    html += `<span class="crumb-sep">›</span>
+      <span class="crumb-item ${i===STATE.drill_stack.length-1?'active':''}"
+        onclick="drillBack(${i})">${FIELD_LABELS[s.dim]||s.dim}: ${s.val}</span>`;
+  });
+  bar.innerHTML = html;
+  bar.style.display = 'flex';
+}
+
+function drillBack(idx) {
+  STATE.drill_stack = STATE.drill_stack.slice(0, idx);
+  loadData();
+}
+
+function drillReset() {
+  STATE.drill_stack = [];
+  loadData();
+}
+
+// ── Drill-Down tab ─────────────────────────────────────────────────────────────
+let _ddStack = [];
+let _ddMet = 'total_mc_ac_incentivos';
+
+async function initDrillDown() {
+  _ddStack = [];
+  renderDDCrumb();
+  await loadDDLevel();
+}
+
+function renderDDCrumb() {
+  const crumb = document.getElementById('ddCrumb');
+  let html = `<span class="crumb-item ${!_ddStack.length?'active':''}" onclick="ddGoTo(-1)">SP — Todos os DRS</span>`;
+  _ddStack.forEach((s,i) => {
+    html += `<span class="crumb-sep">›</span>
+      <span class="crumb-item ${i===_ddStack.length-1?'active':''}" onclick="ddGoTo(${i})">
+        ${FIELD_LABELS[s.dim]||s.dim}: ${s.val}
+      </span>`;
+  });
+  crumb.innerHTML = html;
+}
+
+function ddGoTo(idx) {
+  if(idx < 0) _ddStack = [];
+  else _ddStack = _ddStack.slice(0, idx+1);
+  renderDDCrumb();
+  loadDDLevel();
+}
+
+async function loadDDLevel() {
+  const {ano, mes} = getAnoMes();
+  const level = _ddStack.length;
+  const nextDim = DRILL_HIER[level] || null;
+  document.getElementById('ddTable').innerHTML = '<div class="ca-loading"><div class="spinner-border spinner-border-sm text-primary"></div> Carregando…</div>';
+
+  if(!nextDim) {
+    document.getElementById('ddTable').innerHTML = '<div class="ca-empty"><i class="bi bi-check-circle" style="font-size:2rem;color:#1a7a4a"></i><small>Nível mais profundo atingido</small></div>';
+    return;
+  }
+
+  const filtros = {};
+  _ddStack.forEach(s => { filtros[s.dim] = s.val; });
+
+  const body = {ano, mes, dimensoes:[nextDim], metricas:[_ddMet], filtros, limite:200};
+  let data = [];
+  try {
+    const r = await fetch('/api/analitico',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    data = await r.json();
+  } catch(e) {}
+
+  const total = data.reduce((s,r)=>s+(r[_ddMet]||0),0);
+  const canDrill = level < DRILL_HIER.length - 1;
+
+  let html = `<div style="padding:8px 14px;font-size:.78rem;color:#64748b">
+    <strong>${FIELD_LABELS[nextDim]||nextDim}</strong> — ${data.length} registros
+    <select style="float:right;font-size:.75rem;padding:1px 4px;border:1px solid #ddd;border-radius:4px" onchange="_ddMet=this.value;loadDDLevel()">
+      ${[...METS_MAC,...METS_INC,['total_mc_ac_incentivos']].flat().map(m=>
+        `<option value="${m}" ${_ddMet===m?'selected':''}>${FIELD_LABELS[m]||m}</option>`
+      ).join('')}
+    </select>
+  </div>
+  <table class="rel-table"><thead><tr>
+    <th>${FIELD_LABELS[nextDim]||nextDim}</th>
+    <th class="num">${FIELD_LABELS[_ddMet]||_ddMet}</th>
+    <th class="num">%</th>
+    ${canDrill?'<th></th>':''}
+  </tr></thead><tbody>`;
+
+  data.forEach((row,i) => {
+    const v = row[_ddMet]||0;
+    const pct = total?(v/total*100).toFixed(1):0;
+    const val = String(row[nextDim]||'—');
+    html += `<tr>
+      <td>${canDrill?`<span class="drill-lnk" onclick="ddDrill('${nextDim}','${val.replace(/'/g,"\\'")}')">${val}</span>`:val}</td>
+      <td class="num">${moedaFull(v)}</td>
+      <td class="num"><small>${pct}%</small></td>
+      ${canDrill?`<td><button class="btn btn-xs btn-outline-primary p-0 px-1" style="font-size:.7rem" onclick="ddDrill('${nextDim}','${val.replace(/'/g,"\\'")}')">▶</button></td>`:''}
+    </tr>`;
+  });
+
+  if(data.length>1) {
+    html += `<tr class="tot-row"><td>TOTAL</td><td class="num">${moedaFull(total)}</td><td class="num">100%</td>${canDrill?'<td></td>':''}</tr>`;
+  }
+  html += '</tbody></table>';
+  document.getElementById('ddTable').innerHTML = html;
+}
+
+function ddDrill(dim, val) {
+  _ddStack.push({dim, val});
+  renderDDCrumb();
+  loadDDLevel();
+}
+
+// ── Templates ───────────────────────────────────────────────────────────────
+const TEMPLATES = [
+  {icon:'bi-bar-chart',         nome:'Ranking por DRS',        desc:'Total de recursos por Departamento Regional de Saúde', tags:['DRS','MAC'],
+   dims:['drs'], mets:['total_mc_ac_incentivos','aih_mc','aih_ac','sia_mc','sia_ac'], chart:'bar-h'},
+  {icon:'bi-geo-alt-fill',      nome:'Top Municípios',         desc:'20 municípios com maior recurso total', tags:['Município'],
+   dims:['municipio'], mets:['total_mc_ac_incentivos'], chart:'bar-h', limite:20},
+  {icon:'bi-hospital',          nome:'Top Unidades',           desc:'20 unidades com maior recurso total', tags:['Unidade'],
+   dims:['unidade','cnes','municipio'], mets:['total_mc_ac_incentivos'], chart:'bar-h', limite:20},
+  {icon:'bi-layers',            nome:'Análise FAEC',           desc:'Componentes do Fundo de Ações Estratégicas por DRS', tags:['FAEC','DRS'],
+   dims:['drs'], mets:['aih_fisico','aih_faec','sia_faec','equip_hemodialise','limite_complementacao'], chart:'bar-stacked'},
+  {icon:'bi-graph-up',          nome:'Média Complexidade',     desc:'AIH MC e SIA MC por DRS', tags:['MAC','DRS'],
+   dims:['drs'], mets:['aih_mc','sia_mc'], chart:'bar'},
+  {icon:'bi-graph-up-arrow',    nome:'Alta Complexidade',      desc:'AIH AC e SIA AC por DRS', tags:['MAC','DRS'],
+   dims:['drs'], mets:['aih_ac','sia_ac'], chart:'bar'},
+  {icon:'bi-award',             nome:'Incentivos por DRS',     desc:'Principais incentivos federais por DRS', tags:['Incentivos'],
+   dims:['drs'], mets:['integrasus','iac','sus_100','opo','rsme','residencia_medica','melhor_em_casa','cer','ihac'], chart:'bar-stacked'},
+  {icon:'bi-trophy',            nome:'Todos os Incentivos',    desc:'Soma consolidada de cada incentivo no período', tags:['Incentivos'],
+   dims:[], mets:['integrasus','iac','sus_100','opo','rede_viver_sem_limite','rede_brasil_miseria','rsme','rce_rceg','rau_hosp_sos','rca_rcan','iapi','residencia_medica','melhor_em_casa','cer','doencas_raras','oficina_ortopedica','ihac'], chart:'bar-h'},
+  {icon:'bi-building',          nome:'HU vs Não-HU',           desc:'Comparação entre Hospitais Universitários e demais unidades', tags:['HU'],
+   dims:['hu'], mets:['total_mc_ac_incentivos','aih_mc','aih_ac','sia_mc','sia_ac'], chart:'doughnut'},
+  {icon:'bi-pie-chart',         nome:'Por Tipo',               desc:'Distribuição de recursos por tipo de estabelecimento', tags:['Tipo'],
+   dims:['tipo'], mets:['total_mc_ac_incentivos'], chart:'doughnut'},
+  {icon:'bi-grid-3x3',          nome:'DRS × Tipo',             desc:'Recursos cruzando DRS com tipo de estabelecimento', tags:['DRS','Tipo'],
+   dims:['drs','tipo'], mets:['total_mc_ac_incentivos'], chart:'bar-stacked'},
+  {icon:'bi-table',             nome:'Consolidado MAC',        desc:'Teto MAC × Total Geral por DRS — visão comparativa', tags:['MAC'],
+   dims:['drs'], mets:['total_teto_mac','total_mc_ac_incentivos'], chart:'bar'},
+];
+
+function renderTemplates() {
+  const grid = document.getElementById('tplGrid');
+  grid.innerHTML = TEMPLATES.map((t,i) =>
+    `<div class="tpl-card" onclick="applyTemplate(${i})">
+       <div class="tpl-icon"><i class="bi ${t.icon}" style="color:#2a7dd8"></i></div>
+       <div class="tpl-name">${t.nome}</div>
+       <div class="tpl-desc">${t.desc}</div>
+       <div class="tpl-tags">${(t.tags||[]).map(g=>`<span class="tpl-tag">${g}</span>`).join('')}</div>
+     </div>`
+  ).join('');
+}
+
+function applyTemplate(idx) {
+  const t = TEMPLATES[idx];
+  if(!t) return;
+  STATE.dimensoes = [...t.dims];
+  STATE.metricas  = [...t.mets];
+  STATE.chart_type = t.chart || 'bar-h';
+  STATE.drill_stack = [];
+  if(t.limite) document.getElementById('sbLimite').value = t.limite;
+  renderSb();
+  switchTab('construtor', document.querySelector('[data-tab="construtor"]'));
+  loadData();
+}
+
+// ── Tabs ───────────────────────────────────────────────────────────────────────
+function switchTab(tab, btn) {
+  document.querySelectorAll('.ca-tab').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  ['panelConstrutor','panelTemplates','panelDrilldown'].forEach(p=>
+    document.getElementById(p).style.display='none'
+  );
+  if(tab==='construtor') {
+    document.getElementById('panelConstrutor').style.display='flex';
+    document.getElementById('panelConstrutor').style.flexDirection='column';
+    if(!_data.length) loadData();
+  } else if(tab==='templates') {
+    document.getElementById('panelTemplates').style.display='block';
+  } else if(tab==='drilldown') {
+    document.getElementById('panelDrilldown').style.display='block';
+    initDrillDown();
+  }
+}
+
+// ── Export ──────────────────────────────────────────────────────────────────────
+function exportCSV() {
+  if(!_data.length) { alert('Nenhum dado para exportar. Gere um relatório primeiro.'); return; }
+  const dims = STATE.dimensoes.filter(d=>!STATE.drill_stack.some(s=>s.dim===d));
+  const mets = STATE.metricas;
+  const cols = [...dims, ...mets];
+  const hdr  = cols.map(c=>FIELD_LABELS[c]||c);
+  const rows = _data.map(row=>cols.map(c=>{
+    const v=row[c];
+    if(v==null) return '';
+    if(isNumericField(c)) return String(Number(v).toFixed(2)).replace('.',',');
+    return String(v).replace(/;/g,'|');
+  }));
+  const csv = [hdr,...rows].map(r=>r.join(';')).join('\n');
+  const blob = new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  const {ano,mes}=getAnoMes(); a.download=`relatorio_teto_mac_${ano}_${mes}.csv`; a.click();
+}
+
+function exportExcel() {
+  const {ano,mes}=getAnoMes();
+  window.open(`/exportar/excel?ano=${ano}&mes=${mes}`,'_blank');
+}
+
+// ── Recarga ─────────────────────────────────────────────────────────────────────
+function recarregar() { loadKPIs(); loadData(); }
+
+// ── Init ────────────────────────────────────────────────────────────────────────
+renderSb();
+renderTemplates();
+document.getElementById('panelConstrutor').style.display = 'flex';
+document.getElementById('panelConstrutor').style.flexDirection = 'column';
+loadKPIs();
+loadData();
+</script>
+{% endblock %}

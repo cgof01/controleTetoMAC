@@ -892,6 +892,45 @@ def api_kpis():
     mes = request.args.get('mes', type=int)
     return jsonify(db.dashboard_kpis(ano, mes))
 
+@app.route('/central-analitica')
+@login_required
+def central_analitica():
+    anos_meses = db.obter_anos_meses()
+    anos_disponiveis = sorted(set(am['ano'] for am in anos_meses), reverse=True)
+    ultimo = anos_meses[0] if anos_meses else {'ano': 2026, 'mes': 1}
+    return render_template('central_analitica.html',
+        meses=MESES,
+        anos_disponiveis=anos_disponiveis,
+        ultimo=ultimo
+    )
+
+@app.route('/api/kpis-central')
+@login_required
+def api_kpis_central():
+    ano = request.args.get('ano', type=int)
+    mes = request.args.get('mes', type=int)
+    return jsonify(db.kpis_central(ano, mes))
+
+@app.route('/api/analitico', methods=['GET', 'POST'])
+@login_required
+def api_analitico():
+    if request.method == 'POST':
+        body = request.get_json(force=True) or {}
+    else:
+        body = request.args.to_dict()
+    ano  = body.get('ano') or request.args.get('ano', type=int)
+    mes  = body.get('mes') or request.args.get('mes', type=int)
+    try:
+        ano = int(ano); mes = int(mes)
+    except (TypeError, ValueError):
+        return jsonify({'error': 'ano e mes obrigatórios'}), 400
+    dimensoes   = body.get('dimensoes', [])
+    metricas    = body.get('metricas', ['total_mc_ac_incentivos'])
+    filtros     = body.get('filtros', {})
+    ordenar_por = body.get('ordenar_por')
+    limite      = int(body.get('limite', 500))
+    return jsonify(db.consulta_analitica(ano, mes, dimensoes, metricas, filtros, ordenar_por, limite))
+
 @app.route('/api/relatorio/unidade')
 @login_required
 def api_relatorio_unidade():
