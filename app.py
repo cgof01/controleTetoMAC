@@ -224,7 +224,7 @@ def dashboard():
             'drs': r['drs'], 'total': r['total'] or 0, 'unidades': r['unidades']
         } for r in por_drs]),
         tipo_json=json.dumps([{
-            'tipo': r['tipo_agrupado'], 'total': r['total'] or 0, 'unidades': r['unidades']
+            'tipo': r['tipo'], 'total': r['total'] or 0, 'unidades': r['unidades']
         } for r in por_tipo]),
         top_json=json.dumps([{
             'unidade': (r['unidade'] or '')[:40], 'total': r['total'] or 0

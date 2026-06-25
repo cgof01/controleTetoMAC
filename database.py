@@ -361,7 +361,11 @@ def grafico_top_unidades(ano, mes, limite=15):
         r = get_sb().table('teto_mac').select(
             'unidade,municipio,total_mc_ac_incentivos'
         ).eq('ano', ano).eq('mes', mes).order('total_mc_ac_incentivos', desc=True).limit(limite + 20).execute()
-        dados = r.data or []
+        dados = [
+            {'unidade': d.get('unidade'), 'municipio': d.get('municipio'),
+             'total': d.get('total_mc_ac_incentivos') or 0}
+            for d in (r.data or [])
+        ]
         return _filtrar_totais(dados)[:limite]
     else:
         conn = get_db()
@@ -403,13 +407,14 @@ def grafico_por_tipo(ano, mes):
                 WHEN UPPER(tipo) LIKE '%PRÓPRIO%' OR UPPER(tipo) LIKE '%PROPRIO%' THEN 'Rede Própria'
                 WHEN UPPER(tipo) LIKE '%PRIVADO%' THEN 'Privados'
                 ELSE COALESCE(TRIM(tipo), 'Outros')
-              END as tipo,
+              END as tipo_agrupado,
               SUM(total_mc_ac_incentivos) as total, COUNT(*) as unidades
             FROM teto_mac WHERE ano = ? AND mes = ?
-            GROUP BY tipo ORDER BY total DESC
+            GROUP BY tipo_agrupado ORDER BY total DESC
         """, (ano, mes)).fetchall()
         conn.close()
-        return [dict(r) for r in rows]
+        return [{'tipo': r['tipo_agrupado'], 'total': r['total'], 'unidades': r['unidades']}
+                for r in rows]
 
 def relatorio_por_unidade(ano, mes):
     """Ranking de unidades por total no período."""
