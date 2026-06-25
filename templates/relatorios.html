@@ -3,268 +3,261 @@
 
 {% block extra_css %}
 <style>
-  .nav-tabs .nav-link { font-size:.83rem; padding:.45rem .8rem; white-space:nowrap; }
-  .tab-table th { font-size:.75rem; white-space:nowrap; background:#f8fafc; }
-  .tab-table td { font-size:.82rem; }
-  .tab-table .num { text-align:right; font-variant-numeric:tabular-nums; }
-  .chart-wrap { position:relative; height:280px; }
-  .loading-spin { display:flex; align-items:center; justify-content:center; height:120px; color:#94a3b8; gap:.5rem; }
-  .badge-rank { min-width:1.8rem; text-align:center; }
-  .inc-bar { height:8px; border-radius:4px; background:linear-gradient(90deg,#2a7dd8,#17a2b8); }
+/* ── Layout ──────────────────────────────────────────── */
+.rel-header {
+  background:linear-gradient(135deg,#1e3a5f 0%,#2a5298 100%);
+  color:#fff; border-radius:12px; padding:1rem 1.2rem;
+  display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1rem;
+  margin-bottom:1rem;
+}
+.rel-header h5 { margin:0; font-weight:700; font-size:1rem; }
+
+/* ── Tabs ────────────────────────────────────────────── */
+.rel-nav { border:none; flex-wrap:nowrap; overflow-x:auto; overflow-y:hidden; padding:0 0 2px; scrollbar-width:thin; }
+.rel-nav .nav-link {
+  border:none; border-radius:0; color:#64748b; font-size:.82rem; padding:.55rem .9rem;
+  white-space:nowrap; border-bottom:3px solid transparent; transition:.15s;
+}
+.rel-nav .nav-link:hover { color:#1e3a5f; background:#f8fafc; }
+.rel-nav .nav-link.active { color:#1e3a5f; font-weight:700; border-bottom-color:#1e3a5f; background:#fff; }
+
+/* ── Tab panel ───────────────────────────────────────── */
+.rel-panel {
+  border:1px solid #e2e8f0; border-top:none; border-radius:0 0 12px 12px;
+  background:#fff; overflow:hidden;
+}
+.rel-split { display:flex; min-height:340px; }
+.chart-col  { width:360px; min-width:260px; max-width:420px; border-right:1px solid #f1f5f9; padding:12px; display:flex; flex-direction:column; }
+.table-col  { flex:1; overflow:auto; max-height:400px; }
+
+@media (max-width:900px) { .rel-split { flex-direction:column; } .chart-col { width:100%; max-width:100%; border-right:none; border-bottom:1px solid #f1f5f9; } }
+
+.chart-col canvas { flex:1; }
+.ch-title { font-size:.75rem; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.05em; margin-bottom:8px; }
+
+/* ── Tables ──────────────────────────────────────────── */
+.rel-tbl { width:100%; border-collapse:collapse; font-size:.8rem; }
+.rel-tbl th {
+  background:#f1f5f9; padding:6px 10px; font-size:.72rem; font-weight:700;
+  white-space:nowrap; position:sticky; top:0; z-index:2; border-bottom:2px solid #e2e8f0;
+  cursor:pointer; user-select:none;
+}
+.rel-tbl th:hover { background:#e2e8f0; }
+.rel-tbl td { padding:5px 10px; border-bottom:1px solid #f8fafc; }
+.rel-tbl tr:hover td { background:#f8fbff; }
+.rel-tbl .num { text-align:right; font-variant-numeric:tabular-nums; }
+.rel-tbl .tot { background:#f0f7ff; font-weight:700; border-top:2px solid #bfdbfe; }
+.rel-tbl .rk { color:#94a3b8; font-size:.7rem; text-align:center; }
+
+/* Wide table (FAEC/MAC) */
+.table-wide { overflow:auto; max-height:300px; border-bottom:1px solid #f1f5f9; }
+.ch-box { height:260px; padding:12px; }
+
+/* ── Form tabs (CNES / Período / Exportar) ───────────── */
+.rel-form { padding:1.5rem; max-width:480px; margin:0 auto; }
+
+/* ── Loading ─────────────────────────────────────────── */
+.rel-loading { display:flex; align-items:center; justify-content:center; height:160px; color:#94a3b8; gap:.5rem; }
+.rel-empty   { display:flex; align-items:center; justify-content:center; height:100px; color:#94a3b8; flex-direction:column; gap:.4rem; }
+
+/* ── Badges / rank ───────────────────────────────────── */
+.rk-1 { background:#fbbf24; color:#78350f; }
+.rk-2 { background:#94a3b8; color:#fff; }
+.rk-3 { background:#b45309; color:#fff; }
+.rk-n { background:#f1f5f9; color:#64748b; }
+.rk-badge { width:22px; height:22px; border-radius:50%; font-size:.68rem; font-weight:700;
+  display:inline-flex; align-items:center; justify-content:center; }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+<!-- Header -->
+<div class="rel-header">
   <div>
-    <h4 class="mb-0 fw-bold"><i class="bi bi-file-earmark-bar-graph me-2"></i>Relatórios</h4>
-    <small class="opacity-75">Análises por diferentes dimensões do Teto MAC</small>
+    <h5><i class="bi bi-file-earmark-bar-graph me-2"></i>Relatórios Analíticos</h5>
+    <small style="opacity:.75">Análises por diferentes dimensões do Teto MAC</small>
   </div>
-  <div class="d-flex gap-2 flex-wrap align-items-center">
-    <select id="selAno" class="form-select form-select-sm" style="width:90px">
+  <div class="d-flex gap-2 align-items-center flex-wrap">
+    <select id="selAno" class="form-select form-select-sm" style="width:90px" onchange="reloadActive()">
       {% for ano in anos_disponiveis %}
         <option value="{{ ano }}" {{ 'selected' if ano == ultimo.ano }}>{{ ano }}</option>
       {% endfor %}
     </select>
-    <select id="selMes" class="form-select form-select-sm" style="width:125px">
+    <select id="selMes" class="form-select form-select-sm" style="width:125px" onchange="reloadActive()">
       {% for num, nome in meses.items() %}
         <option value="{{ num }}" {{ 'selected' if num == ultimo.mes }}>{{ nome }}</option>
       {% endfor %}
     </select>
-    <button class="btn btn-ses btn-sm" onclick="recarregarAba()">
-      <i class="bi bi-arrow-clockwise me-1"></i>Atualizar
-    </button>
+    <button class="btn btn-light btn-sm" onclick="exportCSV()"><i class="bi bi-filetype-csv me-1"></i>CSV</button>
+    <a id="lnkXls" href="{{ url_for('exportar_excel') }}" class="btn btn-light btn-sm"><i class="bi bi-file-excel me-1"></i>Excel</a>
   </div>
 </div>
 
-<!-- Nav tabs -->
-<ul class="nav nav-tabs mb-0" id="relTabs" role="tablist">
-  <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tabDRS">Por DRS</a></li>
-  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabTipo">Por Tipo</a></li>
-  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabUnidade">Por Unidade</a></li>
-  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabMunicipio">Por Município</a></li>
-  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabFaec"><abbr title="Fundo de Ações Estratégicas e Compensação">FAEC</abbr></a></li>
-  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabMac"><abbr title="Média e Alta Complexidade">MAC</abbr></a></li>
-  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabIncentivos">Incentivos</a></li>
-  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabCnes">Por CNES</a></li>
-  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabPeriodo">Por Período</a></li>
-  <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabExportar">Exportar</a></li>
+<!-- Tabs -->
+<ul class="nav rel-nav" id="relTabs" role="tablist">
+  <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tDRS"       data-aba="drs">       <i class="bi bi-diagram-3 me-1"></i>Por DRS</a></li>
+  <li class="nav-item"><a class="nav-link"         data-bs-toggle="tab" href="#tTipo"      data-aba="tipo">      <i class="bi bi-pie-chart me-1"></i>Por Tipo</a></li>
+  <li class="nav-item"><a class="nav-link"         data-bs-toggle="tab" href="#tUnidade"   data-aba="unidade">   <i class="bi bi-hospital me-1"></i>Por Unidade</a></li>
+  <li class="nav-item"><a class="nav-link"         data-bs-toggle="tab" href="#tMunicipio" data-aba="municipio"> <i class="bi bi-geo-alt me-1"></i>Por Município</a></li>
+  <li class="nav-item"><a class="nav-link"         data-bs-toggle="tab" href="#tFaec"      data-aba="faec">      <i class="bi bi-layers me-1"></i>FAEC</a></li>
+  <li class="nav-item"><a class="nav-link"         data-bs-toggle="tab" href="#tMac"       data-aba="mac">       <i class="bi bi-activity me-1"></i>MAC</a></li>
+  <li class="nav-item"><a class="nav-link"         data-bs-toggle="tab" href="#tInc"       data-aba="inc">       <i class="bi bi-award me-1"></i>Incentivos</a></li>
+  <li class="nav-item"><a class="nav-link"         data-bs-toggle="tab" href="#tCnes"      data-aba="">          <i class="bi bi-upc me-1"></i>Por CNES</a></li>
+  <li class="nav-item"><a class="nav-link"         data-bs-toggle="tab" href="#tPeriodo"   data-aba="">          <i class="bi bi-calendar-range me-1"></i>Período</a></li>
+  <li class="nav-item"><a class="nav-link"         data-bs-toggle="tab" href="#tExportar"  data-aba="">          <i class="bi bi-download me-1"></i>Exportar</a></li>
 </ul>
 
-<div class="tab-content border border-top-0 rounded-bottom bg-white p-3" id="relTabContent">
+<div class="tab-content rel-panel">
 
-  <!-- ─── DRS ─────────────────────────────────────────────────────────────── -->
-  <div class="tab-pane fade show active" id="tabDRS" role="tabpanel">
-    <div class="row g-3">
-      <div class="col-lg-7">
-        <div id="tblDRS"><div class="loading-spin"><div class="spinner-border spinner-border-sm"></div> Carregando…</div></div>
+  <!-- ── DRS ─────────────────────────────────────── -->
+  <div class="tab-pane fade show active" id="tDRS">
+    <div class="rel-split">
+      <div class="chart-col">
+        <div class="ch-title">Total por DRS</div>
+        <div style="flex:1;position:relative"><canvas id="chDRS"></canvas></div>
       </div>
-      <div class="col-lg-5">
-        <div class="chart-wrap"><canvas id="chDRS"></canvas></div>
+      <div class="table-col">
+        <div id="tbDRS"><div class="rel-loading"><div class="spinner-border spinner-border-sm"></div> Carregando…</div></div>
       </div>
     </div>
   </div>
 
-  <!-- ─── TIPO ─────────────────────────────────────────────────────────────── -->
-  <div class="tab-pane fade" id="tabTipo" role="tabpanel">
-    <div class="row g-3">
-      <div class="col-lg-7">
-        <div id="tblTipo"><div class="loading-spin"><div class="spinner-border spinner-border-sm"></div> Carregando…</div></div>
+  <!-- ── TIPO ─────────────────────────────────────── -->
+  <div class="tab-pane fade" id="tTipo">
+    <div class="rel-split">
+      <div class="chart-col">
+        <div class="ch-title">Distribuição por Tipo</div>
+        <div style="flex:1;position:relative"><canvas id="chTipo"></canvas></div>
       </div>
-      <div class="col-lg-5">
-        <div class="chart-wrap"><canvas id="chTipo"></canvas></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ─── UNIDADE ──────────────────────────────────────────────────────────── -->
-  <div class="tab-pane fade" id="tabUnidade" role="tabpanel">
-    <div class="row g-3">
-      <div class="col-lg-8">
-        <div id="tblUnidade"><div class="loading-spin"><div class="spinner-border spinner-border-sm"></div> Carregando…</div></div>
-      </div>
-      <div class="col-lg-4">
-        <div class="chart-wrap" style="height:320px"><canvas id="chUnidade"></canvas></div>
+      <div class="table-col">
+        <div id="tbTipo"><div class="rel-loading"><div class="spinner-border spinner-border-sm"></div> Carregando…</div></div>
       </div>
     </div>
   </div>
 
-  <!-- ─── MUNICÍPIO ─────────────────────────────────────────────────────────── -->
-  <div class="tab-pane fade" id="tabMunicipio" role="tabpanel">
-    <div class="row g-3">
-      <div class="col-lg-8">
-        <div id="tblMunicipio"><div class="loading-spin"><div class="spinner-border spinner-border-sm"></div> Carregando…</div></div>
+  <!-- ── UNIDADE ─────────────────────────────────── -->
+  <div class="tab-pane fade" id="tUnidade">
+    <div class="rel-split">
+      <div class="chart-col">
+        <div class="ch-title">Top 15 Unidades</div>
+        <div style="flex:1;position:relative"><canvas id="chUnidade"></canvas></div>
       </div>
-      <div class="col-lg-4">
-        <div class="chart-wrap" style="height:320px"><canvas id="chMunicipio"></canvas></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ─── FAEC ─────────────────────────────────────────────────────────────── -->
-  <div class="tab-pane fade" id="tabFaec" role="tabpanel">
-    <p class="small text-muted mb-2"><i class="bi bi-info-circle me-1"></i>Fundo de Ações Estratégicas e Compensação: AIH Físico/FAEC, AIH FAEC, SIA FAEC, Equip. Hemodiálise e Limite de Complementação — agrupados por DRS.</p>
-    <div class="row g-3">
-      <div class="col-12">
-        <div id="tblFaec"><div class="loading-spin"><div class="spinner-border spinner-border-sm"></div> Carregando…</div></div>
-      </div>
-      <div class="col-12">
-        <div class="chart-wrap" style="height:300px"><canvas id="chFaec"></canvas></div>
+      <div class="table-col">
+        <div id="tbUnidade"><div class="rel-loading"><div class="spinner-border spinner-border-sm"></div> Carregando…</div></div>
       </div>
     </div>
   </div>
 
-  <!-- ─── MAC ──────────────────────────────────────────────────────────────── -->
-  <div class="tab-pane fade" id="tabMac" role="tabpanel">
-    <p class="small text-muted mb-2"><i class="bi bi-info-circle me-1"></i>Média e Alta Complexidade: AIH MC, AIH AC, SIA MC, SIA AC — agrupados por DRS.</p>
-    <div class="row g-3">
-      <div class="col-12">
-        <div id="tblMac"><div class="loading-spin"><div class="spinner-border spinner-border-sm"></div> Carregando…</div></div>
+  <!-- ── MUNICÍPIO ───────────────────────────────── -->
+  <div class="tab-pane fade" id="tMunicipio">
+    <div class="rel-split">
+      <div class="chart-col">
+        <div class="ch-title">Top 15 Municípios</div>
+        <div style="flex:1;position:relative"><canvas id="chMun"></canvas></div>
       </div>
-      <div class="col-12">
-        <div class="chart-wrap" style="height:300px"><canvas id="chMac"></canvas></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ─── INCENTIVOS ──────────────────────────────────────────────────────── -->
-  <div class="tab-pane fade" id="tabIncentivos" role="tabpanel">
-    <div class="row g-3">
-      <div class="col-lg-6">
-        <div id="tblIncentivos"><div class="loading-spin"><div class="spinner-border spinner-border-sm"></div> Carregando…</div></div>
-      </div>
-      <div class="col-lg-6">
-        <div class="chart-wrap" style="height:360px"><canvas id="chIncentivos"></canvas></div>
+      <div class="table-col">
+        <div id="tbMun"><div class="rel-loading"><div class="spinner-border spinner-border-sm"></div> Carregando…</div></div>
       </div>
     </div>
   </div>
 
-  <!-- ─── CNES ─────────────────────────────────────────────────────────────── -->
-  <div class="tab-pane fade" id="tabCnes" role="tabpanel">
-    <div class="row justify-content-center">
-      <div class="col-md-6">
-        <div class="card border-warning">
-          <div class="card-header bg-warning text-dark">
-            <i class="bi bi-graph-up me-2"></i><strong>Evolução por Unidade (CNES)</strong>
-          </div>
-          <div class="card-body">
-            <p class="text-muted small">Histórico completo de uma unidade ao longo do tempo, identificada pelo CNES.</p>
-            <form method="get" action="{{ url_for('relatorio_comparativo_unidade') }}">
-              <div class="mb-3">
-                <label class="form-label fw-bold">CNES da Unidade</label>
-                <input type="text" name="cnes" class="form-control" placeholder="Ex: 2077263" required pattern="\d+">
-              </div>
-              <button type="submit" class="btn btn-warning w-100">
-                <i class="bi bi-arrow-right-circle me-1"></i>Gerar Relatório de Evolução
-              </button>
-            </form>
-          </div>
+  <!-- ── FAEC ─────────────────────────────────────── -->
+  <div class="tab-pane fade" id="tFaec">
+    <div class="p-2">
+      <p class="small text-muted mb-2 px-1"><i class="bi bi-info-circle me-1"></i><strong>Fundo de Ações Estratégicas e Compensação</strong> — AIH Físico, AIH FAEC, SIA FAEC, Equip. Hemodiálise e Limite de Complementação agrupados por DRS.</p>
+    </div>
+    <div class="table-wide"><div id="tbFaec"><div class="rel-loading"><div class="spinner-border spinner-border-sm"></div> Carregando…</div></div></div>
+    <div class="ch-box"><canvas id="chFaec"></canvas></div>
+  </div>
+
+  <!-- ── MAC ──────────────────────────────────────── -->
+  <div class="tab-pane fade" id="tMac">
+    <div class="p-2">
+      <p class="small text-muted mb-2 px-1"><i class="bi bi-info-circle me-1"></i><strong>Média e Alta Complexidade</strong> — AIH MC, AIH AC, SIA MC, SIA AC agrupados por DRS.</p>
+    </div>
+    <div class="table-wide"><div id="tbMac"><div class="rel-loading"><div class="spinner-border spinner-border-sm"></div> Carregando…</div></div></div>
+    <div class="ch-box"><canvas id="chMac"></canvas></div>
+  </div>
+
+  <!-- ── INCENTIVOS ───────────────────────────────── -->
+  <div class="tab-pane fade" id="tInc">
+    <div class="rel-split">
+      <div class="chart-col" style="max-width:480px">
+        <div class="ch-title">Incentivos — Total por Componente</div>
+        <div style="flex:1;position:relative"><canvas id="chInc"></canvas></div>
+      </div>
+      <div class="table-col">
+        <div id="tbInc"><div class="rel-loading"><div class="spinner-border spinner-border-sm"></div> Carregando…</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── CNES ─────────────────────────────────────── -->
+  <div class="tab-pane fade" id="tCnes">
+    <div class="rel-form">
+      <div class="card border-warning">
+        <div class="card-header bg-warning text-dark fw-bold"><i class="bi bi-graph-up me-2"></i>Evolução por Unidade (CNES)</div>
+        <div class="card-body">
+          <p class="text-muted small mb-3">Histórico completo de uma unidade ao longo do tempo, identificada pelo código CNES.</p>
+          <form method="get" action="{{ url_for('relatorio_comparativo_unidade') }}">
+            <div class="mb-3">
+              <label class="form-label fw-bold small">CNES da Unidade</label>
+              <input type="text" name="cnes" class="form-control" placeholder="Ex.: 2077263" required pattern="\d+">
+            </div>
+            <button type="submit" class="btn btn-warning w-100"><i class="bi bi-arrow-right-circle me-1"></i>Gerar Relatório de Evolução</button>
+          </form>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- ─── PERÍODO ──────────────────────────────────────────────────────────── -->
-  <div class="tab-pane fade" id="tabPeriodo" role="tabpanel">
-    <div class="row justify-content-center">
-      <div class="col-md-6">
-        <div class="card border-success">
-          <div class="card-header bg-success text-white">
-            <i class="bi bi-calendar-range me-2"></i><strong>Relatório por Período</strong>
-          </div>
-          <div class="card-body">
-            <p class="text-muted small">Todos os registros em um intervalo de competências.</p>
-            <form method="get" action="{{ url_for('relatorio_periodo') }}">
-              <div class="row g-2 mb-3">
-                <div class="col-12"><small class="fw-bold text-muted text-uppercase">De:</small></div>
-                <div class="col-6">
-                  <select name="ano_ini" class="form-select form-select-sm">
-                    {% for ano in anos_disponiveis %}
-                      <option value="{{ ano }}" {{ 'selected' if ano == ultimo.ano }}>{{ ano }}</option>
-                    {% endfor %}
-                  </select>
-                </div>
-                <div class="col-6">
-                  <select name="mes_ini" class="form-select form-select-sm">
-                    {% for num, nome in meses.items() %}
-                      <option value="{{ num }}" {{ 'selected' if num == 1 }}>{{ nome }}</option>
-                    {% endfor %}
-                  </select>
-                </div>
-                <div class="col-12"><small class="fw-bold text-muted text-uppercase">Até:</small></div>
-                <div class="col-6">
-                  <select name="ano_fim" class="form-select form-select-sm">
-                    {% for ano in anos_disponiveis %}
-                      <option value="{{ ano }}" {{ 'selected' if ano == ultimo.ano }}>{{ ano }}</option>
-                    {% endfor %}
-                  </select>
-                </div>
-                <div class="col-6">
-                  <select name="mes_fim" class="form-select form-select-sm">
-                    {% for num, nome in meses.items() %}
-                      <option value="{{ num }}" {{ 'selected' if num == ultimo.mes }}>{{ nome }}</option>
-                    {% endfor %}
-                  </select>
-                </div>
-              </div>
-              <button type="submit" class="btn btn-success w-100">
-                <i class="bi bi-arrow-right-circle me-1"></i>Gerar Relatório por Período
-              </button>
-            </form>
-          </div>
+  <!-- ── PERÍODO ──────────────────────────────────── -->
+  <div class="tab-pane fade" id="tPeriodo">
+    <div class="rel-form">
+      <div class="card border-success">
+        <div class="card-header bg-success text-white fw-bold"><i class="bi bi-calendar-range me-2"></i>Relatório por Período</div>
+        <div class="card-body">
+          <p class="text-muted small mb-3">Todos os registros em um intervalo de competências.</p>
+          <form method="get" action="{{ url_for('relatorio_periodo') }}">
+            <div class="row g-2 mb-3">
+              <div class="col-12"><small class="fw-bold text-muted">DE:</small></div>
+              <div class="col-6"><select name="ano_ini" class="form-select form-select-sm">{% for ano in anos_disponiveis %}<option value="{{ ano }}" {{ 'selected' if ano == ultimo.ano }}>{{ ano }}</option>{% endfor %}</select></div>
+              <div class="col-6"><select name="mes_ini" class="form-select form-select-sm">{% for num, nome in meses.items() %}<option value="{{ num }}" {{ 'selected' if num == 1 }}>{{ nome }}</option>{% endfor %}</select></div>
+              <div class="col-12"><small class="fw-bold text-muted">ATÉ:</small></div>
+              <div class="col-6"><select name="ano_fim" class="form-select form-select-sm">{% for ano in anos_disponiveis %}<option value="{{ ano }}" {{ 'selected' if ano == ultimo.ano }}>{{ ano }}</option>{% endfor %}</select></div>
+              <div class="col-6"><select name="mes_fim" class="form-select form-select-sm">{% for num, nome in meses.items() %}<option value="{{ num }}" {{ 'selected' if num == ultimo.mes }}>{{ nome }}</option>{% endfor %}</select></div>
+            </div>
+            <button type="submit" class="btn btn-success w-100"><i class="bi bi-arrow-right-circle me-1"></i>Gerar Relatório</button>
+          </form>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- ─── EXPORTAR ─────────────────────────────────────────────────────────── -->
-  <div class="tab-pane fade" id="tabExportar" role="tabpanel">
-    <div class="row g-3 justify-content-center">
+  <!-- ── EXPORTAR ──────────────────────────────────── -->
+  <div class="tab-pane fade" id="tExportar">
+    <div class="row g-3 p-3 justify-content-center">
       <div class="col-md-5">
         <div class="card border-dark">
-          <div class="card-header bg-dark text-white">
-            <i class="bi bi-file-excel me-2"></i><strong>Exportar para Excel</strong>
-          </div>
+          <div class="card-header bg-dark text-white fw-bold"><i class="bi bi-file-excel me-2"></i>Exportar para Excel</div>
           <div class="card-body">
-            <p class="text-muted small">Exporta registros filtrados para planilha Excel formatada.</p>
+            <p class="text-muted small">Exporta registros filtrados para planilha Excel.</p>
             <form method="get" action="{{ url_for('exportar_excel') }}">
               <div class="row g-2 mb-3">
-                <div class="col-6">
-                  <label class="form-label small fw-bold">Ano</label>
-                  <select name="ano" class="form-select form-select-sm">
-                    <option value="">Todos</option>
-                    {% for ano in anos_disponiveis %}
-                      <option value="{{ ano }}" {{ 'selected' if ano == ultimo.ano }}>{{ ano }}</option>
-                    {% endfor %}
-                  </select>
-                </div>
-                <div class="col-6">
-                  <label class="form-label small fw-bold">Mês</label>
-                  <select name="mes" class="form-select form-select-sm">
-                    <option value="">Todos</option>
-                    {% for num, nome in meses.items() %}
-                      <option value="{{ num }}" {{ 'selected' if num == ultimo.mes }}>{{ nome }}</option>
-                    {% endfor %}
-                  </select>
-                </div>
+                <div class="col-6"><select name="ano" class="form-select form-select-sm"><option value="">Todos</option>{% for ano in anos_disponiveis %}<option value="{{ ano }}" {{ 'selected' if ano == ultimo.ano }}>{{ ano }}</option>{% endfor %}</select></div>
+                <div class="col-6"><select name="mes" class="form-select form-select-sm"><option value="">Todos</option>{% for num, nome in meses.items() %}<option value="{{ num }}" {{ 'selected' if num == ultimo.mes }}>{{ nome }}</option>{% endfor %}</select></div>
               </div>
-              <button type="submit" class="btn btn-dark w-100">
-                <i class="bi bi-download me-1"></i>Baixar Excel
-              </button>
+              <button type="submit" class="btn btn-dark w-100"><i class="bi bi-download me-1"></i>Baixar Excel</button>
             </form>
           </div>
         </div>
       </div>
       <div class="col-md-5">
         <div class="card" style="border-color:var(--ses-azul)">
-          <div class="card-header text-white" style="background:var(--ses-azul)">
-            <i class="bi bi-search me-2"></i><strong>Pesquisa Completa</strong>
-          </div>
+          <div class="card-header text-white fw-bold" style="background:var(--ses-azul)"><i class="bi bi-search me-2"></i>Pesquisa Avançada</div>
           <div class="card-body d-flex flex-column">
-            <p class="text-muted small">Pesquisa avançada com todos os filtros e exportação individual.</p>
-            <a href="{{ url_for('pesquisa') }}" class="btn btn-ses mt-auto">
-              <i class="bi bi-arrow-right-circle me-1"></i>Ir para Pesquisa
-            </a>
+            <p class="text-muted small">Pesquisa com todos os filtros, ordenação e exportação.</p>
+            <a href="{{ url_for('pesquisa') }}" class="btn btn-ses mt-auto"><i class="bi bi-arrow-right-circle me-1"></i>Ir para Pesquisa</a>
           </div>
         </div>
       </div>
@@ -275,400 +268,260 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
-const CORES = ['#1e3a5f','#2a7dd8','#e07b00','#1a7a4a','#dc3545','#6f42c1',
-               '#17a2b8','#fd7e14','#20c997','#6610f2','#e83e8c','#0dcaf0'];
-const CORES_P = CORES.map(c => c + 'cc');
-
-function moeda(v) {
-  if (v == null || v === '') return '—';
-  return 'R$ ' + Number(v).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
-}
-function moedaK(v) {
-  const n = Number(v) || 0;
-  if (n >= 1e9) return 'R$' + (n/1e9).toFixed(1) + 'B';
-  if (n >= 1e6) return 'R$' + (n/1e6).toFixed(1) + 'M';
-  if (n >= 1e3) return 'R$' + (n/1e3).toFixed(0) + 'K';
-  return 'R$' + n.toFixed(0);
-}
+const CORES = ['#1e3a5f','#2a7dd8','#1a7a4a','#e07b00','#dc3545','#6f42c1',
+               '#17a2b8','#fd7e14','#20c997','#6610f2','#e83e8c','#0dcaf0',
+               '#198754','#ffc107','#0d6efd','#6c757d','#d63384'];
+const CP = CORES.map(c=>c+'cc');
 
 function getAnoMes() {
-  return { ano: document.getElementById('selAno').value, mes: document.getElementById('selMes').value };
+  return {ano:+document.getElementById('selAno').value, mes:+document.getElementById('selMes').value};
+}
+function moedaFull(v) {
+  return v?'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'—';
+}
+function moedaK(v) {
+  const n=Number(v)||0;
+  if(n>=1e9) return 'R$'+(n/1e9).toFixed(1)+'B';
+  if(n>=1e6) return 'R$'+(n/1e6).toFixed(1)+'M';
+  if(n>=1e3) return 'R$'+(n/1e3).toFixed(0)+'K';
+  return 'R$'+n.toFixed(0);
+}
+function pct(v, t) { return t?(v/t*100).toFixed(1)+'%':'—'; }
+function rkBadge(i) {
+  const cls = i===0?'rk-1':i===1?'rk-2':i===2?'rk-3':'rk-n';
+  return `<span class="rk-badge ${cls}">${i+1}</span>`;
 }
 
-let _charts = {};
-function destroyChart(id) { if (_charts[id]) { _charts[id].destroy(); delete _charts[id]; } }
+const _charts = {};
+function mk(id, cfg) {
+  if(_charts[id]) { _charts[id].destroy(); }
+  _charts[id] = new Chart(document.getElementById(id).getContext('2d'), cfg);
+}
 
-// ── DRS ───────────────────────────────────────────────────────────────────────
+const _loaded = {};
+async function fetchJ(url) { return (await fetch(url)).json(); }
+
+// ── DRS ──────────────────────────────────────────────────────────────────────
 async function loadDRS() {
-  const {ano, mes} = getAnoMes();
-  document.getElementById('tblDRS').innerHTML = '<div class="loading-spin"><div class="spinner-border spinner-border-sm"></div> Carregando…</div>';
-  const data = await fetch(`/api/graficos/drs?ano=${ano}&mes=${mes}`).then(r=>r.json());
-
-  const total = data.reduce((s,d) => s + (d.total_geral || d.total || 0), 0);
-  let html = `<div class="table-responsive"><table class="table table-hover table-sm tab-table mb-0">
-    <thead><tr><th>DRS</th><th class="num">Unidades</th><th class="num">Total</th><th class="num">% do Total</th></tr></thead><tbody>`;
-  data.forEach((d, i) => {
-    const tot = d.total_geral || d.total || 0;
-    const pct = total ? (tot/total*100).toFixed(1) : 0;
-    html += `<tr><td><span class="badge bg-primary badge-rank">${d.drs}</span></td>
+  if(_loaded.drs) return; _loaded.drs=true;
+  const {ano,mes}=getAnoMes();
+  const data = await fetchJ(`/api/graficos/drs?ano=${ano}&mes=${mes}`);
+  const total = data.reduce((s,d)=>s+(d.total||0),0);
+  let html=`<table class="rel-tbl"><thead><tr>
+    <th class="rk" style="width:36px">#</th>
+    <th>DRS</th><th class="num">Unidades</th>
+    <th class="num">Total</th><th class="num">%</th>
+  </tr></thead><tbody>`;
+  data.forEach((d,i)=>{
+    html+=`<tr><td class="rk">${rkBadge(i)}</td>
+      <td><span class="badge badge-drs">DRS ${d.drs}</span></td>
       <td class="num">${d.unidades}</td>
-      <td class="num fw-bold">${moeda(tot)}</td>
-      <td class="num"><small>${pct}%</small></td></tr>`;
+      <td class="num fw-bold">${moedaFull(d.total)}</td>
+      <td class="num"><small>${pct(d.total,total)}</small></td></tr>`;
   });
-  html += `<tr class="table-secondary fw-bold"><td>Total</td><td class="num"></td><td class="num">${moeda(total)}</td><td class="num">100%</td></tr>`;
-  html += '</tbody></table></div>';
-  document.getElementById('tblDRS').innerHTML = html;
-
-  destroyChart('chDRS');
-  const ctx = document.getElementById('chDRS').getContext('2d');
-  _charts['chDRS'] = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: data.map(d => 'DRS ' + d.drs),
-      datasets: [{ label: 'Total', data: data.map(d => d.total_geral || d.total || 0),
-        backgroundColor: CORES_P, borderColor: CORES, borderWidth: 1.5, borderRadius: 5 }]
-    },
-    options: {
-      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-      plugins: { legend: {display:false}, tooltip: {callbacks:{label: c=>moeda(c.raw)}} },
-      scales: { x: {ticks:{callback:moedaK}}, y: {grid:{display:false}} }
-    }
-  });
+  html+=`<tr class="tot"><td></td><td>Total</td><td class="num"></td><td class="num">${moedaFull(total)}</td><td class="num">100%</td></tr>`;
+  html+='</tbody></table>';
+  document.getElementById('tbDRS').innerHTML=html;
+  mk('chDRS',{type:'bar',data:{labels:data.map(d=>'DRS '+d.drs),datasets:[{label:'Total',data:data.map(d=>d.total||0),backgroundColor:CP,borderColor:CORES,borderWidth:1.5,borderRadius:5}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>moedaFull(c.raw)}}},scales:{x:{ticks:{callback:moedaK}},y:{grid:{display:false}}}}});
 }
 
 // ── TIPO ──────────────────────────────────────────────────────────────────────
 async function loadTipo() {
-  const {ano, mes} = getAnoMes();
-  document.getElementById('tblTipo').innerHTML = '<div class="loading-spin"><div class="spinner-border spinner-border-sm"></div> Carregando…</div>';
-  const data = await fetch(`/api/graficos/tipo?ano=${ano}&mes=${mes}`).then(r=>r.json());
-
-  const total = data.reduce((s,d) => s + (d.total||0), 0);
-  let html = `<div class="table-responsive"><table class="table table-hover table-sm tab-table mb-0">
-    <thead><tr><th>#</th><th>Tipo</th><th class="num">Unidades</th><th class="num">Total</th><th class="num">%</th></tr></thead><tbody>`;
-  data.forEach((d, i) => {
-    const pct = total ? (d.total/total*100).toFixed(1) : 0;
-    html += `<tr><td><small class="text-muted">${i+1}</small></td><td>${d.tipo||'—'}</td>
-      <td class="num">${d.unidades||'—'}</td>
-      <td class="num fw-bold">${moeda(d.total)}</td>
-      <td class="num"><small>${pct}%</small></td></tr>`;
+  if(_loaded.tipo) return; _loaded.tipo=true;
+  const {ano,mes}=getAnoMes();
+  const data = await fetchJ(`/api/graficos/tipo?ano=${ano}&mes=${mes}`);
+  const total = data.reduce((s,d)=>s+(d.total||0),0);
+  let html=`<table class="rel-tbl"><thead><tr>
+    <th class="rk">#</th><th>Tipo</th><th class="num">Unidades</th>
+    <th class="num">Total</th><th class="num">%</th>
+  </tr></thead><tbody>`;
+  data.forEach((d,i)=>{
+    html+=`<tr><td class="rk">${rkBadge(i)}</td>
+      <td>${d.tipo||'—'}</td><td class="num">${d.unidades||'—'}</td>
+      <td class="num fw-bold">${moedaFull(d.total)}</td>
+      <td class="num"><small>${pct(d.total,total)}</small></td></tr>`;
   });
-  html += '</tbody></table></div>';
-  document.getElementById('tblTipo').innerHTML = html;
-
-  destroyChart('chTipo');
-  const ctx = document.getElementById('chTipo').getContext('2d');
-  _charts['chTipo'] = new Chart(ctx, {
-    type: 'doughnut',
-    data: {
-      labels: data.map(d=>d.tipo),
-      datasets: [{data: data.map(d=>d.total), backgroundColor: CORES, borderWidth:2, borderColor:'#fff', hoverOffset:6}]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false, cutout: '55%',
-      plugins: {
-        legend: {position:'bottom', labels:{font:{size:10}, padding:8}},
-        tooltip: {callbacks:{label: c => c.label + ': ' + moeda(c.raw)}}
-      }
-    }
-  });
+  html+=`<tr class="tot"><td></td><td>Total</td><td class="num"></td><td class="num">${moedaFull(total)}</td><td class="num">100%</td></tr>`;
+  html+='</tbody></table>';
+  document.getElementById('tbTipo').innerHTML=html;
+  mk('chTipo',{type:'doughnut',data:{labels:data.map(d=>d.tipo),datasets:[{data:data.map(d=>d.total),backgroundColor:CORES,borderWidth:2,borderColor:'#fff',hoverOffset:6}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'55%',plugins:{legend:{position:'bottom',labels:{usePointStyle:true,font:{size:10},padding:8}},tooltip:{callbacks:{label:c=>c.label+': '+moedaFull(c.raw)}}}}});
 }
 
 // ── UNIDADE ───────────────────────────────────────────────────────────────────
 async function loadUnidade() {
-  const {ano, mes} = getAnoMes();
-  document.getElementById('tblUnidade').innerHTML = '<div class="loading-spin"><div class="spinner-border spinner-border-sm"></div> Carregando…</div>';
-  const data = await fetch(`/api/relatorio/unidade?ano=${ano}&mes=${mes}`).then(r=>r.json());
-  const top = data.slice(0, 100);
-
-  let html = `<div class="table-responsive" style="max-height:380px;overflow-y:auto">
-    <table class="table table-hover table-sm tab-table mb-0">
-    <thead><tr><th>#</th><th>Unidade</th><th>CNES</th><th>Município</th><th>DRS</th><th class="num">Total AIH</th><th class="num">Total SIA</th><th class="num">Total Geral</th></tr></thead><tbody>`;
-  top.forEach((d, i) => {
-    html += `<tr>
-      <td><span class="badge ${i<3?'bg-warning text-dark':'bg-secondary'} badge-rank">${i+1}</span></td>
-      <td><small title="${d.unidade||''}">${(d.unidade||'—').substring(0,35)}${(d.unidade||'').length>35?'…':''}</small></td>
+  if(_loaded.unidade) return; _loaded.unidade=true;
+  const {ano,mes}=getAnoMes();
+  const data = await fetchJ(`/api/relatorio/unidade?ano=${ano}&mes=${mes}`);
+  const total = data.reduce((s,d)=>s+(d.total_geral||0),0);
+  let html=`<table class="rel-tbl"><thead><tr>
+    <th class="rk">#</th><th>Unidade</th><th>CNES</th><th>Município</th><th>DRS</th>
+    <th class="num">Total</th><th class="num">%</th>
+  </tr></thead><tbody>`;
+  data.slice(0,100).forEach((d,i)=>{
+    html+=`<tr><td class="rk">${rkBadge(i)}</td>
+      <td><small title="${d.unidade||''}">${(d.unidade||'—').substring(0,38)}${(d.unidade||'').length>38?'…':''}</small></td>
       <td><code class="small">${d.cnes||'—'}</code></td>
-      <td><small>${(d.municipio||'—').substring(0,20)}</small></td>
-      <td><span class="badge bg-secondary">${d.drs||'—'}</span></td>
-      <td class="num">${moeda(d.total_aih)}</td>
-      <td class="num">${moeda(d.total_sia)}</td>
-      <td class="num fw-bold">${moeda(d.total_geral)}</td>
-    </tr>`;
+      <td><small>${(d.municipio||'—').substring(0,18)}</small></td>
+      <td class="text-center"><span class="badge badge-drs" style="font-size:.65rem">${d.drs||'—'}</span></td>
+      <td class="num fw-bold">${moedaFull(d.total_geral)}</td>
+      <td class="num"><small>${pct(d.total_geral,total)}</small></td></tr>`;
   });
-  html += '</tbody></table></div>';
-  if (data.length > 100) html += `<small class="text-muted d-block mt-1">Exibindo top 100 de ${data.length} unidades</small>`;
-  document.getElementById('tblUnidade').innerHTML = html;
-
-  const top15 = data.slice(0, 15);
-  destroyChart('chUnidade');
-  const ctx = document.getElementById('chUnidade').getContext('2d');
-  _charts['chUnidade'] = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: top15.map(d => (d.unidade||'').substring(0,20)),
-      datasets: [{ label: 'Total', data: top15.map(d=>d.total_geral),
-        backgroundColor: CORES_P, borderColor: CORES, borderWidth:1, borderRadius:4 }]
-    },
-    options: {
-      indexAxis:'y', responsive:true, maintainAspectRatio:false,
-      plugins: {legend:{display:false}, tooltip:{callbacks:{label:c=>moeda(c.raw)}}},
-      scales: {x:{ticks:{callback:moedaK}}, y:{ticks:{font:{size:9}}, grid:{display:false}}}
-    }
-  });
+  if(data.length>100) html+=`<tr><td colspan="7" class="text-center text-muted py-1" style="font-size:.73rem">Exibindo top 100 de ${data.length} unidades</td></tr>`;
+  html+=`<tr class="tot"><td></td><td>Total</td><td></td><td></td><td></td><td class="num">${moedaFull(total)}</td><td class="num">100%</td></tr>`;
+  html+='</tbody></table>';
+  document.getElementById('tbUnidade').innerHTML=html;
+  const top15=data.slice(0,15);
+  mk('chUnidade',{type:'bar',data:{labels:top15.map(d=>(d.unidade||'').substring(0,18)),datasets:[{label:'Total',data:top15.map(d=>d.total_geral||0),backgroundColor:CP,borderColor:CORES,borderWidth:1,borderRadius:4}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>moedaFull(c.raw)}}},scales:{x:{ticks:{callback:moedaK}},y:{ticks:{font:{size:9}},grid:{display:false}}}}});
 }
 
 // ── MUNICÍPIO ─────────────────────────────────────────────────────────────────
 async function loadMunicipio() {
-  const {ano, mes} = getAnoMes();
-  document.getElementById('tblMunicipio').innerHTML = '<div class="loading-spin"><div class="spinner-border spinner-border-sm"></div> Carregando…</div>';
-  const data = await fetch(`/api/relatorio/municipio?ano=${ano}&mes=${mes}`).then(r=>r.json());
-  const top = data.slice(0, 100);
-  const total = data.reduce((s,d) => s + (d.total_geral||0), 0);
-
-  let html = `<div class="table-responsive" style="max-height:380px;overflow-y:auto">
-    <table class="table table-hover table-sm tab-table mb-0">
-    <thead><tr><th>#</th><th>Município</th><th class="num">Unidades</th><th class="num">AIH</th><th class="num">SIA</th><th class="num">Total</th><th class="num">%</th></tr></thead><tbody>`;
-  top.forEach((d, i) => {
-    const pct = total ? (d.total_geral/total*100).toFixed(1) : 0;
-    html += `<tr>
-      <td><span class="badge ${i<3?'bg-warning text-dark':'bg-secondary'} badge-rank">${i+1}</span></td>
-      <td>${d.municipio||'—'}</td>
-      <td class="num">${d.unidades}</td>
-      <td class="num">${moeda(d.total_aih)}</td>
-      <td class="num">${moeda(d.total_sia)}</td>
-      <td class="num fw-bold">${moeda(d.total_geral)}</td>
-      <td class="num"><small>${pct}%</small></td>
-    </tr>`;
+  if(_loaded.municipio) return; _loaded.municipio=true;
+  const {ano,mes}=getAnoMes();
+  const data = await fetchJ(`/api/relatorio/municipio?ano=${ano}&mes=${mes}`);
+  const total = data.reduce((s,d)=>s+(d.total_geral||0),0);
+  let html=`<table class="rel-tbl"><thead><tr>
+    <th class="rk">#</th><th>Município</th><th class="num">Unidades</th>
+    <th class="num">AIH</th><th class="num">SIA</th>
+    <th class="num">Total</th><th class="num">%</th>
+  </tr></thead><tbody>`;
+  data.slice(0,100).forEach((d,i)=>{
+    html+=`<tr><td class="rk">${rkBadge(i)}</td>
+      <td>${d.municipio||'—'}</td><td class="num">${d.unidades}</td>
+      <td class="num">${moedaFull(d.total_aih)}</td>
+      <td class="num">${moedaFull(d.total_sia)}</td>
+      <td class="num fw-bold">${moedaFull(d.total_geral)}</td>
+      <td class="num"><small>${pct(d.total_geral,total)}</small></td></tr>`;
   });
-  html += '</tbody></table></div>';
-  if (data.length > 100) html += `<small class="text-muted d-block mt-1">Exibindo top 100 de ${data.length} municípios</small>`;
-  document.getElementById('tblMunicipio').innerHTML = html;
-
-  const top15 = data.slice(0, 15);
-  destroyChart('chMunicipio');
-  const ctx = document.getElementById('chMunicipio').getContext('2d');
-  _charts['chMunicipio'] = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: top15.map(d => (d.municipio||'').substring(0,18)),
-      datasets: [{ label: 'Total', data: top15.map(d=>d.total_geral),
-        backgroundColor: CORES_P, borderColor: CORES, borderWidth:1, borderRadius:4 }]
-    },
-    options: {
-      indexAxis:'y', responsive:true, maintainAspectRatio:false,
-      plugins: {legend:{display:false}, tooltip:{callbacks:{label:c=>moeda(c.raw)}}},
-      scales: {x:{ticks:{callback:moedaK}}, y:{ticks:{font:{size:9}}, grid:{display:false}}}
-    }
-  });
+  if(data.length>100) html+=`<tr><td colspan="7" class="text-center text-muted py-1" style="font-size:.73rem">Exibindo top 100 de ${data.length} municípios</td></tr>`;
+  html+=`<tr class="tot"><td></td><td>Total</td><td class="num"></td><td class="num">${moedaFull(data.reduce((s,d)=>s+(d.total_aih||0),0))}</td><td class="num">${moedaFull(data.reduce((s,d)=>s+(d.total_sia||0),0))}</td><td class="num">${moedaFull(total)}</td><td class="num">100%</td></tr>`;
+  html+='</tbody></table>';
+  document.getElementById('tbMun').innerHTML=html;
+  const top15=data.slice(0,15);
+  mk('chMun',{type:'bar',data:{labels:top15.map(d=>(d.municipio||'').substring(0,16)),datasets:[{label:'Total',data:top15.map(d=>d.total_geral||0),backgroundColor:CP,borderColor:CORES,borderWidth:1,borderRadius:4}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>moedaFull(c.raw)}}},scales:{x:{ticks:{callback:moedaK}},y:{ticks:{font:{size:9}},grid:{display:false}}}}});
 }
 
 // ── FAEC ──────────────────────────────────────────────────────────────────────
 async function loadFaec() {
-  const {ano, mes} = getAnoMes();
-  document.getElementById('tblFaec').innerHTML = '<div class="loading-spin"><div class="spinner-border spinner-border-sm"></div> Carregando…</div>';
-  const data = await fetch(`/api/relatorio/fundo?ano=${ano}&mes=${mes}`).then(r=>r.json());
-
-  let html = `<div class="table-responsive"><table class="table table-hover table-sm tab-table mb-0">
-    <thead><tr>
-      <th>DRS</th>
-      <th class="num">AIH Físico</th>
-      <th class="num">AIH FAEC</th>
-      <th class="num">SIA FAEC</th>
-      <th class="num">Equip. Hemod.</th>
-      <th class="num">Lim. Complement.</th>
-      <th class="num">Total Geral</th>
-    </tr></thead><tbody>`;
-
-  let tots = {aih_fisico:0,aih_faec:0,sia_faec:0,equip_hemodialise:0,limite_complementacao:0,total:0};
-  data.forEach(d => {
-    ['aih_fisico','aih_faec','sia_faec','equip_hemodialise','limite_complementacao','total'].forEach(k => { tots[k] += d[k]||0; });
-    html += `<tr>
-      <td><span class="badge bg-primary">${d.drs}</span></td>
-      <td class="num">${moeda(d.aih_fisico)}</td>
-      <td class="num">${moeda(d.aih_faec)}</td>
-      <td class="num">${moeda(d.sia_faec)}</td>
-      <td class="num">${moeda(d.equip_hemodialise)}</td>
-      <td class="num">${moeda(d.limite_complementacao)}</td>
-      <td class="num fw-bold">${moeda(d.total)}</td>
-    </tr>`;
+  if(_loaded.faec) return; _loaded.faec=true;
+  const {ano,mes}=getAnoMes();
+  const data = await fetchJ(`/api/relatorio/fundo?ano=${ano}&mes=${mes}`);
+  let tot={aih_fisico:0,aih_faec:0,sia_faec:0,equip_hemodialise:0,limite_complementacao:0,total:0};
+  let html=`<table class="rel-tbl"><thead><tr>
+    <th>DRS</th><th class="num">AIH Físico</th><th class="num">AIH FAEC</th>
+    <th class="num">SIA FAEC</th><th class="num">Equip. Hemod.</th>
+    <th class="num">Lim. Complement.</th><th class="num">Total Geral</th>
+  </tr></thead><tbody>`;
+  data.forEach(d=>{
+    ['aih_fisico','aih_faec','sia_faec','equip_hemodialise','limite_complementacao','total'].forEach(k=>tot[k]+=(d[k]||0));
+    html+=`<tr>
+      <td><span class="badge badge-drs">DRS ${d.drs}</span></td>
+      <td class="num">${moedaFull(d.aih_fisico)}</td><td class="num">${moedaFull(d.aih_faec)}</td>
+      <td class="num">${moedaFull(d.sia_faec)}</td><td class="num">${moedaFull(d.equip_hemodialise)}</td>
+      <td class="num">${moedaFull(d.limite_complementacao)}</td><td class="num fw-bold">${moedaFull(d.total)}</td></tr>`;
   });
-  html += `<tr class="table-secondary fw-bold"><td>Total</td>
-    <td class="num">${moeda(tots.aih_fisico)}</td>
-    <td class="num">${moeda(tots.aih_faec)}</td>
-    <td class="num">${moeda(tots.sia_faec)}</td>
-    <td class="num">${moeda(tots.equip_hemodialise)}</td>
-    <td class="num">${moeda(tots.limite_complementacao)}</td>
-    <td class="num">${moeda(tots.total)}</td></tr>`;
-  html += '</tbody></table></div>';
-  document.getElementById('tblFaec').innerHTML = html;
-
-  destroyChart('chFaec');
-  const ctx = document.getElementById('chFaec').getContext('2d');
-  _charts['chFaec'] = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: data.map(d => 'DRS ' + d.drs),
-      datasets: [
-        {label:'AIH Físico',    data:data.map(d=>d.aih_fisico||0),          backgroundColor:'#1e3a5fcc', borderRadius:3},
-        {label:'AIH FAEC',      data:data.map(d=>d.aih_faec||0),            backgroundColor:'#2a7dd8cc', borderRadius:3},
-        {label:'SIA FAEC',      data:data.map(d=>d.sia_faec||0),            backgroundColor:'#1a7a4acc', borderRadius:3},
-        {label:'Equip. Hemod.', data:data.map(d=>d.equip_hemodialise||0),   backgroundColor:'#e07b00cc', borderRadius:3},
-        {label:'Lim. Compl.',   data:data.map(d=>d.limite_complementacao||0),backgroundColor:'#6f42c1cc', borderRadius:3},
-      ]
-    },
-    options: {
-      responsive:true, maintainAspectRatio:false,
-      scales: {x:{stacked:true, grid:{display:false}}, y:{stacked:true, ticks:{callback:moedaK}}},
-      plugins: {
-        legend:{position:'bottom', labels:{usePointStyle:true, font:{size:10}}},
-        tooltip:{callbacks:{label: c=>c.dataset.label+': '+moeda(c.raw)}}
-      }
-    }
-  });
+  html+=`<tr class="tot"><td>Total</td><td class="num">${moedaFull(tot.aih_fisico)}</td><td class="num">${moedaFull(tot.aih_faec)}</td><td class="num">${moedaFull(tot.sia_faec)}</td><td class="num">${moedaFull(tot.equip_hemodialise)}</td><td class="num">${moedaFull(tot.limite_complementacao)}</td><td class="num">${moedaFull(tot.total)}</td></tr>`;
+  html+='</tbody></table>';
+  document.getElementById('tbFaec').innerHTML=html;
+  mk('chFaec',{type:'bar',data:{labels:data.map(d=>'DRS '+d.drs),datasets:[
+    {label:'AIH Físico',data:data.map(d=>d.aih_fisico||0),backgroundColor:'#1e3a5fcc',borderRadius:3},
+    {label:'AIH FAEC',data:data.map(d=>d.aih_faec||0),backgroundColor:'#2a7dd8cc',borderRadius:3},
+    {label:'SIA FAEC',data:data.map(d=>d.sia_faec||0),backgroundColor:'#1a7a4acc',borderRadius:3},
+    {label:'Equip. Hemod.',data:data.map(d=>d.equip_hemodialise||0),backgroundColor:'#e07b00cc',borderRadius:3},
+    {label:'Lim. Compl.',data:data.map(d=>d.limite_complementacao||0),backgroundColor:'#6f42c1cc',borderRadius:3},
+  ]},options:{responsive:true,maintainAspectRatio:false,scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,ticks:{callback:moedaK}}},plugins:{legend:{position:'bottom',labels:{usePointStyle:true,font:{size:10}}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+moedaFull(c.raw)}}}}});
 }
 
 // ── MAC ───────────────────────────────────────────────────────────────────────
 async function loadMac() {
-  const {ano, mes} = getAnoMes();
-  document.getElementById('tblMac').innerHTML = '<div class="loading-spin"><div class="spinner-border spinner-border-sm"></div> Carregando…</div>';
-  const data = await fetch(`/api/relatorio/fundo?ano=${ano}&mes=${mes}`).then(r=>r.json());
-
-  let html = `<div class="table-responsive"><table class="table table-hover table-sm tab-table mb-0">
-    <thead><tr>
-      <th>DRS</th>
-      <th class="num">AIH MC</th>
-      <th class="num">AIH AC</th>
-      <th class="num">Total AIH</th>
-      <th class="num">SIA MC</th>
-      <th class="num">SIA AC</th>
-      <th class="num">Total SIA</th>
-      <th class="num">Total MAC</th>
-    </tr></thead><tbody>`;
-
-  let tots = {aih_mc:0,aih_ac:0,sia_mc:0,sia_ac:0};
-  data.forEach(d => {
-    ['aih_mc','aih_ac','sia_mc','sia_ac'].forEach(k => { tots[k] += d[k]||0; });
-    const taih = (d.aih_mc||0) + (d.aih_ac||0);
-    const tsia = (d.sia_mc||0) + (d.sia_ac||0);
-    html += `<tr>
-      <td><span class="badge bg-primary">${d.drs}</span></td>
-      <td class="num">${moeda(d.aih_mc)}</td>
-      <td class="num">${moeda(d.aih_ac)}</td>
-      <td class="num text-primary fw-bold">${moeda(taih)}</td>
-      <td class="num">${moeda(d.sia_mc)}</td>
-      <td class="num">${moeda(d.sia_ac)}</td>
-      <td class="num text-success fw-bold">${moeda(tsia)}</td>
-      <td class="num fw-bold">${moeda(taih+tsia)}</td>
-    </tr>`;
+  if(_loaded.mac) return; _loaded.mac=true;
+  const {ano,mes}=getAnoMes();
+  const data = await fetchJ(`/api/relatorio/fundo?ano=${ano}&mes=${mes}`);
+  let html=`<table class="rel-tbl"><thead><tr>
+    <th>DRS</th><th class="num">AIH MC</th><th class="num">AIH AC</th><th class="num">AIH Total</th>
+    <th class="num">SIA MC</th><th class="num">SIA AC</th><th class="num">SIA Total</th><th class="num">Total MAC</th>
+  </tr></thead><tbody>`;
+  let ta={aih_mc:0,aih_ac:0,sia_mc:0,sia_ac:0};
+  data.forEach(d=>{
+    ['aih_mc','aih_ac','sia_mc','sia_ac'].forEach(k=>ta[k]+=(d[k]||0));
+    const taih=(d.aih_mc||0)+(d.aih_ac||0), tsia=(d.sia_mc||0)+(d.sia_ac||0);
+    html+=`<tr>
+      <td><span class="badge badge-drs">DRS ${d.drs}</span></td>
+      <td class="num">${moedaFull(d.aih_mc)}</td><td class="num">${moedaFull(d.aih_ac)}</td>
+      <td class="num text-primary fw-bold">${moedaFull(taih)}</td>
+      <td class="num">${moedaFull(d.sia_mc)}</td><td class="num">${moedaFull(d.sia_ac)}</td>
+      <td class="num text-success fw-bold">${moedaFull(tsia)}</td>
+      <td class="num fw-bold">${moedaFull(taih+tsia)}</td></tr>`;
   });
-  const taih = tots.aih_mc + tots.aih_ac;
-  const tsia = tots.sia_mc + tots.sia_ac;
-  html += `<tr class="table-secondary fw-bold"><td>Total</td>
-    <td class="num">${moeda(tots.aih_mc)}</td><td class="num">${moeda(tots.aih_ac)}</td>
-    <td class="num text-primary">${moeda(taih)}</td>
-    <td class="num">${moeda(tots.sia_mc)}</td><td class="num">${moeda(tots.sia_ac)}</td>
-    <td class="num text-success">${moeda(tsia)}</td>
-    <td class="num">${moeda(taih+tsia)}</td></tr>`;
-  html += '</tbody></table></div>';
-  document.getElementById('tblMac').innerHTML = html;
-
-  destroyChart('chMac');
-  const ctx = document.getElementById('chMac').getContext('2d');
-  _charts['chMac'] = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: data.map(d => 'DRS ' + d.drs),
-      datasets: [
-        {label:'AIH MC', data:data.map(d=>d.aih_mc||0), backgroundColor:'#1e3a5fcc', borderRadius:3},
-        {label:'AIH AC', data:data.map(d=>d.aih_ac||0), backgroundColor:'#2a7dd8cc', borderRadius:3},
-        {label:'SIA MC', data:data.map(d=>d.sia_mc||0), backgroundColor:'#1a7a4acc', borderRadius:3},
-        {label:'SIA AC', data:data.map(d=>d.sia_ac||0), backgroundColor:'#20c997cc', borderRadius:3},
-      ]
-    },
-    options: {
-      responsive:true, maintainAspectRatio:false,
-      scales: {x:{stacked:true, grid:{display:false}}, y:{stacked:true, ticks:{callback:moedaK}}},
-      plugins: {
-        legend:{position:'bottom', labels:{usePointStyle:true, font:{size:10}}},
-        tooltip:{callbacks:{label: c=>c.dataset.label+': '+moeda(c.raw)}}
-      }
-    }
-  });
+  const taih=ta.aih_mc+ta.aih_ac, tsia=ta.sia_mc+ta.sia_ac;
+  html+=`<tr class="tot"><td>Total</td><td class="num">${moedaFull(ta.aih_mc)}</td><td class="num">${moedaFull(ta.aih_ac)}</td><td class="num text-primary">${moedaFull(taih)}</td><td class="num">${moedaFull(ta.sia_mc)}</td><td class="num">${moedaFull(ta.sia_ac)}</td><td class="num text-success">${moedaFull(tsia)}</td><td class="num">${moedaFull(taih+tsia)}</td></tr>`;
+  html+='</tbody></table>';
+  document.getElementById('tbMac').innerHTML=html;
+  mk('chMac',{type:'bar',data:{labels:data.map(d=>'DRS '+d.drs),datasets:[
+    {label:'AIH MC',data:data.map(d=>d.aih_mc||0),backgroundColor:'#1e3a5fcc',borderRadius:3},
+    {label:'AIH AC',data:data.map(d=>d.aih_ac||0),backgroundColor:'#2a7dd8cc',borderRadius:3},
+    {label:'SIA MC',data:data.map(d=>d.sia_mc||0),backgroundColor:'#1a7a4acc',borderRadius:3},
+    {label:'SIA AC',data:data.map(d=>d.sia_ac||0),backgroundColor:'#20c997cc',borderRadius:3},
+  ]},options:{responsive:true,maintainAspectRatio:false,scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,ticks:{callback:moedaK}}},plugins:{legend:{position:'bottom',labels:{usePointStyle:true,font:{size:10}}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+moedaFull(c.raw)}}}}});
 }
 
 // ── INCENTIVOS ────────────────────────────────────────────────────────────────
-async function loadIncentivos() {
-  const {ano, mes} = getAnoMes();
-  document.getElementById('tblIncentivos').innerHTML = '<div class="loading-spin"><div class="spinner-border spinner-border-sm"></div> Carregando…</div>';
-  const data = await fetch(`/api/relatorio/incentivos?ano=${ano}&mes=${mes}`).then(r=>r.json());
-  const maxV = Math.max(...data.map(d=>d.total||0), 1);
-  const total = data.reduce((s,d)=>s+(d.total||0), 0);
-
-  let html = `<div class="table-responsive" style="max-height:400px;overflow-y:auto">
-    <table class="table table-hover table-sm tab-table mb-0">
-    <thead><tr><th>Incentivo</th><th class="num">Total</th><th class="num">%</th></tr></thead><tbody>`;
-  const sorted = [...data].sort((a,b) => (b.total||0) - (a.total||0));
-  sorted.forEach(d => {
-    const pct = total ? (d.total/total*100).toFixed(1) : 0;
-    const barW = maxV ? Math.round(d.total/maxV*100) : 0;
-    html += `<tr>
+async function loadInc() {
+  if(_loaded.inc) return; _loaded.inc=true;
+  const {ano,mes}=getAnoMes();
+  const data = await fetchJ(`/api/relatorio/incentivos?ano=${ano}&mes=${mes}`);
+  const sorted=[...data].sort((a,b)=>(b.total||0)-(a.total||0)).filter(d=>(d.total||0)>0);
+  const total=sorted.reduce((s,d)=>s+(d.total||0),0);
+  let html=`<table class="rel-tbl"><thead><tr>
+    <th class="rk">#</th><th>Incentivo</th>
+    <th class="num">Total</th><th class="num">%</th>
+  </tr></thead><tbody>`;
+  sorted.forEach((d,i)=>{
+    html+=`<tr><td class="rk">${rkBadge(i)}</td>
       <td>${d.label}</td>
-      <td class="num fw-bold">${moeda(d.total)}</td>
-      <td class="num"><small>${pct}%</small></td>
-    </tr>`;
+      <td class="num fw-bold">${moedaFull(d.total)}</td>
+      <td class="num"><small>${pct(d.total,total)}</small></td></tr>`;
   });
-  html += `<tr class="table-secondary fw-bold"><td>Total</td><td class="num">${moeda(total)}</td><td class="num">100%</td></tr>`;
-  html += '</tbody></table></div>';
-  document.getElementById('tblIncentivos').innerHTML = html;
-
-  destroyChart('chIncentivos');
-  const ctx = document.getElementById('chIncentivos').getContext('2d');
-  _charts['chIncentivos'] = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: sorted.map(d=>d.label),
-      datasets: [{label:'Total', data:sorted.map(d=>d.total||0),
-        backgroundColor: sorted.map((_,i)=>CORES[i%CORES.length]+'cc'),
-        borderColor: sorted.map((_,i)=>CORES[i%CORES.length]),
-        borderWidth:1.5, borderRadius:4}]
-    },
-    options: {
-      indexAxis:'y', responsive:true, maintainAspectRatio:false,
-      plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>moeda(c.raw)}}},
-      scales:{x:{ticks:{callback:moedaK}}, y:{ticks:{font:{size:10}}, grid:{display:false}}}
-    }
-  });
+  html+=`<tr class="tot"><td></td><td>Total</td><td class="num">${moedaFull(total)}</td><td class="num">100%</td></tr>`;
+  html+='</tbody></table>';
+  document.getElementById('tbInc').innerHTML=html;
+  mk('chInc',{type:'bar',data:{labels:sorted.map(d=>d.label),datasets:[{label:'Total',data:sorted.map(d=>d.total||0),backgroundColor:CORES.map(c=>c+'cc'),borderColor:CORES,borderWidth:1.5,borderRadius:4}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>moedaFull(c.raw)}}},scales:{x:{ticks:{callback:moedaK}},y:{ticks:{font:{size:10}},grid:{display:false}}}}});
 }
 
-// ── Recarga via seletor de período ────────────────────────────────────────────
-function recarregarAba() {
-  const aba = document.querySelector('#relTabs .nav-link.active')?.getAttribute('href');
-  if (aba === '#tabDRS') loadDRS();
-  else if (aba === '#tabTipo') loadTipo();
-  else if (aba === '#tabUnidade') loadUnidade();
-  else if (aba === '#tabMunicipio') loadMunicipio();
-  else if (aba === '#tabFaec') loadFaec();
-  else if (aba === '#tabMac') loadMac();
-  else if (aba === '#tabIncentivos') loadIncentivos();
+// ── CSV Export ────────────────────────────────────────────────────────────────
+let _lastData=[], _lastHdr=[];
+function exportCSV() {
+  if(!_lastData.length) { alert('Navegue para uma aba de dados primeiro.'); return; }
+  const csv=[_lastHdr,..._lastData].map(r=>r.map(v=>String(v??'').replace(/;/g,'|')).join(';')).join('\n');
+  const {ano,mes}=getAnoMes();
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'}));
+  a.download=`relatorio_${ano}_${mes}.csv`; a.click();
 }
 
-// ── Carregar tab ao clicar ─────────────────────────────────────────────────────
-document.querySelectorAll('#relTabs [data-bs-toggle="tab"]').forEach(tab => {
-  tab.addEventListener('shown.bs.tab', e => {
-    const aba = e.target.getAttribute('href');
-    if (aba === '#tabDRS') loadDRS();
-    else if (aba === '#tabTipo') loadTipo();
-    else if (aba === '#tabUnidade') loadUnidade();
-    else if (aba === '#tabMunicipio') loadMunicipio();
-    else if (aba === '#tabFaec') loadFaec();
-    else if (aba === '#tabMac') loadMac();
-    else if (aba === '#tabIncentivos') loadIncentivos();
+// ── Routing ───────────────────────────────────────────────────────────────────
+const _handlers = {drs:loadDRS,tipo:loadTipo,unidade:loadUnidade,municipio:loadMunicipio,faec:loadFaec,mac:loadMac,inc:loadInc};
+
+function reloadActive() {
+  Object.keys(_loaded).forEach(k=>delete _loaded[k]);
+  const aba=document.querySelector('#relTabs .nav-link.active')?.dataset.aba;
+  if(aba&&_handlers[aba]) _handlers[aba]();
+}
+
+document.querySelectorAll('#relTabs [data-bs-toggle="tab"]').forEach(tab=>{
+  tab.addEventListener('shown.bs.tab', e=>{
+    const aba=e.target.dataset.aba;
+    if(aba&&_handlers[aba]) _handlers[aba]();
   });
 });
 
-// Carrega a aba inicial
+// Load first tab on page open
 loadDRS();
 </script>
 {% endblock %}

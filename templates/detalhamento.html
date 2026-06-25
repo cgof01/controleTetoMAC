@@ -3,223 +3,265 @@
 
 {% block extra_css %}
 <style>
-  /* cores por grupo */
-  :root {
-    --bg-id:   #dbeafe;  --tx-id:   #1e3a8a;
-    --bg-faec: #ccfbf1;  --tx-faec: #134e4a;
-    --bg-aih:  #bbf7d0;  --tx-aih:  #14532d;
-    --bg-sia:  #bfdbfe;  --tx-sia:  #1e3a8a;
-    --bg-teto: #ede9fe;  --tx-teto: #4c1d95;
-    --bg-inc:  #fed7aa;  --tx-inc:  #7c2d12;
-    --bg-tot:  #fde68a;  --tx-tot:  #78350f;
-  }
+/* ── Cores de grupo ──────────────────────────────────── */
+:root {
+  --bg-id:   #dbeafe;  --tx-id:   #1e3a8a;
+  --bg-faec: #ccfbf1;  --tx-faec: #134e4a;
+  --bg-aih:  #bbf7d0;  --tx-aih:  #14532d;
+  --bg-sia:  #bfdbfe;  --tx-sia:  #1e3a8a;
+  --bg-teto: #ede9fe;  --tx-teto: #4c1d95;
+  --bg-inc:  #fed7aa;  --tx-inc:  #7c2d12;
+  --bg-tot:  #fde68a;  --tx-tot:  #78350f;
+}
 
-  #wrapTab {
-    overflow: auto;
-    max-height: 66vh;
-    border: 1px solid #e2e8f0;
-    border-radius: 6px;
-    box-shadow: 0 1px 4px rgba(0,0,0,.07);
-    background: #fff;
-  }
+/* ── Header ──────────────────────────────────────────── */
+.det-header {
+  background: linear-gradient(135deg,#1e3a5f 0%,#2a5298 100%);
+  color:#fff; border-radius:12px; padding:1rem 1.2rem;
+  display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1rem;
+  margin-bottom:.85rem;
+}
+.det-header h5 { margin:0; font-weight:700; font-size:1rem; }
+.det-badge-hint {
+  background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.2);
+  border-radius:6px; padding:.25rem .6rem; font-size:.72rem; color:rgba(255,255,255,.85);
+  display:flex; align-items:center; gap:.35rem;
+}
 
-  #tbl {
-    font-size: .74rem;
-    font-family: 'Segoe UI', system-ui, sans-serif;
-    border-collapse: separate;
-    border-spacing: 0;
-    min-width: 3100px;
-    width: 100%;
-  }
-  #tbl th, #tbl td {
-    border-right: 1px solid #e2e8f0;
-    border-bottom: 1px solid #f1f5f9;
-    white-space: nowrap;
-  }
+/* ── Toolbar ─────────────────────────────────────────── */
+.det-toolbar {
+  background:#fff; border:1px solid #e2e8f0; border-radius:10px;
+  padding:.65rem .9rem; margin-bottom:.65rem;
+  box-shadow:0 1px 3px rgba(0,0,0,.06);
+}
+.toolbar-row { display:flex; flex-wrap:wrap; align-items:center; gap:.5rem; }
+.toolbar-divider { width:1px; height:28px; background:#e2e8f0; margin:0 2px; }
 
-  /* ── única linha de cabeçalho ── */
-  #tbl thead th {
-    font-size: .67rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: .4px;
-    padding: 0;
-    position: sticky; top: 0; z-index: 12;
-    border-bottom: 2px solid rgba(0,0,0,.12);
-  }
-  .th-btn {
-    display: flex; align-items: center; gap: 3px;
-    padding: 7px 8px; min-height: 32px;
-    cursor: pointer; user-select: none;
-    transition: filter .12s;
-  }
-  .th-btn:hover { filter: brightness(.93); }
-  .th-btn.asc, .th-btn.desc { outline: 2px inset rgba(0,0,0,.2); }
-  .sort-ic { font-size: .57rem; opacity: .35; }
-  .th-btn.asc .sort-ic, .th-btn.desc .sort-ic { opacity: 1; }
-  .no-sort { cursor: default !important; }
-  .no-sort:hover { filter: none !important; }
+/* Group toggle badges */
+.grp-btn {
+  display:inline-flex; align-items:center; gap:5px;
+  padding:.28rem .65rem; border-radius:6px; font-size:.72rem; font-weight:700;
+  border:1.5px solid transparent; cursor:pointer; transition:.15s; user-select:none;
+  white-space:nowrap; letter-spacing:.02em;
+}
+.grp-btn:hover { filter:brightness(.92); }
+.grp-btn.active-grp { opacity:1; }
+.grp-btn.off { opacity:.38; text-decoration:line-through; }
+.grp-faec { background:var(--bg-faec); color:var(--tx-faec); border-color:#99f6e4; }
+.grp-aih  { background:var(--bg-aih);  color:var(--tx-aih);  border-color:#86efac; }
+.grp-sia  { background:var(--bg-sia);  color:var(--tx-sia);  border-color:#93c5fd; }
+.grp-teto { background:var(--bg-teto); color:var(--tx-teto); border-color:#c4b5fd; }
+.grp-inc  { background:var(--bg-inc);  color:var(--tx-inc);  border-color:#fcd34d; }
 
-  /* cores de grupo nos th */
-  .g-id   { background: var(--bg-id);   color: var(--tx-id);   }
-  .g-faec { background: var(--bg-faec); color: var(--tx-faec); }
-  .g-aih  { background: var(--bg-aih);  color: var(--tx-aih);  }
-  .g-sia  { background: var(--bg-sia);  color: var(--tx-sia);  }
-  .g-teto { background: var(--bg-teto); color: var(--tx-teto); }
-  .g-inc  { background: var(--bg-inc);  color: var(--tx-inc);  }
-  .g-tot  { background: var(--bg-tot);  color: var(--tx-tot);  font-weight:800; }
+/* Info bar */
+.det-infobar {
+  display:flex; justify-content:space-between; align-items:center;
+  font-size:.76rem; color:#64748b; margin-bottom:.4rem; flex-wrap:wrap; gap:.4rem;
+}
 
-  /* separador de grupo */
-  .gsep { border-right: 2px solid rgba(0,0,0,.15) !important; }
+/* ── Table wrap ──────────────────────────────────────── */
+#wrapTab {
+  overflow:auto; max-height:64vh;
+  border:1px solid #e2e8f0; border-radius:8px;
+  box-shadow:0 1px 6px rgba(0,0,0,.07);
+  background:#fff;
+}
+#tbl {
+  font-size:.74rem;
+  font-family:'Segoe UI',system-ui,sans-serif;
+  border-collapse:separate; border-spacing:0;
+  min-width:3100px; width:100%;
+}
+#tbl th, #tbl td { border-right:1px solid #e2e8f0; border-bottom:1px solid #f1f5f9; white-space:nowrap; }
 
-  /* sticky colunas */
-  .s1 { position: sticky; left: 0;   z-index: 6; min-width:34px;  max-width:34px;  }
-  .s2 { position: sticky; left: 34px; z-index: 6; min-width:42px;  max-width:42px;  }
-  .s3 { position: sticky; left: 76px; z-index: 6; min-width:220px; max-width:220px; }
-  #tbl thead .s1, #tbl thead .s2, #tbl thead .s3 { z-index: 22; }
-  #tbl tbody .s3 { box-shadow: 3px 0 5px -2px rgba(0,0,0,.09); }
+/* ── Header cells ────────────────────────────────────── */
+#tbl thead th {
+  font-size:.67rem; font-weight:700; text-transform:uppercase; letter-spacing:.4px;
+  padding:0; position:sticky; top:0; z-index:12; border-bottom:2px solid rgba(0,0,0,.12);
+}
+.th-btn {
+  display:flex; align-items:center; gap:3px;
+  padding:7px 8px; min-height:34px;
+  cursor:pointer; user-select:none; transition:filter .12s;
+}
+.th-btn:hover { filter:brightness(.91); }
+.th-btn.asc, .th-btn.desc { outline:2px inset rgba(0,0,0,.18); }
+.sort-ic { font-size:.57rem; opacity:.3; margin-left:auto; }
+.th-btn.asc  .sort-ic, .th-btn.desc .sort-ic { opacity:1; }
+.no-sort { cursor:default !important; }
+.no-sort:hover { filter:none !important; }
 
-  /* grupos ocultos */
-  .gc.off { display: none !important; }
+/* Group colors */
+.g-id   { background:var(--bg-id);   color:var(--tx-id);   }
+.g-faec { background:var(--bg-faec); color:var(--tx-faec); }
+.g-aih  { background:var(--bg-aih);  color:var(--tx-aih);  }
+.g-sia  { background:var(--bg-sia);  color:var(--tx-sia);  }
+.g-teto { background:var(--bg-teto); color:var(--tx-teto); }
+.g-inc  { background:var(--bg-inc);  color:var(--tx-inc);  }
+.g-tot  { background:var(--bg-tot);  color:var(--tx-tot);  font-weight:800; }
+.gsep   { border-right:2px solid rgba(0,0,0,.14) !important; }
 
-  /* ── células ── */
-  #tbl tbody td {
-    background: #fff; color: #1e293b;
-    padding: 5px 8px; vertical-align: middle;
-  }
-  #tbl tbody tr:nth-child(even) td { background: #f8fafc; }
-  #tbl tbody tr:hover td { background: #eff6ff !important; cursor: pointer; }
-  #tbl tbody tr.row-tot td { background: #fef9c3 !important; font-weight: 700; color: #78350f; }
+/* Sticky cols */
+.s1 { position:sticky; left:0;    z-index:6; min-width:34px;  max-width:34px;  }
+.s2 { position:sticky; left:34px; z-index:6; min-width:42px;  max-width:42px;  }
+.s3 { position:sticky; left:76px; z-index:6; min-width:220px; max-width:220px; }
+#tbl thead .s1, #tbl thead .s2, #tbl thead .s3 { z-index:22; }
+#tbl tbody .s3 { box-shadow:3px 0 5px -2px rgba(0,0,0,.09); }
 
-  .num { text-align: right !important; font-variant-numeric: tabular-nums; }
-  .zero { color: #d1d5db !important; }
+/* Hidden groups */
+.gc.off { display:none !important; }
 
-  /* modal */
-  .dg { border-left: 4px solid #e2e8f0; padding-left:.85rem; margin-bottom:1rem; }
-  .dg.gi  { border-color: #1e3a8a; }
-  .dg.gf  { border-color: #134e4a; }
-  .dg.gc2 { border-color: #7c2d12; }
-  .dg.gt  { border-color: #78350f; }
-  .di { display:flex; justify-content:space-between; align-items:center;
-        border-bottom:1px dashed #f1f5f9; padding:3px 0; font-size:.79rem; }
-  .di .lb { color:#64748b; }
-  .di .vl { font-weight:600; font-family:Consolas,monospace; font-size:.77rem; }
+/* ── Body cells ──────────────────────────────────────── */
+#tbl tbody td { background:#fff; color:#1e293b; padding:5px 8px; vertical-align:middle; }
+#tbl tbody tr:nth-child(even) td { background:#f8fafc; }
+#tbl tbody tr:hover td { background:#eff6ff !important; cursor:pointer; }
+#tbl tbody tr:hover .s1, #tbl tbody tr:hover .s2, #tbl tbody tr:hover .s3 { background:#eff6ff !important; }
+#tbl tbody tr.row-tot td { background:#fef9c3 !important; font-weight:700; color:#78350f; }
+#tbl tbody tr:hover::after { content:''; } /* click cue */
 
-  /* badges */
-  .g-badge { font-size:.7rem; cursor:pointer; user-select:none; transition:opacity .15s; }
-  .g-badge.off { opacity:.4; text-decoration:line-through; }
+.num  { text-align:right !important; font-variant-numeric:tabular-nums; }
+.zero { color:#d1d5db !important; }
+
+/* ── Modal ───────────────────────────────────────────── */
+.dg { border-left:4px solid #e2e8f0; padding-left:.85rem; margin-bottom:.8rem; }
+.dg.gi  { border-color:#1e3a8a; }
+.dg.gf  { border-color:#134e4a; }
+.dg.gc2 { border-color:#7c2d12; }
+.dg.gt  { border-color:#78350f; }
+.di { display:flex; justify-content:space-between; align-items:center;
+      border-bottom:1px dashed #f1f5f9; padding:3px 0; font-size:.79rem; }
+.di .lb { color:#64748b; }
+.di .vl { font-weight:600; font-family:Consolas,monospace; font-size:.77rem; }
+
+/* Click-hint animation on load */
+@keyframes rowpulse { 0%,100%{background:transparent} 50%{background:#eff6ff} }
+.row-hint { animation:rowpulse 1.2s ease 1.2s 2; }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+
+<!-- Header -->
+<div class="det-header">
   <div>
-    <h4 class="mb-0 fw-bold"><i class="bi bi-table me-2" style="color:var(--ses-azul)"></i>Detalhamento Completo</h4>
-    <small class="text-muted">Clique no cabeçalho para ordenar · Clique na linha para ver detalhes</small>
+    <h5><i class="bi bi-table me-2"></i>Detalhamento Completo</h5>
+    <small style="opacity:.75">Registro por unidade — competência selecionada</small>
   </div>
-  <form id="frmP" class="d-flex gap-2 flex-wrap align-items-center" method="get">
-    <select name="ano" class="form-select form-select-sm" style="width:110px" onchange="this.form.submit()">
-      {% for a in anos_disponiveis %}<option value="{{ a }}" {{ 'selected' if a==ano_sel }}>{{ a }}</option>{% endfor %}
-    </select>
-    <select name="mes" class="form-select form-select-sm" style="width:130px" onchange="this.form.submit()">
-      {% for n, nm in meses.items() %}<option value="{{ n }}" {{ 'selected' if n==mes_sel }}>{{ nm }}</option>{% endfor %}
-    </select>
-  </form>
+  <div class="d-flex align-items-center gap-2 flex-wrap">
+    <span class="det-badge-hint"><i class="bi bi-hand-index"></i>Clique na linha para detalhes</span>
+    <span class="det-badge-hint"><i class="bi bi-sort-down"></i>Clique no cabeçalho para ordenar</span>
+    <form id="frmP" class="d-flex gap-2" method="get">
+      <select name="ano" class="form-select form-select-sm" style="width:90px" onchange="this.form.submit()">
+        {% for a in anos_disponiveis %}<option value="{{ a }}" {{ 'selected' if a==ano_sel }}>{{ a }}</option>{% endfor %}
+      </select>
+      <select name="mes" class="form-select form-select-sm" style="width:125px" onchange="this.form.submit()">
+        {% for n, nm in meses.items() %}<option value="{{ n }}" {{ 'selected' if n==mes_sel }}>{{ nm }}</option>{% endfor %}
+      </select>
+    </form>
+  </div>
 </div>
 
-<!-- Controles -->
-<div class="card border-0 shadow-sm mb-3">
-  <div class="card-body py-2 px-3">
-    <div class="d-flex flex-wrap gap-2 align-items-center">
-      <div class="input-group input-group-sm" style="width:230px">
-        <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
-        <input id="fBusca" type="text" class="form-control border-start-0" placeholder="Unidade, CNES, município…" oninput="debounce()">
-      </div>
-      <select id="fDRS" class="form-select form-select-sm" style="width:115px" onchange="load()">
-        <option value="">Todos DRS</option>
-        {% for d in drs_lista %}<option value="{{ d }}">DRS {{ d }}</option>{% endfor %}
-      </select>
-      <select id="fTipo" class="form-select form-select-sm" style="width:135px" onchange="load()">
-        <option value="">Todos os tipos</option>
-        {% for t in tipos %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
-      </select>
-      <div class="ac-wrap" style="position:relative">
-        <input id="fMunicipio" type="text" class="form-control form-control-sm" style="width:160px" placeholder="Município…" oninput="acDebounce('fMunicipio','municipio')">
-      </div>
-      <div class="ac-wrap" style="position:relative">
-        <input id="fCNES" type="text" class="form-control form-control-sm" style="width:110px" placeholder="CNES…" oninput="acDebounce('fCNES','cnes')">
-      </div>
-      <button class="btn btn-sm btn-outline-secondary" onclick="limpar()">
-        <i class="bi bi-x-circle me-1"></i>Limpar
-      </button>
-      <div class="ms-auto">
-        <a id="lnkCSV" href="#" class="btn btn-sm btn-outline-success"><i class="bi bi-download me-1"></i>CSV</a>
-      </div>
+<!-- Toolbar -->
+<div class="det-toolbar">
+  <div class="toolbar-row mb-2">
+    <!-- Filters -->
+    <div class="input-group input-group-sm" style="width:220px">
+      <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+      <input id="fBusca" type="text" class="form-control border-start-0" placeholder="Unidade, CNES, município…" oninput="debounce()">
     </div>
+    <select id="fDRS" class="form-select form-select-sm" style="width:110px" onchange="load()">
+      <option value="">Todos DRS</option>
+      {% for d in drs_lista %}<option value="{{ d }}">DRS {{ d }}</option>{% endfor %}
+    </select>
+    <select id="fTipo" class="form-select form-select-sm" style="width:130px" onchange="load()">
+      <option value="">Todos os tipos</option>
+      {% for t in tipos %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+    </select>
+    <div class="ac-wrap" style="position:relative">
+      <input id="fMunicipio" type="text" class="form-control form-control-sm" style="width:155px" placeholder="Município…" oninput="acDebounce('fMunicipio','municipio')">
+    </div>
+    <div class="ac-wrap" style="position:relative">
+      <input id="fCNES" type="text" class="form-control form-control-sm" style="width:100px" placeholder="CNES…" oninput="acDebounce('fCNES','cnes')">
+    </div>
+    <button class="btn btn-sm btn-outline-secondary" onclick="limpar()" title="Limpar filtros">
+      <i class="bi bi-x-circle me-1"></i>Limpar
+    </button>
+    <div class="toolbar-divider"></div>
+    <a id="lnkCSV" href="#" class="btn btn-sm btn-outline-success"><i class="bi bi-filetype-csv me-1"></i>CSV</a>
+  </div>
+  <!-- Group toggles -->
+  <div class="toolbar-row">
+    <small class="text-muted fw-bold" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.05em">Exibir grupos:</small>
+    <span class="grp-btn grp-faec active-grp" id="gbFAEC" onclick="toggleG(this,'fundo')" title="FAEC · AIH · SIA · Teto">
+      <i class="bi bi-eye" id="eyeFAEC"></i>FAEC / AIH / SIA / Teto
+    </span>
+    <span class="grp-btn grp-inc active-grp" id="gbINC" onclick="toggleG(this,'inc')" title="Incentivos">
+      <i class="bi bi-eye" id="eyeINC"></i>Incentivos
+    </span>
   </div>
 </div>
 
-<!-- Info + paginação topo -->
-<div class="d-flex justify-content-between align-items-center mb-2">
-  <small class="text-muted" id="info">Carregando…</small>
+<!-- Info + pagination (top) -->
+<div class="det-infobar">
+  <span id="info">Carregando…</span>
   <div id="pgT" class="d-flex gap-1 flex-wrap"></div>
 </div>
 
-<!-- TABELA -->
+<!-- TABLE -->
 <div id="wrapTab">
 <table id="tbl">
 <thead><tr>
   <!-- IDENTIFICAÇÃO -->
   <th class="g-id s1"><div class="th-btn no-sort" style="justify-content:center">#</div></th>
   <th class="g-id s2"><div class="th-btn" onclick="sortBy('drs')" data-s="drs">DRS<span class="sort-ic">⇅</span></div></th>
-  <th class="g-id s3"><div class="th-btn" onclick="sortBy('unidade')" data-s="unidade">UNIDADES<span class="sort-ic">⇅</span></div></th>
-  <th class="g-id"><div class="th-btn" onclick="sortBy('tipo')" data-s="tipo">TIPO<span class="sort-ic">⇅</span></div></th>
+  <th class="g-id s3"><div class="th-btn" onclick="sortBy('unidade')" data-s="unidade">Unidade<span class="sort-ic">⇅</span></div></th>
+  <th class="g-id"><div class="th-btn" onclick="sortBy('tipo')" data-s="tipo">Tipo<span class="sort-ic">⇅</span></div></th>
   <th class="g-id"><div class="th-btn" onclick="sortBy('hu')" data-s="hu">HU<span class="sort-ic">⇅</span></div></th>
-  <th class="g-id"><div class="th-btn" onclick="sortBy('municipio')" data-s="municipio">MUNICÍPIO<span class="sort-ic">⇅</span></div></th>
+  <th class="g-id"><div class="th-btn" onclick="sortBy('municipio')" data-s="municipio">Município<span class="sort-ic">⇅</span></div></th>
   <th class="g-id"><div class="th-btn" onclick="sortBy('cnes')" data-s="cnes">CNES<span class="sort-ic">⇅</span></div></th>
   <th class="g-id gsep"><div class="th-btn no-sort">CNPJ</div></th>
-  <!-- FAEC / HEMODIÁLISE -->
-  <th class="g-faec gc" data-g="fundo"><div class="th-btn" onclick="sortBy('aih_fisico')" data-s="aih_fisico">AIH FÍSICO<span class="sort-ic">⇅</span></div></th>
+  <!-- FAEC -->
+  <th class="g-faec gc" data-g="fundo"><div class="th-btn" onclick="sortBy('aih_fisico')" data-s="aih_fisico">AIH Físico<span class="sort-ic">⇅</span></div></th>
   <th class="g-faec gc" data-g="fundo"><div class="th-btn" onclick="sortBy('aih_faec')" data-s="aih_faec">AIH FAEC<span class="sort-ic">⇅</span></div></th>
   <th class="g-faec gc" data-g="fundo"><div class="th-btn" onclick="sortBy('sia_faec')" data-s="sia_faec">SIA FAEC<span class="sort-ic">⇅</span></div></th>
-  <th class="g-faec gc" data-g="fundo"><div class="th-btn" onclick="sortBy('equip_hemodialise')" data-s="equip_hemodialise">EQUIP. HEMODIÁLISE (DRC)<span class="sort-ic">⇅</span></div></th>
-  <th class="g-faec gc gsep" data-g="fundo"><div class="th-btn" onclick="sortBy('limite_complementacao')" data-s="limite_complementacao">LIMITE COMPLEMENTAÇÃO<span class="sort-ic">⇅</span></div></th>
+  <th class="g-faec gc" data-g="fundo"><div class="th-btn" onclick="sortBy('equip_hemodialise')" data-s="equip_hemodialise">Equip. Hemodiálise<span class="sort-ic">⇅</span></div></th>
+  <th class="g-faec gc gsep" data-g="fundo"><div class="th-btn" onclick="sortBy('limite_complementacao')" data-s="limite_complementacao">Lim. Complementação<span class="sort-ic">⇅</span></div></th>
   <!-- AIH -->
   <th class="g-aih gc" data-g="fundo"><div class="th-btn" onclick="sortBy('aih_mc')" data-s="aih_mc">AIH MC<span class="sort-ic">⇅</span></div></th>
   <th class="g-aih gc" data-g="fundo"><div class="th-btn" onclick="sortBy('aih_ac')" data-s="aih_ac">AIH AC<span class="sort-ic">⇅</span></div></th>
-  <th class="g-aih gc" data-g="fundo"><div class="th-btn" onclick="sortBy('aih_total')" data-s="aih_total">AIH TOTAL<span class="sort-ic">⇅</span></div></th>
-  <th class="g-aih gc gsep" data-g="fundo"><div class="th-btn" onclick="sortBy('portaria_ms_gm_8516')" data-s="portaria_ms_gm_8516">PORTARIA MS/GM 8.516<span class="sort-ic">⇅</span></div></th>
+  <th class="g-aih gc" data-g="fundo"><div class="th-btn" onclick="sortBy('aih_total')" data-s="aih_total">AIH Total<span class="sort-ic">⇅</span></div></th>
+  <th class="g-aih gc gsep" data-g="fundo"><div class="th-btn" onclick="sortBy('portaria_ms_gm_8516')" data-s="portaria_ms_gm_8516">Port. MS/GM 8.516<span class="sort-ic">⇅</span></div></th>
   <!-- SIA -->
   <th class="g-sia gc" data-g="fundo"><div class="th-btn" onclick="sortBy('sia_mc')" data-s="sia_mc">SIA MC<span class="sort-ic">⇅</span></div></th>
   <th class="g-sia gc" data-g="fundo"><div class="th-btn" onclick="sortBy('sia_ac')" data-s="sia_ac">SIA AC<span class="sort-ic">⇅</span></div></th>
-  <th class="g-sia gc" data-g="fundo"><div class="th-btn" onclick="sortBy('sia_total')" data-s="sia_total">SIA TOTAL<span class="sort-ic">⇅</span></div></th>
-  <th class="g-sia gc gsep" data-g="fundo"><div class="th-btn" onclick="sortBy('teto_global')" data-s="teto_global">TETO GLOBAL<span class="sort-ic">⇅</span></div></th>
+  <th class="g-sia gc" data-g="fundo"><div class="th-btn" onclick="sortBy('sia_total')" data-s="sia_total">SIA Total<span class="sort-ic">⇅</span></div></th>
+  <th class="g-sia gc gsep" data-g="fundo"><div class="th-btn" onclick="sortBy('teto_global')" data-s="teto_global">Teto Global<span class="sort-ic">⇅</span></div></th>
   <!-- TETO MAC -->
-  <th class="g-teto gc" data-g="fundo"><div class="th-btn" onclick="sortBy('teto_mc')" data-s="teto_mc">TETO MC<span class="sort-ic">⇅</span></div></th>
-  <th class="g-teto gc" data-g="fundo"><div class="th-btn" onclick="sortBy('teto_ac')" data-s="teto_ac">TETO AC<span class="sort-ic">⇅</span></div></th>
-  <th class="g-teto gc" data-g="fundo"><div class="th-btn" onclick="sortBy('teto_mac')" data-s="teto_mac">TETO MAC<span class="sort-ic">⇅</span></div></th>
-  <th class="g-teto gc" data-g="fundo"><div class="th-btn" onclick="sortBy('total_teto_mac')" data-s="total_teto_mac">TOTAL TETO MAC<span class="sort-ic">⇅</span></div></th>
-  <th class="g-teto gc gsep" data-g="fundo"><div class="th-btn" onclick="sortBy('teto_global')" data-s="teto_global_b">T. GLOBAL<span class="sort-ic">⇅</span></div></th>
+  <th class="g-teto gc" data-g="fundo"><div class="th-btn" onclick="sortBy('teto_mc')" data-s="teto_mc">Teto MC<span class="sort-ic">⇅</span></div></th>
+  <th class="g-teto gc" data-g="fundo"><div class="th-btn" onclick="sortBy('teto_ac')" data-s="teto_ac">Teto AC<span class="sort-ic">⇅</span></div></th>
+  <th class="g-teto gc" data-g="fundo"><div class="th-btn" onclick="sortBy('teto_mac')" data-s="teto_mac">Teto MAC<span class="sort-ic">⇅</span></div></th>
+  <th class="g-teto gc" data-g="fundo"><div class="th-btn" onclick="sortBy('total_teto_mac')" data-s="total_teto_mac">Total Teto MAC<span class="sort-ic">⇅</span></div></th>
+  <th class="g-teto gc gsep" data-g="fundo"><div class="th-btn" onclick="sortBy('teto_global')" data-s="teto_global_b">T. Global<span class="sort-ic">⇅</span></div></th>
   <!-- INCENTIVOS -->
-  <th class="g-inc gc" data-g="inc"><div class="th-btn" onclick="sortBy('integrasus')" data-s="integrasus">INTEGRASUS<span class="sort-ic">⇅</span></div></th>
+  <th class="g-inc gc" data-g="inc"><div class="th-btn" onclick="sortBy('integrasus')" data-s="integrasus">Integrasus<span class="sort-ic">⇅</span></div></th>
   <th class="g-inc gc" data-g="inc"><div class="th-btn" onclick="sortBy('iac')" data-s="iac">IAC<span class="sort-ic">⇅</span></div></th>
   <th class="g-inc gc" data-g="inc"><div class="th-btn" onclick="sortBy('sus_100')" data-s="sus_100">100% SUS<span class="sort-ic">⇅</span></div></th>
   <th class="g-inc gc" data-g="inc"><div class="th-btn" onclick="sortBy('opo')" data-s="opo">OPO<span class="sort-ic">⇅</span></div></th>
-  <th class="g-inc gc" data-g="inc"><div class="th-btn" onclick="sortBy('rede_viver_sem_limite')" data-s="rede_viver_sem_limite">REDE VIVER SEM LIMITE<span class="sort-ic">⇅</span></div></th>
-  <th class="g-inc gc" data-g="inc"><div class="th-btn" onclick="sortBy('rede_brasil_miseria')" data-s="rede_brasil_miseria">REDE BRASIL SEM MISÉRIA<span class="sort-ic">⇅</span></div></th>
+  <th class="g-inc gc" data-g="inc"><div class="th-btn" onclick="sortBy('rede_viver_sem_limite')" data-s="rede_viver_sem_limite">Rede Viver S/ Limite<span class="sort-ic">⇅</span></div></th>
+  <th class="g-inc gc" data-g="inc"><div class="th-btn" onclick="sortBy('rede_brasil_miseria')" data-s="rede_brasil_miseria">Rede Brasil S/ Miséria<span class="sort-ic">⇅</span></div></th>
   <th class="g-inc gc" data-g="inc"><div class="th-btn" onclick="sortBy('rsme')" data-s="rsme">RSME<span class="sort-ic">⇅</span></div></th>
-  <th class="g-inc gc" data-g="inc"><div class="th-btn" onclick="sortBy('rce_rceg')" data-s="rce_rceg">REDE ALYNE<span class="sort-ic">⇅</span></div></th>
-  <th class="g-inc gc" data-g="inc"><div class="th-btn" onclick="sortBy('rau_hosp_sos')" data-s="rau_hosp_sos">RAU HOSP SOS<span class="sort-ic">⇅</span></div></th>
+  <th class="g-inc gc" data-g="inc"><div class="th-btn" onclick="sortBy('rce_rceg')" data-s="rce_rceg">Rede Alyne<span class="sort-ic">⇅</span></div></th>
+  <th class="g-inc gc" data-g="inc"><div class="th-btn" onclick="sortBy('rau_hosp_sos')" data-s="rau_hosp_sos">RAU Hosp. SOS<span class="sort-ic">⇅</span></div></th>
   <th class="g-inc gc" data-g="inc"><div class="th-btn" onclick="sortBy('rca_rcan')" data-s="rca_rcan">RCA_RCAR<span class="sort-ic">⇅</span></div></th>
   <th class="g-inc gc" data-g="inc"><div class="th-btn" onclick="sortBy('iapi')" data-s="iapi">iAPI<span class="sort-ic">⇅</span></div></th>
-  <th class="g-inc gc" data-g="inc"><div class="th-btn" onclick="sortBy('residencia_medica')" data-s="residencia_medica">RESIDÊNCIA MÉDICA<span class="sort-ic">⇅</span></div></th>
-  <th class="g-inc gc" data-g="inc"><div class="th-btn" onclick="sortBy('melhor_em_casa')" data-s="melhor_em_casa">MELHOR EM CASA<span class="sort-ic">⇅</span></div></th>
+  <th class="g-inc gc" data-g="inc"><div class="th-btn" onclick="sortBy('residencia_medica')" data-s="residencia_medica">Residência Médica<span class="sort-ic">⇅</span></div></th>
+  <th class="g-inc gc" data-g="inc"><div class="th-btn" onclick="sortBy('melhor_em_casa')" data-s="melhor_em_casa">Melhor em Casa<span class="sort-ic">⇅</span></div></th>
   <th class="g-inc gc" data-g="inc"><div class="th-btn" onclick="sortBy('cer')" data-s="cer">CER<span class="sort-ic">⇅</span></div></th>
-  <th class="g-inc gc" data-g="inc"><div class="th-btn" onclick="sortBy('doencas_raras')" data-s="doencas_raras">DOENÇAS RARAS<span class="sort-ic">⇅</span></div></th>
-  <th class="g-inc gc" data-g="inc"><div class="th-btn" onclick="sortBy('oficina_ortopedica')" data-s="oficina_ortopedica">OFICINA ORTOPÉDICA<span class="sort-ic">⇅</span></div></th>
-  <th class="g-inc gc gsep" data-g="inc"><div class="th-btn" onclick="sortBy('ihac')" data-s="ihac">HOSP. AMIGO DA CRIANÇA<span class="sort-ic">⇅</span></div></th>
+  <th class="g-inc gc" data-g="inc"><div class="th-btn" onclick="sortBy('doencas_raras')" data-s="doencas_raras">Doenças Raras<span class="sort-ic">⇅</span></div></th>
+  <th class="g-inc gc" data-g="inc"><div class="th-btn" onclick="sortBy('oficina_ortopedica')" data-s="oficina_ortopedica">Oficina Ortopédica<span class="sort-ic">⇅</span></div></th>
+  <th class="g-inc gc gsep" data-g="inc"><div class="th-btn" onclick="sortBy('ihac')" data-s="ihac">H. Amigo da Criança<span class="sort-ic">⇅</span></div></th>
   <!-- TOTAL -->
-  <th class="g-tot"><div class="th-btn" onclick="sortBy('total_mc_ac_incentivos')" data-s="total_mc_ac_incentivos">TOTAL MC+AC+INCENTIVOS<span class="sort-ic">⇅</span></div></th>
+  <th class="g-tot"><div class="th-btn" onclick="sortBy('total_mc_ac_incentivos')" data-s="total_mc_ac_incentivos">Total MC+AC+Inc<span class="sort-ic">⇅</span></div></th>
 </tr></thead>
 <tbody id="tbody">
   <tr><td colspan="44" class="text-center py-5 text-muted">
@@ -229,9 +271,9 @@
 </table>
 </div>
 
-<!-- Paginação fundo -->
-<div class="d-flex justify-content-between align-items-center mt-2">
-  <small class="text-muted" id="info2"></small>
+<!-- Info + pagination (bottom) -->
+<div class="det-infobar mt-2">
+  <span id="info2"></span>
   <div id="pgB" class="d-flex gap-1 flex-wrap"></div>
 </div>
 
@@ -260,85 +302,87 @@
 const ANO = {{ ano_sel | tojson }};
 const MES = {{ mes_sel | tojson }};
 
-let _pg = 1, _tot = 0, _sort = 'drs', _dir = 'asc', _deb = null;
+let _pg=1, _tot=0, _sort='drs', _dir='asc', _deb=null;
 let _offG = new Set();
 const PER = 50;
 
 const fmtN = v => {
   const f = parseFloat(v);
   if (!f) return '<span class="zero">—</span>';
-  return f.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+  return f.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 };
-const fmtS = v => (v !== null && v !== undefined && v !== '') ? v : '—';
+const fmtS = v => (v!==null && v!==undefined && v!=='') ? v : '—';
 
+// ── Sorting ───────────────────────────────────────────────────────────────────
 function sortBy(col) {
-  if (_sort === col) _dir = _dir === 'asc' ? 'desc' : 'asc';
-  else { _sort = col; _dir = 'asc'; }
-  document.querySelectorAll('.th-btn').forEach(b => {
+  if (_sort===col) _dir = _dir==='asc' ? 'desc' : 'asc';
+  else { _sort=col; _dir='asc'; }
+  document.querySelectorAll('.th-btn').forEach(b=>{
     b.classList.remove('asc','desc');
-    const ic = b.querySelector('.sort-ic'); if (ic) ic.textContent = '⇅';
+    const ic=b.querySelector('.sort-ic'); if(ic) ic.textContent='⇅';
   });
   const act = document.querySelector(`.th-btn[data-s="${col}"]`);
-  if (act) {
-    act.classList.add(_dir);
-    const ic = act.querySelector('.sort-ic'); if (ic) ic.textContent = _dir==='asc' ? '↑' : '↓';
-  }
+  if(act){ act.classList.add(_dir); const ic=act.querySelector('.sort-ic'); if(ic) ic.textContent=_dir==='asc'?'↑':'↓'; }
   load(1);
 }
 
-function toggleG(el) {
-  const g = el.dataset.g, off = _offG.has(g);
-  if (off) { _offG.delete(g); document.querySelectorAll(`[data-g="${g}"]`).forEach(e => e.classList.remove('off')); el.innerHTML = el.innerHTML.replace('bi-eye-slash','bi-eye'); }
-  else { _offG.add(g); document.querySelectorAll(`[data-g="${g}"]`).forEach(e => e.classList.add('off')); el.innerHTML = el.innerHTML.replace('bi-eye','bi-eye-slash'); }
-  el.classList.toggle('off', !off);
+// ── Group toggle ──────────────────────────────────────────────────────────────
+function toggleG(el, g) {
+  const off = _offG.has(g);
+  if(off){
+    _offG.delete(g);
+    document.querySelectorAll(`[data-g="${g}"]`).forEach(e=>e.classList.remove('off'));
+    el.classList.remove('off');
+    el.querySelector('i').className='bi bi-eye';
+  } else {
+    _offG.add(g);
+    document.querySelectorAll(`[data-g="${g}"]`).forEach(e=>e.classList.add('off'));
+    el.classList.add('off');
+    el.querySelector('i').className='bi bi-eye-slash';
+  }
 }
 
-/* ── Autocomplete ── */
+// ── Autocomplete ──────────────────────────────────────────────────────────────
 let _acDebs = {};
 function acDebounce(inputId, campo) {
   clearTimeout(_acDebs[inputId]);
-  _acDebs[inputId] = setTimeout(() => acBuscar(inputId, campo), 300);
+  _acDebs[inputId] = setTimeout(()=>acBuscar(inputId,campo),300);
 }
 async function acBuscar(inputId, campo) {
-  const input = document.getElementById(inputId);
-  const q = input.value.trim();
+  const input=document.getElementById(inputId);
+  const q=input.value.trim();
   acFechar(inputId);
-  if (q.length < 2) { load(1); return; }
-  const r = await fetch(`/api/autocomplete?campo=${campo}&q=${encodeURIComponent(q)}&ano=${ANO}&mes=${MES}`);
-  const vals = await r.json();
-  if (!vals.length) { load(1); return; }
-  const dd = document.createElement('div');
-  dd.id = 'ac_' + inputId;
-  dd.style.cssText = 'position:absolute;top:100%;left:0;z-index:9999;background:#fff;border:1px solid #e2e8f0;border-radius:6px;box-shadow:0 4px 16px rgba(0,0,0,.12);min-width:' + Math.max(input.offsetWidth, 180) + 'px;max-height:220px;overflow-y:auto;margin-top:2px';
-  vals.forEach(v => {
-    const d = document.createElement('div');
-    d.textContent = v;
-    d.style.cssText = 'padding:6px 12px;cursor:pointer;font-size:.8rem;border-bottom:1px solid #f8fafc;color:#1e293b';
-    d.addEventListener('mouseenter', () => d.style.background = '#eff6ff');
-    d.addEventListener('mouseleave', () => d.style.background = '');
-    d.addEventListener('mousedown', e => { e.preventDefault(); input.value = v; acFechar(inputId); load(1); });
+  if(q.length<2){ load(1); return; }
+  const r=await fetch(`/api/autocomplete?campo=${campo}&q=${encodeURIComponent(q)}&ano=${ANO}&mes=${MES}`);
+  const vals=await r.json();
+  if(!vals.length){ load(1); return; }
+  const dd=document.createElement('div');
+  dd.id='ac_'+inputId;
+  dd.style.cssText='position:absolute;top:100%;left:0;z-index:9999;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);min-width:'+Math.max(input.offsetWidth,180)+'px;max-height:220px;overflow-y:auto;margin-top:2px';
+  vals.forEach(v=>{
+    const d=document.createElement('div');
+    d.textContent=v;
+    d.style.cssText='padding:6px 12px;cursor:pointer;font-size:.8rem;border-bottom:1px solid #f8fafc;color:#1e293b';
+    d.addEventListener('mouseenter',()=>d.style.background='#eff6ff');
+    d.addEventListener('mouseleave',()=>d.style.background='');
+    d.addEventListener('mousedown',e=>{ e.preventDefault(); input.value=v; acFechar(inputId); load(1); });
     dd.appendChild(d);
   });
   input.closest('.ac-wrap').appendChild(dd);
 }
-function acFechar(inputId) {
-  const el = document.getElementById('ac_' + inputId);
-  if (el) el.remove();
-}
-document.addEventListener('click', e => {
-  if (!e.target.closest('.ac-wrap')) {
-    ['fMunicipio','fCNES'].forEach(id => acFechar(id));
-  }
-});
+function acFechar(id){ const el=document.getElementById('ac_'+id); if(el) el.remove(); }
+document.addEventListener('click',e=>{ if(!e.target.closest('.ac-wrap')) ['fMunicipio','fCNES'].forEach(id=>acFechar(id)); });
 
-function debounce() { clearTimeout(_deb); _deb = setTimeout(() => load(1), 380); }
-function limpar() {
-  ['fBusca','fDRS','fTipo','fMunicipio','fCNES'].forEach(id => { const e = document.getElementById(id); if(e) e.value=''; });
+function debounce(){ clearTimeout(_deb); _deb=setTimeout(()=>load(1),380); }
+
+function limpar(){
+  ['fBusca','fDRS','fTipo','fMunicipio','fCNES'].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=''; });
   load(1);
 }
 
-async function load(pg = _pg) {
-  _pg = pg;
+// ── Data load ─────────────────────────────────────────────────────────────────
+async function load(pg=_pg) {
+  _pg=pg;
   const q    = document.getElementById('fBusca').value.trim();
   const drs  = document.getElementById('fDRS').value;
   const tipo = document.getElementById('fTipo').value;
@@ -350,8 +394,10 @@ async function load(pg = _pg) {
     ...(mun?{cf_municipio:mun}:{}), ...(cnes?{cf_cnes:cnes}:{})
   });
   document.getElementById('lnkCSV').href =
-    `/detalhamento/exportar?ano=${ANO}&mes=${MES}&sort=${_sort}&sort_dir=${_dir}` +
-    (drs?`&drs=${drs}`:'') + (tipo?`&tipo=${encodeURIComponent(tipo)}`:'') + (q?`&q=${encodeURIComponent(q)}`:'');
+    `/detalhamento/exportar?ano=${ANO}&mes=${MES}&sort=${_sort}&sort_dir=${_dir}`+
+    (drs?`&drs=${drs}`:'')+
+    (tipo?`&tipo=${encodeURIComponent(tipo)}`:'')+
+    (q?`&q=${encodeURIComponent(q)}`:'');
 
   document.getElementById('tbody').innerHTML =
     `<tr><td colspan="44" class="text-center py-5 text-muted"><div class="spinner-border spinner-border-sm me-2"></div>Carregando…</td></tr>`;
@@ -362,20 +408,21 @@ async function load(pg = _pg) {
   pag(pg, d.total);
 }
 
+// ── Render rows ───────────────────────────────────────────────────────────────
 function render(rows, pg) {
-  if (!rows?.length) {
-    document.getElementById('tbody').innerHTML =
-      `<tr><td colspan="44" class="text-center text-muted py-5">Nenhum registro encontrado.</td></tr>`;
+  if(!rows?.length){
+    document.getElementById('tbody').innerHTML=
+      `<tr><td colspan="44" class="text-center text-muted py-5"><i class="bi bi-search me-2"></i>Nenhum registro encontrado.</td></tr>`;
     info(pg,0,0); return;
   }
-  info(pg, rows.length, _tot);
+  info(pg,rows.length,_tot);
 
-  const F = 'gc" data-g="fundo"';
-  const I = 'gc" data-g="inc"';
+  const F='gc" data-g="fundo"';
+  const I='gc" data-g="inc"';
 
-  document.getElementById('tbody').innerHTML = rows.map((r,i) => {
-    const isT = /^(total|subtotal|geral)$/i.test((r.unidade||'').trim());
-    return `<tr class="${isT?'row-tot':''}" onclick="det(${JSON.stringify(JSON.stringify(r))})">
+  document.getElementById('tbody').innerHTML = rows.map((r,i)=>{
+    const isT=/^(total|subtotal|geral)$/i.test((r.unidade||'').trim());
+    return `<tr class="${isT?'row-tot':''}" onclick="det(${JSON.stringify(JSON.stringify(r))})" title="Clique para ver detalhes completos">
       <td class="s1 text-center" style="color:#94a3b8;font-size:.65rem">${(pg-1)*PER+i+1}</td>
       <td class="s2 text-center fw-bold" style="color:#1e3a8a">${fmtS(r.drs)}</td>
       <td class="s3" style="border-right:2px solid #e2e8f0">
@@ -426,40 +473,42 @@ function render(rows, pg) {
     </tr>`;
   }).join('');
 
-  _offG.forEach(g => document.querySelectorAll(`.gc[data-g="${g}"]`).forEach(e => e.classList.add('off')));
+  _offG.forEach(g=>document.querySelectorAll(`.gc[data-g="${g}"]`).forEach(e=>e.classList.add('off')));
 }
 
+// ── Pagination ────────────────────────────────────────────────────────────────
 function pag(pg, tot) {
-  const pages = Math.ceil(tot/PER);
-  ['pgT','pgB'].forEach(id => {
-    const div = document.getElementById(id);
-    if (pages<=1) { div.innerHTML=''; return; }
-    const st = Math.max(1,pg-3), en = Math.min(pages,pg+3);
-    let b = pg>1 ? `<button class="btn btn-sm btn-outline-secondary" onclick="load(${pg-1})">‹</button>` : '';
-    if (st>1) b += `<button class="btn btn-sm btn-outline-secondary" onclick="load(1)">1</button><span class="text-muted px-1">…</span>`;
-    for (let p=st;p<=en;p++) b += `<button class="btn btn-sm ${p===pg?'btn-primary':'btn-outline-secondary'}" onclick="load(${p})">${p}</button>`;
-    if (en<pages) b += `<span class="text-muted px-1">…</span><button class="btn btn-sm btn-outline-secondary" onclick="load(${pages})">${pages}</button>`;
-    if (pg<pages) b += `<button class="btn btn-sm btn-outline-secondary" onclick="load(${pg+1})">›</button>`;
-    div.innerHTML = b;
+  const pages=Math.ceil(tot/PER);
+  ['pgT','pgB'].forEach(id=>{
+    const div=document.getElementById(id);
+    if(pages<=1){ div.innerHTML=''; return; }
+    const st=Math.max(1,pg-3), en=Math.min(pages,pg+3);
+    let b=pg>1?`<button class="btn btn-sm btn-outline-secondary" onclick="load(${pg-1})">‹</button>`:'';
+    if(st>1) b+=`<button class="btn btn-sm btn-outline-secondary" onclick="load(1)">1</button><span class="text-muted px-1">…</span>`;
+    for(let p=st;p<=en;p++) b+=`<button class="btn btn-sm ${p===pg?'btn-primary':'btn-outline-secondary'}" onclick="load(${p})">${p}</button>`;
+    if(en<pages) b+=`<span class="text-muted px-1">…</span><button class="btn btn-sm btn-outline-secondary" onclick="load(${pages})">${pages}</button>`;
+    if(pg<pages) b+=`<button class="btn btn-sm btn-outline-secondary" onclick="load(${pg+1})">›</button>`;
+    div.innerHTML=b;
   });
 }
 
-function info(pg, rows, tot) {
-  const t = tot ? `Mostrando ${(pg-1)*PER+1}–${(pg-1)*PER+rows} de <strong>${tot.toLocaleString('pt-BR')}</strong> registros` : 'Nenhum registro';
-  document.getElementById('info').innerHTML = t;
-  document.getElementById('info2').innerHTML = t;
+function info(pg,rows,tot){
+  const t=tot?`Mostrando ${(pg-1)*PER+1}–${(pg-1)*PER+rows} de <strong>${tot.toLocaleString('pt-BR')}</strong> registros`:'Nenhum registro';
+  document.getElementById('info').innerHTML=t;
+  document.getElementById('info2').innerHTML=t;
 }
 
+// ── Detail modal ──────────────────────────────────────────────────────────────
 function det(json) {
-  const r = JSON.parse(json);
-  document.getElementById('mdlT').textContent = r.unidade || 'Unidade';
-  document.getElementById('mdlS').textContent = `${fmtS(r.municipio)} · CNES ${fmtS(r.cnes)} · DRS ${fmtS(r.drs)} · ${fmtS(r.tipo)}`;
-  const R = (l,v,m=true) => {
-    const fmt = m ? (parseFloat(v||0)===0 ? '<span class="text-muted">—</span>'
-      : 'R$ '+parseFloat(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})) : (v||'—');
+  const r=JSON.parse(json);
+  document.getElementById('mdlT').textContent=r.unidade||'Unidade';
+  document.getElementById('mdlS').textContent=`${fmtS(r.municipio)} · CNES ${fmtS(r.cnes)} · DRS ${fmtS(r.drs)} · ${fmtS(r.tipo)}`;
+  const R=(l,v,m=true)=>{
+    const fmt=m?(parseFloat(v||0)===0?'<span class="text-muted">—</span>'
+      :'R$ '+parseFloat(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})):(v||'—');
     return `<div class="di"><span class="lb">${l}</span><span class="vl">${fmt}</span></div>`;
   };
-  document.getElementById('mdlB').innerHTML = `
+  document.getElementById('mdlB').innerHTML=`
   <div class="row g-3">
     <div class="col-md-4">
       <div class="dg gi"><div class="fw-bold small mb-1" style="color:#1e3a8a"><i class="bi bi-hospital me-1"></i>Identificação</div>
@@ -490,10 +539,10 @@ function det(json) {
       </div>
     </div>
     <div class="col-md-4">
-      <div class="dg gt"><div class="fw-bold small mb-2" style="color:#78350f"><i class="bi bi-sigma me-1"></i>Total</div>
+      <div class="dg gt"><div class="fw-bold small mb-2" style="color:#78350f"><i class="bi bi-sigma me-1"></i>Total Geral</div>
         <div class="text-center py-3 rounded" style="background:#fff7ed;border:1px solid #fed7aa">
           <div style="font-size:.68rem;font-weight:700;color:#9a3412;text-transform:uppercase;margin-bottom:6px">Total MC + AC + Incentivos</div>
-          <div style="font-size:1.4rem;font-weight:700;color:#78350f;font-family:Consolas,monospace">
+          <div style="font-size:1.5rem;font-weight:700;color:#78350f;font-family:Consolas,monospace">
             R$ ${parseFloat(r.total_mc_ac_incentivos||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})}
           </div>
         </div>
@@ -503,6 +552,6 @@ function det(json) {
   new bootstrap.Modal(document.getElementById('mdl')).show();
 }
 
-document.addEventListener('DOMContentLoaded', () => { if (ANO && MES) load(1); });
+document.addEventListener('DOMContentLoaded', ()=>{ if(ANO&&MES) load(1); });
 </script>
 {% endblock %}

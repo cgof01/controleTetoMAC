@@ -609,7 +609,11 @@ def consulta_analitica(ano, mes, dimensoes=None, metricas=None, filtros=None, or
             if isinstance(v, list) and v:
                 q = q.in_(k, v)
             elif isinstance(v, str) and v:
-                q = q.filter(k, 'ilike', f'%{v}%')
+                try:
+                    fv = float(v); num_v = int(fv) if fv == int(fv) else fv
+                    q = q.eq(k, num_v)
+                except (ValueError, TypeError):
+                    q = q.filter(k, 'ilike', f'%{v}%')
         r = q.limit(20000).execute()
         data = r.data or []
         seen = {}
@@ -636,8 +640,13 @@ def consulta_analitica(ano, mes, dimensoes=None, metricas=None, filtros=None, or
                 where.append(f'{k} IN ({placeholders})')
                 params.extend(v)
             elif isinstance(v, str) and v:
-                where.append(f'LOWER({k}) LIKE ?')
-                params.append(f'%{v.lower()}%')
+                try:
+                    fv = float(v); num_v = int(fv) if fv == int(fv) else fv
+                    where.append(f'CAST({k} AS REAL) = ?')
+                    params.append(num_v)
+                except (ValueError, TypeError):
+                    where.append(f'LOWER({k}) LIKE ?')
+                    params.append(f'%{v.lower()}%')
         sel_mets = ', '.join(f'SUM(COALESCE({m},0)) as {m}' for m in metricas) + ', COUNT(*) as _count'
         if dimensoes:
             g = ', '.join(dimensoes)
