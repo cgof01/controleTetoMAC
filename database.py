@@ -23,10 +23,13 @@ if USE_SUPABASE:
         _orig_httpx_init(self, *args, **kwargs)
     _httpx.Client.__init__ = _httpx_no_ssl
 
-    from supabase import create_client
-    _sb = create_client(SUPABASE_URL, SUPABASE_KEY)
+    from supabase import create_client as _create_client
+    _sb = None
 
     def get_sb():
+        global _sb
+        if _sb is None:
+            _sb = _create_client(SUPABASE_URL, SUPABASE_KEY)
         return _sb
 
     def init_db():
