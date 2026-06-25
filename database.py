@@ -322,8 +322,18 @@ def grafico_evolucao_mensal(anos=None):
 
 def grafico_por_drs(ano, mes):
     if USE_SUPABASE:
-        r = get_sb().rpc('get_por_drs', {'p_ano': ano, 'p_mes': mes}).execute()
-        return r.data if isinstance(r.data, list) else []
+        r = get_sb().table('teto_mac').select(
+            'drs,total_mc_ac_incentivos'
+        ).eq('ano', ano).eq('mes', mes).execute()
+        rows = r.data or []
+        seen = {}
+        for row in rows:
+            drs = int(row.get('drs') or 0)
+            if drs not in seen:
+                seen[drs] = {'drs': drs, 'total': 0.0, 'unidades': 0}
+            seen[drs]['total']    += row.get('total_mc_ac_incentivos') or 0
+            seen[drs]['unidades'] += 1
+        return sorted(seen.values(), key=lambda x: x['total'], reverse=True)
     else:
         conn = get_db()
         rows = conn.execute("""
@@ -348,8 +358,10 @@ def _filtrar_totais(dados):
 
 def grafico_top_unidades(ano, mes, limite=15):
     if USE_SUPABASE:
-        r = get_sb().rpc('get_top_unidades', {'p_ano': ano, 'p_mes': mes, 'p_limite': limite + 5}).execute()
-        dados = r.data if isinstance(r.data, list) else []
+        r = get_sb().table('teto_mac').select(
+            'unidade,municipio,total_mc_ac_incentivos'
+        ).eq('ano', ano).eq('mes', mes).order('total_mc_ac_incentivos', desc=True).limit(limite + 20).execute()
+        dados = r.data or []
         return _filtrar_totais(dados)[:limite]
     else:
         conn = get_db()
@@ -364,21 +376,37 @@ def grafico_top_unidades(ano, mes, limite=15):
         return [dict(r) for r in rows]
 
 def grafico_por_tipo(ano, mes):
+    def _agrupar(t):
+        t = (t or '').strip().upper()
+        if 'PRÓPRIO' in t or 'PROPRIO' in t: return 'Rede Própria'
+        if 'PRIVADO' in t: return 'Privados'
+        return t.title() if t else 'Outros'
+
     if USE_SUPABASE:
-        r = get_sb().rpc('get_por_tipo', {'p_ano': ano, 'p_mes': mes}).execute()
-        return r.data if isinstance(r.data, list) else []
+        r = get_sb().table('teto_mac').select(
+            'tipo,total_mc_ac_incentivos'
+        ).eq('ano', ano).eq('mes', mes).execute()
+        rows = r.data or []
+        acc = {}
+        for row in rows:
+            tipo = _agrupar(row.get('tipo'))
+            if tipo not in acc:
+                acc[tipo] = {'tipo': tipo, 'total': 0.0, 'unidades': 0}
+            acc[tipo]['total']    += row.get('total_mc_ac_incentivos') or 0
+            acc[tipo]['unidades'] += 1
+        return sorted(acc.values(), key=lambda x: x['total'], reverse=True)
     else:
         conn = get_db()
         rows = conn.execute("""
             SELECT
               CASE
-                WHEN tipo LIKE '%PRÓPRIOS%' OR tipo LIKE '%PROPRIOS%' THEN 'Rede Própria'
-                WHEN tipo LIKE '%PRIVADOS%' THEN 'Privados'
-                ELSE COALESCE(tipo, 'Outros')
-              END as tipo_agrupado,
+                WHEN UPPER(tipo) LIKE '%PRÓPRIO%' OR UPPER(tipo) LIKE '%PROPRIO%' THEN 'Rede Própria'
+                WHEN UPPER(tipo) LIKE '%PRIVADO%' THEN 'Privados'
+                ELSE COALESCE(TRIM(tipo), 'Outros')
+              END as tipo,
               SUM(total_mc_ac_incentivos) as total, COUNT(*) as unidades
             FROM teto_mac WHERE ano = ? AND mes = ?
-            GROUP BY tipo_agrupado ORDER BY total DESC
+            GROUP BY tipo ORDER BY total DESC
         """, (ano, mes)).fetchall()
         conn.close()
         return [dict(r) for r in rows]
