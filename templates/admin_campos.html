@@ -1,0 +1,405 @@
+{% extends "base.html" %}
+{% block title %}Gerenciar Campos — Teto MAC{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex align-items-center justify-content-between">
+  <h4 class="mb-0 fw-bold"><i class="bi bi-sliders me-2"></i>Gerenciar Campos do Formulário</h4>
+  <div class="d-flex gap-2">
+    <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#modalSecao">
+      <i class="bi bi-plus-circle me-1"></i>Nova Seção
+    </button>
+    <button class="btn btn-ses btn-sm" data-bs-toggle="modal" data-bs-target="#modalCampo" onclick="abrirModalNovoCampo()">
+      <i class="bi bi-plus-lg me-1"></i>Novo Campo
+    </button>
+  </div>
+</div>
+
+<div class="alert alert-info py-2 mb-3" style="font-size:.85rem">
+  <i class="bi bi-info-circle me-1"></i>
+  <strong>Campos nativos</strong> (fundo cinza) são desativados ao "excluir" — os dados permanecem intactos.
+  <strong>Campos personalizados</strong> (fundo branco) podem ser removidos permanentemente.
+  Campos do tipo <strong>Calculado</strong> são preenchidos automaticamente pela fórmula definida.
+</div>
+
+{% for secao in secoes %}
+{% set campos_secao = campos_por_secao.get(secao.secao_key, []) %}
+<div class="card mb-3" id="card-secao-{{ secao.secao_key }}">
+  <div class="card-header d-flex align-items-center gap-2 py-2"
+       style="background: var(--bs-{{ secao.cor }}, #1e3a5f); color: {% if secao.cor == 'warning' %}#212529{% else %}#fff{% endif %}">
+    <i class="bi bi-{{ secao.icone }} me-1"></i>
+    <strong class="me-auto">{{ secao.label }}</strong>
+    <span class="badge bg-light text-dark">{{ campos_secao | selectattr('ativo') | list | length }} ativos / {{ campos_secao | length }} total</span>
+    <button class="btn btn-sm btn-light" onclick='editarSecao({{ secao | tojson }})'
+            title="Editar seção" style="font-size:.75rem">
+      <i class="bi bi-pencil"></i>
+    </button>
+    <button class="btn btn-sm btn-light" onclick="abrirModalNovoCampo('{{ secao.secao_key }}')"
+            title="Adicionar campo" style="font-size:.75rem">
+      <i class="bi bi-plus-lg"></i>
+    </button>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover align-middle mb-0" id="tabela-{{ secao.secao_key }}">
+      <thead class="table-light">
+        <tr>
+          <th style="width:36px" class="text-center">#</th>
+          <th>Label (rótulo)</th>
+          <th>Campo Key</th>
+          <th class="text-center">Tipo</th>
+          <th>Fórmula</th>
+          <th class="text-center">Ativo</th>
+          <th class="text-center">Obrig.</th>
+          <th class="text-end pe-3">Ações</th>
+        </tr>
+      </thead>
+      <tbody class="sortable" data-secao="{{ secao.secao_key }}">
+        {% for campo in campos_secao | sort(attribute='ordem') %}
+        <tr data-id="{{ campo.id }}" data-ordem="{{ campo.ordem }}"
+            class="{{ '' if campo.coluna_db == None else 'table-light' }}">
+          <td class="text-center text-muted" style="cursor:grab">
+            <i class="bi bi-grip-vertical"></i>
+          </td>
+          <td>
+            <span class="fw-semibold">{{ campo.label }}</span>
+            {% if campo.coluna_db == None %}
+              <span class="badge bg-primary ms-1" style="font-size:.65rem">CUSTOM</span>
+            {% endif %}
+          </td>
+          <td><code class="text-muted" style="font-size:.8rem">{{ campo.campo_key }}</code></td>
+          <td class="text-center">
+            {% set badge_cor = {
+              'moeda': 'success', 'numero': 'info', 'texto': 'secondary',
+              'alfanumerico': 'secondary', 'calculado': 'warning'
+            } %}
+            <span class="badge bg-{{ badge_cor.get(campo.tipo, 'secondary') }}">{{ campo.tipo }}</span>
+          </td>
+          <td>
+            {% if campo.formula %}
+              <small class="text-muted" style="font-size:.72rem">{{ campo.formula }}</small>
+            {% else %}
+              <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          <td class="text-center">
+            <div class="form-check form-switch d-flex justify-content-center mb-0">
+              <input class="form-check-input" type="checkbox" role="switch"
+                     {{ 'checked' if campo.ativo }}
+                     onchange="toggleAtivo({{ campo.id }}, this.checked)"
+                     title="{{ 'Desativar' if campo.ativo else 'Ativar' }} campo">
+            </div>
+          </td>
+          <td class="text-center">
+            {% if campo.obrigatorio %}
+              <i class="bi bi-asterisk text-danger" title="Obrigatório"></i>
+            {% else %}
+              <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          <td class="text-end pe-2">
+            <div class="btn-group btn-group-sm">
+              <button type="button" class="btn btn-outline-primary"
+                      onclick='editarCampo({{ campo | tojson }})' title="Editar">
+                <i class="bi bi-pencil"></i>
+              </button>
+              <button type="button" class="btn btn-outline-danger"
+                      onclick="confirmarExclusao({{ campo.id }}, '{{ campo.label | e }}')"
+                      title="{{ 'Desativar' if campo.coluna_db else 'Excluir' }}">
+                <i class="bi bi-trash"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="text-center text-muted py-3">Nenhum campo nesta seção.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endfor %}
+
+<!-- ── Modal: Novo/Editar Campo ─────────────────────────────────────────────── -->
+<div class="modal fade" id="modalCampo" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <form method="post" action="{{ url_for('admin_campos_salvar') }}" class="needs-validation" novalidate>
+      <div class="modal-content">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title" id="modalCampoTitulo"><i class="bi bi-plus-circle me-2"></i>Novo Campo</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" name="id" id="campoId">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label fw-bold">Seção <span class="text-danger">*</span></label>
+              <select name="secao_key" id="campoSecao" class="form-select" required>
+                {% for s in secoes %}
+                  <option value="{{ s.secao_key }}">{{ s.label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-bold">Tipo <span class="text-danger">*</span></label>
+              <select name="tipo" id="campoTipo" class="form-select" onchange="atualizarDicaTipo(this.value)">
+                <option value="moeda">Moeda (R$)</option>
+                <option value="numero">Número</option>
+                <option value="texto">Texto (MAIÚSCULO)</option>
+                <option value="alfanumerico">Alfanumérico</option>
+                <option value="calculado">Calculado (auto-soma)</option>
+              </select>
+            </div>
+            <div class="col-md-8">
+              <label class="form-label fw-bold">Label (rótulo visível) <span class="text-danger">*</span></label>
+              <input type="text" name="label" id="campoLabel" class="form-control" required
+                     placeholder="Ex: Incentivo Especial 2026">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-bold">Ordem</label>
+              <input type="number" name="ordem" id="campoOrdem" class="form-control" value="100" min="0">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-bold">Campo Key <span class="text-danger">*</span></label>
+              <input type="text" name="campo_key" id="campoCampoKey" class="form-control font-monospace"
+                     placeholder="ex: incentivo_especial" pattern="[a-z0-9_]+" required>
+              <div class="form-text">Somente letras minúsculas, números e _. Não pode ser alterado depois de criado.</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-bold">Coluna DB</label>
+              <input type="text" name="coluna_db" id="campoColumnaDb" class="form-control font-monospace"
+                     placeholder="(vazio = campo personalizado)">
+              <div class="form-text">Deixe vazio para campos novos. Campos nativos mapeiam para a coluna em teto_mac.</div>
+            </div>
+            <div class="col-12" id="rowFormula">
+              <label class="form-label fw-bold">Fórmula de Auto-Soma</label>
+              <input type="text" name="formula" id="campoFormula" class="form-control font-monospace"
+                     placeholder="campo1,campo2,campo3,...">
+              <div class="form-text">Informe os <strong>campo_key</strong> separados por vírgula. O campo calculado somará os valores automaticamente.</div>
+            </div>
+            <div class="col-md-6 d-flex align-items-center gap-3 pt-2">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" name="ativo" id="campoAtivo" value="1" checked>
+                <label class="form-check-label" for="campoAtivo">Campo ativo</label>
+              </div>
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" name="obrigatorio" id="campoObrig" value="1">
+                <label class="form-check-label" for="campoObrig">Obrigatório</label>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i>Salvar Campo</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ── Modal: Seção ─────────────────────────────────────────────────────────── -->
+<div class="modal fade" id="modalSecao" tabindex="-1">
+  <div class="modal-dialog">
+    <form method="post" action="{{ url_for('admin_secoes_salvar') }}" class="needs-validation" novalidate>
+      <div class="modal-content">
+        <div class="modal-header bg-secondary text-white">
+          <h5 class="modal-title" id="modalSecaoTitulo"><i class="bi bi-collection me-2"></i>Nova Seção</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" name="id" id="secaoId">
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label fw-bold">Label da Seção <span class="text-danger">*</span></label>
+              <input type="text" name="label" id="secaoLabel" class="form-control" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-bold">Secao Key <span class="text-danger">*</span></label>
+              <input type="text" name="secao_key" id="secaoKey" class="form-control font-monospace"
+                     pattern="[a-z0-9_]+" required>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-bold">Cor (Bootstrap)</label>
+              <select name="cor" id="secaoCor" class="form-select">
+                <option value="primary">Azul (primary)</option>
+                <option value="success">Verde (success)</option>
+                <option value="info">Ciano (info)</option>
+                <option value="warning">Amarelo (warning)</option>
+                <option value="danger">Vermelho (danger)</option>
+                <option value="secondary">Cinza (secondary)</option>
+                <option value="dark">Escuro (dark)</option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label fw-bold">Ordem</label>
+              <input type="number" name="ordem" id="secaoOrdem" class="form-control" value="10">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-bold">Ícone Bootstrap Icons</label>
+              <input type="text" name="icone" id="secaoIcone" class="form-control"
+                     placeholder="ex: star, list, cash-stack">
+              <div class="form-text">Consulte <a href="https://icons.getbootstrap.com/" target="_blank">icons.getbootstrap.com</a></div>
+            </div>
+            <div class="col-md-6 d-flex align-items-center pt-3">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" name="ativo" id="secaoAtivo" value="1" checked>
+                <label class="form-check-label" for="secaoAtivo">Seção ativa</label>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-secondary"><i class="bi bi-save me-1"></i>Salvar Seção</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ── Formulário oculto para exclusão ─────────────────────────────────────── -->
+<form method="post" id="formDeletar" action="" style="display:none"></form>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ── Abrir modal de novo campo ──────────────────────────────────────────────────
+function abrirModalNovoCampo(secaoKey) {
+  document.getElementById('modalCampoTitulo').innerHTML =
+    '<i class="bi bi-plus-circle me-2"></i>Novo Campo';
+  document.getElementById('campoId').value = '';
+  document.getElementById('campoLabel').value = '';
+  document.getElementById('campoCampoKey').value = '';
+  document.getElementById('campoCampoKey').readOnly = false;
+  document.getElementById('campoColumnaDb').value = '';
+  document.getElementById('campoFormula').value = '';
+  document.getElementById('campoOrdem').value = 100;
+  document.getElementById('campoAtivo').checked = true;
+  document.getElementById('campoObrig').checked = false;
+  document.getElementById('campoTipo').value = 'moeda';
+  if (secaoKey) document.getElementById('campoSecao').value = secaoKey;
+  atualizarDicaTipo('moeda');
+  new bootstrap.Modal(document.getElementById('modalCampo')).show();
+}
+
+// ── Editar campo existente ────────────────────────────────────────────────────
+function editarCampo(c) {
+  document.getElementById('modalCampoTitulo').innerHTML =
+    '<i class="bi bi-pencil me-2"></i>Editar Campo';
+  document.getElementById('campoId').value = c.id;
+  document.getElementById('campoSecao').value = c.secao_key;
+  document.getElementById('campoLabel').value = c.label;
+  document.getElementById('campoCampoKey').value = c.campo_key;
+  document.getElementById('campoCampoKey').readOnly = true; // não alterar key existente
+  document.getElementById('campoColumnaDb').value = c.coluna_db || '';
+  document.getElementById('campoFormula').value = c.formula || '';
+  document.getElementById('campoTipo').value = c.tipo;
+  document.getElementById('campoOrdem').value = c.ordem;
+  document.getElementById('campoAtivo').checked = !!c.ativo;
+  document.getElementById('campoObrig').checked = !!c.obrigatorio;
+  atualizarDicaTipo(c.tipo);
+  new bootstrap.Modal(document.getElementById('modalCampo')).show();
+}
+
+// ── Editar seção ───────────────────────────────────────────────────────────────
+function editarSecao(s) {
+  document.getElementById('modalSecaoTitulo').innerHTML =
+    '<i class="bi bi-pencil me-2"></i>Editar Seção';
+  document.getElementById('secaoId').value = s.id;
+  document.getElementById('secaoLabel').value = s.label;
+  document.getElementById('secaoKey').value = s.secao_key;
+  document.getElementById('secaoCor').value = s.cor;
+  document.getElementById('secaoIcone').value = s.icone;
+  document.getElementById('secaoOrdem').value = s.ordem;
+  document.getElementById('secaoAtivo').checked = !!s.ativo;
+  new bootstrap.Modal(document.getElementById('modalSecao')).show();
+}
+
+// ── Mostrar/ocultar campo de fórmula ─────────────────────────────────────────
+function atualizarDicaTipo(tipo) {
+  document.getElementById('rowFormula').style.display =
+    tipo === 'calculado' ? 'block' : 'none';
+}
+
+// ── Auto-gerar campo_key a partir do label ────────────────────────────────────
+document.getElementById('campoLabel').addEventListener('input', function() {
+  if (document.getElementById('campoId').value) return; // edição: não muda key
+  const key = this.value.toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+  document.getElementById('campoCampoKey').value = key;
+});
+
+// ── Toggle ativo via switch ───────────────────────────────────────────────────
+function toggleAtivo(id, ativo) {
+  fetch(`/admin/campos/${id}/toggle`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+    body: `ativo=${ativo ? '1' : '0'}`
+  })
+  .then(r => r.json())
+  .then(d => { if (!d.ok) alert('Erro: ' + d.msg); })
+  .catch(() => alert('Erro de comunicação.'));
+}
+
+// ── Confirmar exclusão ────────────────────────────────────────────────────────
+function confirmarExclusao(id, label) {
+  const msg = `Deseja remover o campo "${label}"?\n\n` +
+    'Campos nativos serão desativados (dados preservados).\n' +
+    'Campos personalizados serão excluídos permanentemente.';
+  if (!confirm(msg)) return;
+  document.getElementById('formDeletar').action = `/admin/campos/${id}/deletar`;
+  document.getElementById('formDeletar').submit();
+}
+
+// ── Drag-and-drop para reordenar (Sortable.js simples) ────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('tbody.sortable').forEach(function(tbody) {
+    let dragging = null;
+    tbody.addEventListener('dragstart', function(e) {
+      dragging = e.target.closest('tr');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    tbody.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      const target = e.target.closest('tr');
+      if (target && target !== dragging) {
+        const rect = target.getBoundingClientRect();
+        const mid  = rect.top + rect.height / 2;
+        tbody.insertBefore(dragging, e.clientY < mid ? target : target.nextSibling);
+      }
+    });
+    tbody.addEventListener('drop', function(e) {
+      e.preventDefault();
+      salvarOrdem(tbody);
+    });
+    tbody.querySelectorAll('tr').forEach(tr => tr.setAttribute('draggable', true));
+  });
+});
+
+function salvarOrdem(tbody) {
+  const items = [];
+  tbody.querySelectorAll('tr[data-id]').forEach(function(tr, idx) {
+    items.push({ id: parseInt(tr.dataset.id), ordem: (idx + 1) * 10 });
+  });
+  fetch('/admin/campos/reordenar', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(items)
+  }).then(r => r.json()).then(d => {
+    if (!d.ok) console.warn('Erro ao reordenar:', d.msg);
+  });
+}
+
+// Bootstrap validation
+(function() {
+  'use strict';
+  document.querySelectorAll('.needs-validation').forEach(function(form) {
+    form.addEventListener('submit', function(e) {
+      if (!form.checkValidity()) { e.preventDefault(); e.stopPropagation(); }
+      form.classList.add('was-validated');
+    });
+  });
+})();
+</script>
+{% endblock %}

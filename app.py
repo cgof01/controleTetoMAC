@@ -297,7 +297,9 @@ def inserir():
         anos_disponiveis=anos_disponiveis,
         ano_default=ultimo['ano'],
         mes_default=ultimo['mes'],
-        titulo='Inserir Novo Registro'
+        titulo='Inserir Novo Registro',
+        secoes=db.listar_secoes_config(),
+        campos=db.listar_campos_config(),
     )
 
 @app.route('/editar/<int:id>', methods=['GET', 'POST'])
@@ -323,7 +325,9 @@ def editar(id):
         registro=registro,
         meses=MESES,
         anos_disponiveis=anos_disponiveis,
-        titulo=f'Editar Registro #{id}'
+        titulo=f'Editar Registro #{id}',
+        secoes=db.listar_secoes_config(),
+        campos=db.listar_campos_config(),
     )
 
 @app.route('/detalhe/<int:id>')
@@ -359,29 +363,55 @@ def deletar(id):
     return redirect(url_for('pesquisa'))
 
 def _form_para_dict(form):
-    campos_num = [
-        'drs', 'aih_fisico', 'aih_faec', 'sia_faec', 'equip_hemodialise',
-        'limite_complementacao', 'aih_mc', 'aih_ac', 'aih_total',
-        'sia_mc', 'sia_ac', 'sia_total', 'teto_global', 'teto_mc', 'teto_ac',
-        'teto_mac', 'total_teto_mac', 'portaria_ms_gm_8516',
-        'integrasus', 'iac', 'sus_100', 'opo', 'rede_viver_sem_limite',
-        'rede_brasil_miseria', 'rsme', 'rce_rceg', 'rau_hosp_sos', 'rca_rcan',
-        'iapi', 'residencia_medica', 'melhor_em_casa', 'cer', 'doencas_raras',
-        'oficina_ortopedica', 'ihac', 'total_mc_ac_incentivos'
-    ]
+    # Carrega tipos dos campos para conversão correta
+    try:
+        campos_cfg = db.listar_campos_config(incluir_inativos=True)
+        meta_por_key = {c['campo_key']: c for c in campos_cfg}
+        # Lookup também pela coluna_db (ex: 'teto_mac' → campo 'teto_mac_campo')
+        meta_por_coluna = {c['coluna_db']: c for c in campos_cfg if c.get('coluna_db')}
+    except Exception:
+        meta_por_key = {}
+        meta_por_coluna = {}
+
+    campos_int = {'ano', 'mes'}
+    campos_num_fixos = {'drs'}
+
     dados = {}
+    extras = {}
+
     for k, v in form.items():
-        if k in ('csrf_token',):
+        if k == 'csrf_token':
             continue
-        if k in campos_num:
-            try:
-                dados[k] = float(v.replace(',', '.')) if v else 0.0
-            except:
-                dados[k] = 0.0
-        elif k in ('ano', 'mes'):
+        # Busca por campo_key primeiro, depois por coluna_db (para campos com alias)
+        meta = meta_por_key.get(k) or meta_por_coluna.get(k)
+        if meta:
+            tipo = meta.get('tipo', 'moeda')
+            coluna_db = meta.get('coluna_db')
+            if tipo in ('moeda', 'numero', 'calculado'):
+                try:
+                    val = float(str(v).replace(',', '.')) if v else 0.0
+                except Exception:
+                    val = 0.0
+            else:
+                val = v.upper().strip() if tipo == 'texto' else (v.strip() if v else '')
+            if coluna_db:
+                # Salva sempre pelo nome da coluna real no DB
+                dados[coluna_db] = val
+            else:
+                # Campo personalizado → vai para campos_extras
+                extras[k] = val
+        elif k in campos_int:
             dados[k] = int(v) if v else 0
+        elif k in campos_num_fixos:
+            try:
+                dados[k] = float(str(v).replace(',', '.')) if v else 0.0
+            except Exception:
+                dados[k] = 0.0
         else:
             dados[k] = v.upper().strip() if v else ''
+
+    if extras:
+        dados['campos_extras'] = extras
     return dados
 
 # ── Relatórios ────────────────────────────────────────────────────────────────
@@ -1158,6 +1188,100 @@ def portaria_deletar(pid):
     if not p:
         return jsonify({'ok': False, 'msg': 'Portaria não encontrada'}), 404
     return jsonify({'ok': True})
+
+# ── Admin: Configuração de Campos ─────────────────────────────────────────────
+
+@app.route('/admin/campos')
+@admin_required
+def admin_campos():
+    secoes = db.listar_secoes_config()
+    campos = db.listar_campos_config(incluir_inativos=True)
+    campos_por_secao = {}
+    for c in campos:
+        campos_por_secao.setdefault(c['secao_key'], []).append(c)
+    return render_template('admin_campos.html',
+        secoes=secoes,
+        campos_por_secao=campos_por_secao,
+        titulo='Gerenciar Campos do Formulário'
+    )
+
+@app.route('/admin/campos/salvar', methods=['POST'])
+@admin_required
+def admin_campos_salvar():
+    dados = {
+        'secao_key':   request.form.get('secao_key', '').strip(),
+        'campo_key':   request.form.get('campo_key', '').strip().lower().replace(' ', '_'),
+        'label':       request.form.get('label', '').strip(),
+        'tipo':        request.form.get('tipo', 'moeda'),
+        'ordem':       int(request.form.get('ordem', 0) or 0),
+        'ativo':       request.form.get('ativo') == '1',
+        'obrigatorio': request.form.get('obrigatorio') == '1',
+        'formula':     request.form.get('formula', '').strip() or None,
+        'coluna_db':   request.form.get('coluna_db', '').strip() or None,
+    }
+    id_ = request.form.get('id', '').strip()
+    if id_:
+        dados['id'] = int(id_)
+    if not dados['campo_key'] or not dados['label']:
+        flash('Campo Key e Label são obrigatórios.', 'danger')
+        return redirect(url_for('admin_campos'))
+    try:
+        db.salvar_campo_config(dados)
+        flash('Campo salvo com sucesso!', 'success')
+    except Exception as e:
+        flash(f'Erro ao salvar campo: {e}', 'danger')
+    return redirect(url_for('admin_campos'))
+
+@app.route('/admin/campos/<int:id>/toggle', methods=['POST'])
+@admin_required
+def admin_campos_toggle(id):
+    ativo = request.form.get('ativo') == '1'
+    try:
+        db.salvar_campo_config({'id': id, 'ativo': ativo})
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'ok': False, 'msg': str(e)}), 500
+
+@app.route('/admin/campos/<int:id>/deletar', methods=['POST'])
+@admin_required
+def admin_campos_deletar(id):
+    try:
+        db.deletar_campo_config(id)
+        flash('Campo removido.', 'success')
+    except Exception as e:
+        flash(f'Erro: {e}', 'danger')
+    return redirect(url_for('admin_campos'))
+
+@app.route('/admin/campos/reordenar', methods=['POST'])
+@admin_required
+def admin_campos_reordenar():
+    try:
+        items = request.get_json()
+        db.reordenar_campos(items)
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'ok': False, 'msg': str(e)}), 500
+
+@app.route('/admin/secoes/salvar', methods=['POST'])
+@admin_required
+def admin_secoes_salvar():
+    dados = {
+        'secao_key': request.form.get('secao_key', '').strip(),
+        'label':     request.form.get('label', '').strip(),
+        'cor':       request.form.get('cor', 'primary'),
+        'icone':     request.form.get('icone', 'list').strip(),
+        'ordem':     int(request.form.get('ordem', 0) or 0),
+        'ativo':     request.form.get('ativo') == '1',
+    }
+    id_ = request.form.get('id', '').strip()
+    if id_:
+        dados['id'] = int(id_)
+    try:
+        db.salvar_secao_config(dados)
+        flash('Seção salva com sucesso!', 'success')
+    except Exception as e:
+        flash(f'Erro ao salvar seção: {e}', 'danger')
+    return redirect(url_for('admin_campos'))
 
 # ── Filtros Jinja ──────────────────────────────────────────────────────────────
 

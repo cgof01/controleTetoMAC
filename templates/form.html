@@ -10,209 +10,251 @@
 
 {% set r = registro or {} %}
 
+{# Monta dicionário de campos por seção para acesso rápido #}
+{% set campos_por_secao = namespace(data={}) %}
+{% for c in campos %}
+  {% if c.secao_key not in campos_por_secao.data %}
+    {% set _ = campos_por_secao.data.update({c.secao_key: []}) %}
+  {% endif %}
+  {% set _ = campos_por_secao.data[c.secao_key].append(c) %}
+{% endfor %}
+
+{# Coleta todos os campos calculados e suas fórmulas para JS #}
+{% set campos_calc = [] %}
+{% for c in campos if c.tipo == 'calculado' and c.formula %}
+  {% set _ = campos_calc.append(c) %}
+{% endfor %}
+
 <form method="post" class="needs-validation" novalidate>
-  <!-- Identificação -->
-  <div class="card mb-3">
-    <div class="card-header bg-primary text-white"><i class="bi bi-info-circle me-2"></i><strong>Identificação</strong></div>
-    <div class="card-body">
-      <div class="row g-3">
-        <div class="col-md-2">
-          <label class="form-label fw-bold">Ano <span class="text-danger">*</span></label>
-          <select name="ano" class="form-select" required>
-            {% for ano in anos_disponiveis %}
-              <option value="{{ ano }}" {{ 'selected' if (r.get('ano') or ano_default|default(2026)) == ano }}>{{ ano }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="col-md-2">
-          <label class="form-label fw-bold">Mês <span class="text-danger">*</span></label>
-          <select name="mes" class="form-select" required>
-            {% for num, nome in meses.items() %}
-              <option value="{{ num }}" {{ 'selected' if (r.get('mes') or mes_default|default(1)) == num }}>{{ nome }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="col-md-1">
-          <label class="form-label fw-bold">DRS</label>
-          <input type="number" name="drs" class="form-control" value="{{ r.get('drs', '') }}" min="1" max="17" placeholder="1-17">
-        </div>
-        <div class="col-md-7">
-          <label class="form-label fw-bold">Tipo de Estabelecimento</label>
-          <select name="tipo" class="form-select">
-            <option value="">Selecione...</option>
-            {% set tipos = [
-              'PRIVADOS - PRODUÇÃO - RES 198_23',
-              'PRIVADOS - PRODUÇÃO',
-              'PRIVADOS - FIXO',
-              'PRÓPRIOS',
-              'RESREC'
-            ] %}
-            {% for t in tipos %}
-              <option value="{{ t }}" {{ 'selected' if r.get('tipo') == t }}>{{ t }}</option>
-            {% endfor %}
-            {% if r.get('tipo') and r.get('tipo') not in tipos %}
-              <option value="{{ r.get('tipo') }}" selected>{{ r.get('tipo') }}</option>
-            {% endif %}
-          </select>
-        </div>
-        <div class="col-md-1">
-          <label class="form-label fw-bold">HU</label>
-          <select name="hu" class="form-select">
-            <option value="-" {{ 'selected' if r.get('hu') == '-' }}>Não</option>
-            <option value="SIM" {{ 'selected' if r.get('hu') == 'SIM' }}>SIM</option>
-          </select>
-        </div>
-        <div class="col-md-3">
-          <label class="form-label fw-bold">Município <span class="text-danger">*</span></label>
-          <input type="text" name="municipio" class="form-control text-uppercase" required
-            value="{{ r.get('municipio', '') }}" placeholder="Nome do município">
-        </div>
-        <div class="col-md-2">
-          <label class="form-label fw-bold">CNES <span class="text-danger">*</span></label>
-          <input type="text" name="cnes" class="form-control" required
-            value="{{ r.get('cnes', '') }}" placeholder="Código CNES" id="inputCnes">
-        </div>
-        <div class="col-md-2">
-          <label class="form-label fw-bold">CNPJ</label>
-          <input type="text" name="cnpj" class="form-control" value="{{ r.get('cnpj', '') }}" placeholder="CNPJ">
-        </div>
-        <div class="col-md-5">
-          <label class="form-label fw-bold">Nome da Unidade <span class="text-danger">*</span></label>
-          <input type="text" name="unidade" class="form-control text-uppercase" required
-            value="{{ r.get('unidade', '') }}" placeholder="Nome completo do estabelecimento" id="inputUnidadeNome">
-        </div>
-      </div>
-    </div>
-  </div>
 
-  <!-- AIH e SIA -->
+  <!-- ── IDENTIFICAÇÃO (seção fixa) ──────────────────────────────────────────── -->
   <div class="card mb-3">
-    <div class="card-header bg-success text-white"><i class="bi bi-cash-stack me-2"></i><strong>AIH — Autorização de Internação Hospitalar</strong></div>
-    <div class="card-body">
-      <div class="row g-3">
-        {% macro campo_num(label, name, val) %}
-          <div class="col-md-3">
-            <label class="form-label small fw-bold">{{ label }}</label>
-            <div class="input-group input-group-sm">
-              <span class="input-group-text">R$</span>
-              <input type="number" name="{{ name }}" class="form-control text-end" step="0.01" min="0"
-                value="{{ '%.2f'|format(val|float) if val else '0.00' }}">
+    <div class="card-header bg-primary text-white py-2">
+      <i class="bi bi-info-circle me-2"></i><strong>Identificação</strong>
+    </div>
+    <div class="card-body p-0">
+      <div class="list-group list-group-flush">
+
+        <!-- Ano + Mês na mesma linha -->
+        <div class="list-group-item px-3 py-2">
+          <div class="row align-items-center">
+            <div class="col-4 col-md-3">
+              <label class="form-label fw-semibold mb-0 small">Ano <span class="text-danger">*</span></label>
+            </div>
+            <div class="col-8 col-md-3">
+              <select name="ano" class="form-select form-select-sm" required>
+                {% for ano in anos_disponiveis %}
+                  <option value="{{ ano }}" {{ 'selected' if (r.get('ano') or ano_default|default(2026)) == ano }}>{{ ano }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-4 col-md-2 mt-2 mt-md-0">
+              <label class="form-label fw-semibold mb-0 small">Mês <span class="text-danger">*</span></label>
+            </div>
+            <div class="col-8 col-md-4 mt-2 mt-md-0">
+              <select name="mes" class="form-select form-select-sm" required>
+                {% for num, nome in meses.items() %}
+                  <option value="{{ num }}" {{ 'selected' if (r.get('mes') or mes_default|default(1)) == num }}>{{ nome }}</option>
+                {% endfor %}
+              </select>
             </div>
           </div>
-        {% endmacro %}
-        {{ campo_num('AIH Físico', 'aih_fisico', r.get('aih_fisico')) }}
-        {{ campo_num('AIH FAEC', 'aih_faec', r.get('aih_faec')) }}
-        {{ campo_num('AIH MC (Média Complexidade)', 'aih_mc', r.get('aih_mc')) }}
-        {{ campo_num('AIH AC (Alta Complexidade)', 'aih_ac', r.get('aih_ac')) }}
-        {{ campo_num('AIH Total', 'aih_total', r.get('aih_total')) }}
-      </div>
-    </div>
-  </div>
-
-  <div class="card mb-3">
-    <div class="card-header bg-info text-white"><i class="bi bi-clipboard-data me-2"></i><strong>SIA — Sistema de Informações Ambulatoriais</strong></div>
-    <div class="card-body">
-      <div class="row g-3">
-        {% macro campo_sia(label, name, val) %}
-          <div class="col-md-3">
-            <label class="form-label small fw-bold">{{ label }}</label>
-            <div class="input-group input-group-sm">
-              <span class="input-group-text">R$</span>
-              <input type="number" name="{{ name }}" class="form-control text-end" step="0.01" min="0"
-                value="{{ '%.2f'|format(val|float) if val else '0.00' }}">
-            </div>
-          </div>
-        {% endmacro %}
-        {{ campo_sia('SIA FAEC', 'sia_faec', r.get('sia_faec')) }}
-        {{ campo_sia('SIA MC (Média Complexidade)', 'sia_mc', r.get('sia_mc')) }}
-        {{ campo_sia('SIA AC (Alta Complexidade)', 'sia_ac', r.get('sia_ac')) }}
-        {{ campo_sia('SIA Total', 'sia_total', r.get('sia_total')) }}
-        {{ campo_sia('Equip. Hemodiálise (DRC)', 'equip_hemodialise', r.get('equip_hemodialise')) }}
-        {{ campo_sia('Limite Complementação Tabela SUS', 'limite_complementacao', r.get('limite_complementacao')) }}
-      </div>
-    </div>
-  </div>
-
-  <!-- Teto -->
-  <div class="card mb-3">
-    <div class="card-header" style="background:var(--ses-azul);color:white"><i class="bi bi-bank me-2"></i><strong>Teto MAC</strong></div>
-    <div class="card-body">
-      <div class="row g-3">
-        {% macro campo_teto(label, name, val) %}
-          <div class="col-md-3">
-            <label class="form-label small fw-bold">{{ label }}</label>
-            <div class="input-group input-group-sm">
-              <span class="input-group-text">R$</span>
-              <input type="number" name="{{ name }}" class="form-control text-end" step="0.01" min="0"
-                value="{{ '%.2f'|format(val|float) if val else '0.00' }}">
-            </div>
-          </div>
-        {% endmacro %}
-        {{ campo_teto('Teto Global', 'teto_global', r.get('teto_global')) }}
-        {{ campo_teto('Teto MC', 'teto_mc', r.get('teto_mc')) }}
-        {{ campo_teto('Teto AC', 'teto_ac', r.get('teto_ac')) }}
-        {{ campo_teto('Teto MAC', 'teto_mac', r.get('teto_mac')) }}
-        {{ campo_teto('Total Teto MAC', 'total_teto_mac', r.get('total_teto_mac')) }}
-        {{ campo_teto('Portaria MS/GM 8.516', 'portaria_ms_gm_8516', r.get('portaria_ms_gm_8516')) }}
-      </div>
-    </div>
-  </div>
-
-  <!-- Incentivos -->
-  <div class="card mb-3">
-    <div class="card-header bg-warning text-dark"><i class="bi bi-award me-2"></i><strong>Incentivos</strong></div>
-    <div class="card-body">
-      <div class="row g-3">
-        {% macro inc(label, name, val) %}
-          <div class="col-md-3 col-lg-2">
-            <label class="form-label small fw-bold">{{ label }}</label>
-            <div class="input-group input-group-sm">
-              <span class="input-group-text">R$</span>
-              <input type="number" name="{{ name }}" class="form-control text-end" step="0.01" min="0"
-                value="{{ '%.2f'|format(val|float) if val else '0.00' }}">
-            </div>
-          </div>
-        {% endmacro %}
-        {{ inc('IntegraSUS', 'integrasus', r.get('integrasus')) }}
-        {{ inc('IAC', 'iac', r.get('iac')) }}
-        {{ inc('100% SUS', 'sus_100', r.get('sus_100')) }}
-        {{ inc('OPO', 'opo', r.get('opo')) }}
-        {{ inc('Rede Viver Sem Limite', 'rede_viver_sem_limite', r.get('rede_viver_sem_limite')) }}
-        {{ inc('REDE BRASIL SEM MISERIA', 'rede_brasil_miseria', r.get('rede_brasil_miseria')) }}
-        {{ inc('RSME', 'rsme', r.get('rsme')) }}
-        {{ inc('RCE/RCEG', 'rce_rceg', r.get('rce_rceg')) }}
-        {{ inc('RAU/HOSP SOS', 'rau_hosp_sos', r.get('rau_hosp_sos')) }}
-        {{ inc('RCA/RCAN', 'rca_rcan', r.get('rca_rcan')) }}
-        {{ inc('IAPI', 'iapi', r.get('iapi')) }}
-        {{ inc('Residência Médica', 'residencia_medica', r.get('residencia_medica')) }}
-        {{ inc('Melhor em Casa', 'melhor_em_casa', r.get('melhor_em_casa')) }}
-        {{ inc('CER', 'cer', r.get('cer')) }}
-        {{ inc('Doenças Raras', 'doencas_raras', r.get('doencas_raras')) }}
-        {{ inc('Oficina Ortopédica', 'oficina_ortopedica', r.get('oficina_ortopedica')) }}
-        {{ inc('IHAC', 'ihac', r.get('ihac')) }}
-      </div>
-      <hr>
-      <div class="row">
-        <div class="col-md-4">
-          <label class="form-label fw-bold text-primary">TOTAL MC + AC + INCENTIVOS</label>
-          <div class="input-group">
-            <span class="input-group-text bg-primary text-white">R$</span>
-            <input type="number" name="total_mc_ac_incentivos" class="form-control fw-bold text-end" step="0.01" min="0"
-              id="totalFinal"
-              value="{{ '%.2f'|format(r.get('total_mc_ac_incentivos', 0)|float) }}">
-          </div>
-          <div class="form-text">Preencha manualmente ou use o botão abaixo</div>
         </div>
-        <div class="col-md-4 d-flex align-items-end">
-          <button type="button" class="btn btn-outline-primary btn-sm" onclick="calcularTotal()">
-            <i class="bi bi-calculator me-1"></i>Calcular Total
-          </button>
+
+        <!-- DRS + Tipo -->
+        <div class="list-group-item px-3 py-2">
+          <div class="row align-items-center">
+            <div class="col-4 col-md-3">
+              <label class="form-label fw-semibold mb-0 small">DRS</label>
+            </div>
+            <div class="col-8 col-md-3">
+              <input type="number" name="drs" class="form-control form-control-sm"
+                     value="{{ r.get('drs', '') }}" min="1" max="17" placeholder="1-17">
+            </div>
+            <div class="col-4 col-md-2 mt-2 mt-md-0">
+              <label class="form-label fw-semibold mb-0 small">Tipo de Estabelecimento</label>
+            </div>
+            <div class="col-8 col-md-4 mt-2 mt-md-0">
+              <select name="tipo" class="form-select form-select-sm">
+                <option value="">Selecione...</option>
+                {% set tipos = ['PRIVADOS - PRODUÇÃO - RES 198_23','PRIVADOS - PRODUÇÃO','PRIVADOS - FIXO','PRÓPRIOS','RESREC'] %}
+                {% for t in tipos %}
+                  <option value="{{ t }}" {{ 'selected' if r.get('tipo') == t }}>{{ t }}</option>
+                {% endfor %}
+                {% if r.get('tipo') and r.get('tipo') not in tipos %}
+                  <option value="{{ r.get('tipo') }}" selected>{{ r.get('tipo') }}</option>
+                {% endif %}
+              </select>
+            </div>
+          </div>
         </div>
-      </div>
+
+        <!-- HU -->
+        <div class="list-group-item px-3 py-2">
+          <div class="row align-items-center">
+            <div class="col-4 col-md-3">
+              <label class="form-label fw-semibold mb-0 small">HU</label>
+            </div>
+            <div class="col-8 col-md-9">
+              <select name="hu" class="form-select form-select-sm" style="max-width:120px">
+                <option value="-" {{ 'selected' if r.get('hu') == '-' }}>Não</option>
+                <option value="SIM" {{ 'selected' if r.get('hu') == 'SIM' }}>SIM</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- CNES -->
+        <div class="list-group-item px-3 py-2">
+          <div class="row align-items-center">
+            <div class="col-4 col-md-3">
+              <label class="form-label fw-semibold mb-0 small">CNES <span class="text-danger">*</span></label>
+            </div>
+            <div class="col-8 col-md-9">
+              <input type="text" name="cnes" class="form-control form-control-sm" required
+                     value="{{ r.get('cnes', '') }}" placeholder="Código CNES" id="inputCnes"
+                     style="max-width:200px">
+            </div>
+          </div>
+        </div>
+
+        <!-- CNPJ -->
+        <div class="list-group-item px-3 py-2">
+          <div class="row align-items-center">
+            <div class="col-4 col-md-3">
+              <label class="form-label fw-semibold mb-0 small">CNPJ</label>
+            </div>
+            <div class="col-8 col-md-9">
+              <input type="text" name="cnpj" class="form-control form-control-sm"
+                     value="{{ r.get('cnpj', '') }}" placeholder="CNPJ" style="max-width:260px">
+            </div>
+          </div>
+        </div>
+
+        <!-- Município -->
+        <div class="list-group-item px-3 py-2">
+          <div class="row align-items-center">
+            <div class="col-4 col-md-3">
+              <label class="form-label fw-semibold mb-0 small">Município <span class="text-danger">*</span></label>
+            </div>
+            <div class="col-8 col-md-9">
+              <input type="text" name="municipio" class="form-control form-control-sm text-uppercase" required
+                     value="{{ r.get('municipio', '') }}" placeholder="Nome do município">
+            </div>
+          </div>
+        </div>
+
+        <!-- Nome da Unidade -->
+        <div class="list-group-item px-3 py-2">
+          <div class="row align-items-center">
+            <div class="col-4 col-md-3">
+              <label class="form-label fw-semibold mb-0 small">Nome da Unidade <span class="text-danger">*</span></label>
+            </div>
+            <div class="col-8 col-md-9">
+              <input type="text" name="unidade" class="form-control form-control-sm text-uppercase" required
+                     value="{{ r.get('unidade', '') }}" placeholder="Nome completo do estabelecimento"
+                     id="inputUnidadeNome">
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /list-group -->
     </div>
   </div>
 
-  <!-- Botões -->
+  <!-- ── SEÇÕES DINÂMICAS ─────────────────────────────────────────────────────── -->
+  {% for secao in secoes %}
+  {% set lista = campos_por_secao.data.get(secao.secao_key, []) %}
+  {% if lista %}
+
+  {# Determina cor do texto do cabeçalho #}
+  {% set txt_cor = 'text-dark' if secao.cor == 'warning' else 'text-white' %}
+
+  <div class="card mb-3">
+    <div class="card-header bg-{{ secao.cor }} {{ txt_cor }} py-2">
+      <i class="bi bi-{{ secao.icone }} me-2"></i><strong>{{ secao.label }}</strong>
+    </div>
+    <div class="card-body p-0">
+      <div class="list-group list-group-flush">
+
+        {% for campo in lista | sort(attribute='ordem') %}
+
+        {# Valor atual do campo #}
+        {% set val = r.get(campo.campo_key) %}
+        {# Para campos nativos com alias (ex: teto_mac_campo → teto_mac), busca pela coluna_db #}
+        {% if val is none and campo.coluna_db %}
+          {% set val = r.get(campo.coluna_db) %}
+        {% endif %}
+
+        <div class="list-group-item px-3 py-2
+          {{- ' bg-light' if campo.tipo == 'calculado' else '' }}">
+          <div class="row align-items-center">
+            <div class="col-5 col-md-4 col-lg-3">
+              <label class="form-label fw-semibold mb-0 small
+                {{- ' text-primary' if campo.tipo == 'calculado' else '' }}">
+                {{ campo.label }}
+                {% if campo.obrigatorio %}<span class="text-danger">*</span>{% endif %}
+                {% if campo.tipo == 'calculado' %}
+                  <i class="bi bi-calculator-fill ms-1 text-primary" title="Calculado automaticamente" style="font-size:.7rem"></i>
+                {% endif %}
+              </label>
+            </div>
+            <div class="col-7 col-md-8 col-lg-9">
+
+              {# campo_key usado no name: usa coluna_db se existir, senão campo_key #}
+              {% set input_name = campo.coluna_db if campo.coluna_db else campo.campo_key %}
+
+              {% if campo.tipo in ('moeda', 'numero', 'calculado') %}
+                <div class="input-group input-group-sm" style="max-width:280px">
+                  {% if campo.tipo == 'moeda' or campo.tipo == 'calculado' %}
+                    <span class="input-group-text {{ 'bg-primary text-white fw-bold' if campo.tipo == 'calculado' else '' }}">R$</span>
+                  {% endif %}
+                  <input type="number"
+                         name="{{ input_name }}"
+                         id="campo_{{ campo.campo_key }}"
+                         class="form-control text-end {{ 'fw-bold' if campo.tipo == 'calculado' else '' }}"
+                         step="0.01" min="0"
+                         {{ 'readonly' if campo.tipo == 'calculado' else '' }}
+                         {{ 'required' if campo.obrigatorio else '' }}
+                         data-campo-key="{{ campo.campo_key }}"
+                         data-tipo="{{ campo.tipo }}"
+                         {% if campo.formula %}data-formula="{{ campo.formula }}"{% endif %}
+                         value="{{ '%.2f'|format(val|float) if val else '0.00' }}">
+                </div>
+
+              {% elif campo.tipo == 'texto' %}
+                <input type="text"
+                       name="{{ input_name }}"
+                       id="campo_{{ campo.campo_key }}"
+                       class="form-control form-control-sm text-uppercase"
+                       {{ 'required' if campo.obrigatorio else '' }}
+                       data-campo-key="{{ campo.campo_key }}"
+                       value="{{ val or '' }}">
+
+              {% else %}{# alfanumerico #}
+                <input type="text"
+                       name="{{ input_name }}"
+                       id="campo_{{ campo.campo_key }}"
+                       class="form-control form-control-sm"
+                       {{ 'required' if campo.obrigatorio else '' }}
+                       data-campo-key="{{ campo.campo_key }}"
+                       value="{{ val or '' }}">
+              {% endif %}
+
+            </div>
+          </div>
+        </div>
+
+        {% endfor %}{# /campos #}
+
+      </div><!-- /list-group -->
+    </div>
+  </div>
+
+  {% endif %}
+  {% endfor %}{# /secoes #}
+
+  <!-- ── BOTÕES ───────────────────────────────────────────────────────────────── -->
   <div class="d-flex gap-2 mb-4">
     <button type="submit" class="btn btn-ses">
       <i class="bi bi-save me-2"></i>{{ 'Salvar Alterações' if registro else 'Inserir Registro' }}
@@ -227,9 +269,10 @@
       </a>
     {% endif %}
   </div>
+
 </form>
 
-<!-- ── Portarias do Prestador (fora do form principal, gerenciado via AJAX) ── -->
+<!-- ── PORTARIAS (fora do form principal) ──────────────────────────────────── -->
 <div class="card mb-4" id="cardPortarias">
   <div class="card-header d-flex align-items-center gap-2" style="background:#6f42c1;color:#fff">
     <i class="bi bi-file-earmark-pdf fs-5"></i>
@@ -238,8 +281,6 @@
     <span class="text-white-50 small ms-auto" id="labelCnesPortarias"></span>
   </div>
   <div class="card-body">
-
-    <!-- Upload -->
     <div class="row g-2 align-items-end mb-3">
       <div class="col-md-5">
         <label class="form-label small fw-bold">Arquivo PDF <span class="text-danger">*</span></label>
@@ -249,11 +290,11 @@
       <div class="col-md-4">
         <label class="form-label small fw-bold">Descrição</label>
         <input type="text" id="inputPortariaDesc" class="form-control form-control-sm"
-          placeholder="Ex: Portaria SES nº 123/2024" maxlength="200">
+               placeholder="Ex: Portaria SES nº 123/2024" maxlength="200">
       </div>
       <div class="col-md-3 d-grid">
         <button type="button" class="btn btn-sm" id="btnUploadPort"
-          style="background:#6f42c1;color:#fff" onclick="uploadPortaria()">
+                style="background:#6f42c1;color:#fff" onclick="uploadPortaria()">
           <i class="bi bi-cloud-upload me-1"></i>Enviar Portaria
         </button>
       </div>
@@ -261,25 +302,55 @@
     <div id="progressUpload" style="display:none" class="mb-3">
       <div class="progress" style="height:6px">
         <div class="progress-bar progress-bar-striped progress-bar-animated"
-          style="width:100%;background:#6f42c1"></div>
+             style="width:100%;background:#6f42c1"></div>
       </div>
       <small class="text-muted"><i class="bi bi-cpu me-1"></i>Comprimindo e salvando PDF...</small>
     </div>
-
-    <!-- Lista -->
     <div id="listaPortarias">
       <div class="text-center text-muted py-3">
         <i class="bi bi-hourglass-split me-2"></i>Carregando portarias...
       </div>
     </div>
-
   </div>
 </div>
+
 {% endblock %}
 
 {% block extra_js %}
 <script>
-// Busca por CNES para autopreenchimento
+// ── Dados dos campos calculados (injetados pelo servidor) ──────────────────────
+const CAMPOS_CALC = [
+  {% for c in campos_calc %}
+  { key: '{{ c.campo_key }}', formula: {{ c.formula | tojson }} },
+  {% endfor %}
+];
+
+// ── Auto-cálculo ───────────────────────────────────────────────────────────────
+function recalcularTodos() {
+  CAMPOS_CALC.forEach(function(cc) {
+    const formulaKeys = cc.formula.split(',').map(s => s.trim()).filter(Boolean);
+    let total = 0;
+    formulaKeys.forEach(function(fk) {
+      const el = document.getElementById('campo_' + fk);
+      if (el) total += parseFloat(el.value) || 0;
+    });
+    const dest = document.getElementById('campo_' + cc.key);
+    if (dest) dest.value = total.toFixed(2);
+  });
+}
+
+// Dispara quando qualquer campo numérico muda
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('input[data-tipo]').forEach(function(el) {
+    if (el.dataset.tipo !== 'calculado') {
+      el.addEventListener('input', recalcularTodos);
+      el.addEventListener('change', recalcularTodos);
+    }
+  });
+  recalcularTodos(); // calcula na carga da página
+});
+
+// ── Busca por CNES para autopreenchimento ─────────────────────────────────────
 document.getElementById('inputCnes')?.addEventListener('blur', function() {
   const cnes = this.value.trim();
   if (cnes.length >= 5) {
@@ -288,44 +359,29 @@ document.getElementById('inputCnes')?.addEventListener('blur', function() {
       .then(data => {
         if (data.length > 0) {
           const u = data[0];
-          if (u.unidade) document.querySelector('[name=unidade]').value = u.unidade;
-          if (u.cnpj) document.querySelector('[name=cnpj]').value = u.cnpj;
+          if (u.unidade)   document.querySelector('[name=unidade]').value   = u.unidade;
+          if (u.cnpj)      document.querySelector('[name=cnpj]').value      = u.cnpj;
           if (u.municipio) document.querySelector('[name=municipio]').value = u.municipio;
         }
       });
   }
 });
 
-function calcularTotal() {
-  const campos = ['aih_mc','aih_ac','sia_mc','sia_ac',
-    'integrasus','iac','sus_100','opo','rede_viver_sem_limite','rede_brasil_miseria',
-    'rsme','rce_rceg','rau_hosp_sos','rca_rcan','iapi','residencia_medica',
-    'melhor_em_casa','cer','doencas_raras','oficina_ortopedica','ihac'];
-  let total = 0;
-  campos.forEach(c => {
-    const el = document.querySelector('[name=' + c + ']');
-    if (el) total += parseFloat(el.value) || 0;
-  });
-  document.getElementById('totalFinal').value = total.toFixed(2);
-}
-
-// Validação Bootstrap
+// ── Validação Bootstrap ───────────────────────────────────────────────────────
 (function() {
   'use strict';
-  document.querySelectorAll('.needs-validation').forEach(form => {
+  document.querySelectorAll('.needs-validation').forEach(function(form) {
     form.addEventListener('submit', function(e) {
-      if (!form.checkValidity()) {
-        e.preventDefault(); e.stopPropagation();
-      }
+      if (!form.checkValidity()) { e.preventDefault(); e.stopPropagation(); }
       form.classList.add('was-validated');
     });
   });
 })();
 
-// ── Portarias ──────────────────────────────────────────────────────────────────
+// ── Portarias ─────────────────────────────────────────────────────────────────
 let portariasCnes = "{{ (registro.cnes if registro else '') | e }}";
 
-document.addEventListener('DOMContentLoaded', function () {
+document.addEventListener('DOMContentLoaded', function() {
   if (portariasCnes) {
     document.getElementById('labelCnesPortarias').textContent = 'CNES ' + portariasCnes;
     carregarPortarias(portariasCnes);
@@ -336,10 +392,9 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('badgePortarias').textContent = '';
   }
 
-  // Modo inserir: reagir quando CNES for informado
   const cnesInput = document.getElementById('inputCnes');
   if (cnesInput && !portariasCnes) {
-    cnesInput.addEventListener('blur', function () {
+    cnesInput.addEventListener('blur', function() {
       const v = this.value.trim();
       if (v.length >= 5) {
         portariasCnes = v;
@@ -365,14 +420,12 @@ function carregarPortarias(cnes) {
 function renderPortarias(lista) {
   const badge = document.getElementById('badgePortarias');
   badge.textContent = lista.length + (lista.length === 1 ? ' portaria' : ' portarias');
-
   if (!lista.length) {
     document.getElementById('listaPortarias').innerHTML =
       '<p class="text-muted small text-center py-2 mb-0">' +
       '<i class="bi bi-inbox me-1"></i>Nenhuma portaria cadastrada para este prestador.</p>';
     return;
   }
-
   let html = `<div class="table-responsive">
     <table class="table table-sm table-hover align-middle mb-0">
     <thead class="table-light">
@@ -385,14 +438,11 @@ function renderPortarias(lista) {
         <th class="text-end pe-3">Ações</th>
       </tr>
     </thead><tbody>`;
-
   lista.forEach(p => {
     const reduc = (p.tamanho_original_kb > 0 && p.tamanho_kb < p.tamanho_original_kb)
       ? `<br><span class="text-success" style="font-size:.7rem">
            <i class="bi bi-arrow-down-short"></i>${Math.round((1 - p.tamanho_kb / p.tamanho_original_kb) * 100)}% reduzido
-         </span>`
-      : '';
-
+         </span>` : '';
     const valStatus = p.validado
       ? `<div class="d-flex flex-column align-items-center gap-0">
            <span class="badge bg-success"><i class="bi bi-patch-check-fill me-1"></i>Validado</span>
@@ -402,9 +452,7 @@ function renderPortarias(lista) {
       : `<span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">
            <i class="bi bi-clock me-1"></i>Pendente
          </span>`;
-
     const nomeEsc = (p.nome_original || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-
     html += `<tr>
       <td class="text-center ps-2"><i class="bi bi-file-earmark-pdf fs-5 text-danger"></i></td>
       <td>
@@ -412,33 +460,28 @@ function renderPortarias(lista) {
         ${p.descricao ? `<div class="text-muted" style="font-size:.75rem">${p.descricao}</div>` : ''}
       </td>
       <td class="text-center"><small class="text-muted">${p.created_at || ''}</small></td>
-      <td class="text-center">
-        <small>${p.tamanho_kb} KB${reduc}</small>
-      </td>
+      <td class="text-center"><small>${p.tamanho_kb} KB${reduc}</small></td>
       <td class="text-center">${valStatus}</td>
       <td class="text-end pe-2">
         <div class="btn-group btn-group-sm">
-          <a href="/portaria/${p.id}/ver" target="_blank"
-            class="btn btn-outline-primary" title="Visualizar PDF em nova aba">
+          <a href="/portaria/${p.id}/ver" target="_blank" class="btn btn-outline-primary" title="Visualizar PDF">
             <i class="bi bi-eye"></i>
           </a>
           <button type="button"
             class="btn ${p.validado ? 'btn-success' : 'btn-outline-success'}"
             onclick="toggleValidar(${p.id})"
-            title="${p.validado ? 'Remover validação' : 'Validar esta portaria (registra data/hora automática)'}">
+            title="${p.validado ? 'Remover validação' : 'Validar'}">
             <i class="bi bi-${p.validado ? 'check-circle-fill' : 'check-circle'}"></i>
             <span class="ms-1 d-none d-lg-inline">${p.validado ? 'Validado' : 'Validar'}</span>
           </button>
           <button type="button" class="btn btn-outline-danger"
-            onclick="deletarPortaria(${p.id}, '${nomeEsc}')"
-            title="Excluir portaria">
+            onclick="deletarPortaria(${p.id}, '${nomeEsc}')" title="Excluir">
             <i class="bi bi-trash"></i>
           </button>
         </div>
       </td>
     </tr>`;
   });
-
   html += '</tbody></table></div>';
   document.getElementById('listaPortarias').innerHTML = html;
 }
@@ -446,23 +489,19 @@ function renderPortarias(lista) {
 async function uploadPortaria() {
   const cnes = portariasCnes || document.getElementById('inputCnes')?.value?.trim();
   if (!cnes) { alert('Preencha o CNES antes de enviar a portaria.'); return; }
-
   const fi = document.getElementById('inputPortariaPdf');
   if (!fi.files.length) { alert('Selecione um arquivo PDF.'); return; }
   const f = fi.files[0];
   if (!f.name.toLowerCase().endsWith('.pdf')) { alert('Apenas arquivos PDF são aceitos.'); return; }
   if (f.size > 52428800) { alert('Arquivo muito grande. Máximo: 50 MB.'); return; }
-
   const fd = new FormData();
   fd.append('arquivo', f);
   fd.append('cnes', cnes);
   fd.append('descricao', document.getElementById('inputPortariaDesc').value.trim());
-
   const btn  = document.getElementById('btnUploadPort');
   const prog = document.getElementById('progressUpload');
   prog.style.display = 'block';
   btn.disabled = true;
-
   try {
     const res  = await fetch('/portaria/upload', { method: 'POST', body: fd });
     const data = await res.json();

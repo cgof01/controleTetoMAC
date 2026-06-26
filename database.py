@@ -3,6 +3,7 @@ database.py — Camada de dados usando Supabase (HTTPS/REST)
 Fallback automático para SQLite em desenvolvimento.
 """
 import os
+import json
 from config import SUPABASE_URL, SUPABASE_KEY, USE_SUPABASE
 
 MESES = {
@@ -51,7 +52,7 @@ else:
 # ── Utilitários ────────────────────────────────────────────────────────────────
 
 def _clean(row):
-    """Normaliza None para 0 em campos numéricos."""
+    """Normaliza None para 0 em campos numéricos e desserializa campos_extras."""
     if not row:
         return row
     num_fields = {
@@ -67,12 +68,34 @@ def _clean(row):
     for f in num_fields:
         if f in result and result[f] is None:
             result[f] = 0.0
+    # Desserializa campos_extras (SQLite armazena como TEXT)
+    ce = result.get('campos_extras')
+    if isinstance(ce, str):
+        try:
+            result['campos_extras'] = json.loads(ce)
+        except Exception:
+            result['campos_extras'] = {}
+    elif ce is None:
+        result['campos_extras'] = {}
+    # Achata campos_extras no registro principal para acesso uniforme no template
+    if result.get('campos_extras'):
+        for k, v in result['campos_extras'].items():
+            if k not in result:
+                result[k] = v
     return result
 
 # ── CRUD ───────────────────────────────────────────────────────────────────────
 
+def _prep_campos_extras(dados_clean, use_supabase):
+    """Serializa campos_extras para TEXT no SQLite; deixa como dict no Supabase."""
+    ce = dados_clean.get('campos_extras')
+    if ce is not None and not use_supabase and isinstance(ce, dict):
+        dados_clean['campos_extras'] = json.dumps(ce, ensure_ascii=False)
+    return dados_clean
+
 def inserir_registro(dados):
     dados_clean = {k: v for k, v in dados.items() if k not in ('id','created_at','updated_at')}
+    dados_clean = _prep_campos_extras(dados_clean, USE_SUPABASE)
     if USE_SUPABASE:
         r = get_sb().table('teto_mac').insert(dados_clean).execute()
         return r.data[0]['id'] if r.data else None
@@ -91,6 +114,7 @@ def inserir_registro(dados):
 
 def atualizar_registro(id, dados):
     dados_clean = {k: v for k, v in dados.items() if k not in ('id','created_at','updated_at')}
+    dados_clean = _prep_campos_extras(dados_clean, USE_SUPABASE)
     if USE_SUPABASE:
         get_sb().table('teto_mac').update(dados_clean).eq('id', id).execute()
     else:
@@ -1351,6 +1375,7 @@ def _init_sqlite():
             cer REAL DEFAULT 0, doencas_raras REAL DEFAULT 0,
             oficina_ortopedica REAL DEFAULT 0, ihac REAL DEFAULT 0,
             total_mc_ac_incentivos REAL DEFAULT 0,
+            campos_extras TEXT DEFAULT '{}',
             arquivo_origem TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -1373,13 +1398,46 @@ def _init_sqlite():
             atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             ultimo_acesso TIMESTAMP
         );
+        CREATE TABLE IF NOT EXISTS secao_config (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            secao_key TEXT UNIQUE NOT NULL,
+            label TEXT NOT NULL,
+            cor TEXT NOT NULL DEFAULT 'primary',
+            icone TEXT NOT NULL DEFAULT 'list',
+            ordem INT NOT NULL DEFAULT 0,
+            ativo INTEGER NOT NULL DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS campo_config (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            secao_key TEXT NOT NULL,
+            campo_key TEXT NOT NULL UNIQUE,
+            label TEXT NOT NULL,
+            tipo TEXT NOT NULL DEFAULT 'moeda',
+            ordem INT NOT NULL DEFAULT 0,
+            ativo INTEGER NOT NULL DEFAULT 1,
+            obrigatorio INTEGER NOT NULL DEFAULT 0,
+            formula TEXT DEFAULT NULL,
+            coluna_db TEXT DEFAULT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
         CREATE INDEX IF NOT EXISTS idx_ano_mes ON teto_mac(ano, mes);
         CREATE INDEX IF NOT EXISTS idx_cnes ON teto_mac(cnes);
         CREATE INDEX IF NOT EXISTS idx_municipio ON teto_mac(municipio);
         CREATE INDEX IF NOT EXISTS idx_drs ON teto_mac(drs);
+        CREATE INDEX IF NOT EXISTS idx_campo_secao ON campo_config(secao_key, ordem);
     """)
     conn.commit()
+    # Adiciona campos_extras em tabelas existentes (migration segura)
+    try:
+        conn.execute("ALTER TABLE teto_mac ADD COLUMN campos_extras TEXT DEFAULT '{}'")
+        conn.commit()
+    except Exception:
+        pass
     conn.close()
+    _seed_campos_config_sqlite()
 
 # ── Portarias ─────────────────────────────────────────────────────────────────
 # Metadados: Supabase (tabela portarias) ou SQLite local (portarias.db)
@@ -1560,3 +1618,257 @@ def deletar_portaria_db(pid):
             conn.commit()
             conn.close()
     return p
+
+
+# ── Configuração de Campos (campo_config) ──────────────────────────────────────
+
+_SEED_SECOES = [
+    ('aih',        'AIH — Autorização de Internação Hospitalar', 'success',   'cash-stack',     1),
+    ('sia',        'SIA — Sistema de Informações Ambulatoriais', 'info',      'clipboard-data', 2),
+    ('teto_mac',   'Teto MAC',                                   'secondary', 'bank',           3),
+    ('incentivos', 'Incentivos',                                  'warning',   'award',          4),
+]
+
+_SEED_CAMPOS = [
+    # (secao_key, campo_key, label, tipo, ordem, coluna_db, formula)
+    ('aih', 'aih_fisico', 'AIH Físico',                 'moeda',     10, 'aih_fisico', None),
+    ('aih', 'aih_faec',   'AIH FAEC',                   'moeda',     20, 'aih_faec',   None),
+    ('aih', 'aih_mc',     'AIH MC (Média Complexidade)', 'moeda',     30, 'aih_mc',     None),
+    ('aih', 'aih_ac',     'AIH AC (Alta Complexidade)',  'moeda',     40, 'aih_ac',     None),
+    ('aih', 'aih_total',  'AIH Total',                  'calculado', 50, 'aih_total',  'aih_fisico,aih_faec,aih_mc,aih_ac'),
+
+    ('sia', 'sia_faec',              'SIA FAEC',                         'moeda', 10, 'sia_faec',              None),
+    ('sia', 'sia_mc',                'SIA MC (Média Complexidade)',       'moeda', 20, 'sia_mc',                None),
+    ('sia', 'sia_ac',                'SIA AC (Alta Complexidade)',        'moeda', 30, 'sia_ac',                None),
+    ('sia', 'sia_total',             'SIA Total',                        'moeda', 40, 'sia_total',             None),
+    ('sia', 'equip_hemodialise',     'Equip. Hemodiálise (DRC)',          'moeda', 50, 'equip_hemodialise',     None),
+    ('sia', 'limite_complementacao', 'Limite Complementação Tabela SUS',  'moeda', 60, 'limite_complementacao', None),
+
+    ('teto_mac', 'teto_global',         'Teto Global',         'moeda', 10, 'teto_global',         None),
+    ('teto_mac', 'teto_mc',             'Teto MC',             'moeda', 20, 'teto_mc',             None),
+    ('teto_mac', 'teto_ac',             'Teto AC',             'moeda', 30, 'teto_ac',             None),
+    ('teto_mac', 'teto_mac_campo',      'Teto MAC',            'moeda', 40, 'teto_mac',            None),
+    ('teto_mac', 'total_teto_mac',      'Total Teto MAC',      'moeda', 50, 'total_teto_mac',      None),
+    ('teto_mac', 'portaria_ms_gm_8516', 'Portaria MS/GM 8.516','moeda', 60, 'portaria_ms_gm_8516', None),
+
+    ('incentivos', 'integrasus',           'IntegraSUS',             'moeda', 10,  'integrasus',           None),
+    ('incentivos', 'iac',                  'IAC',                    'moeda', 20,  'iac',                  None),
+    ('incentivos', 'sus_100',              '100% SUS',               'moeda', 30,  'sus_100',              None),
+    ('incentivos', 'opo',                  'OPO',                    'moeda', 40,  'opo',                  None),
+    ('incentivos', 'rede_viver_sem_limite','Rede Viver Sem Limite',  'moeda', 50,  'rede_viver_sem_limite', None),
+    ('incentivos', 'rede_brasil_miseria',  'Rede Brasil Sem Miséria','moeda', 60,  'rede_brasil_miseria',  None),
+    ('incentivos', 'rsme',                 'RSME',                   'moeda', 70,  'rsme',                 None),
+    ('incentivos', 'rce_rceg',             'RCE/RCEG',               'moeda', 80,  'rce_rceg',             None),
+    ('incentivos', 'rau_hosp_sos',         'RAU/HOSP SOS',           'moeda', 90,  'rau_hosp_sos',         None),
+    ('incentivos', 'rca_rcan',             'RCA/RCAN',               'moeda', 100, 'rca_rcan',             None),
+    ('incentivos', 'iapi',                 'IAPI',                   'moeda', 110, 'iapi',                 None),
+    ('incentivos', 'residencia_medica',    'Residência Médica',      'moeda', 120, 'residencia_medica',    None),
+    ('incentivos', 'melhor_em_casa',       'Melhor em Casa',         'moeda', 130, 'melhor_em_casa',       None),
+    ('incentivos', 'cer',                  'CER',                    'moeda', 140, 'cer',                  None),
+    ('incentivos', 'doencas_raras',        'Doenças Raras',          'moeda', 150, 'doencas_raras',        None),
+    ('incentivos', 'oficina_ortopedica',   'Oficina Ortopédica',     'moeda', 160, 'oficina_ortopedica',   None),
+    ('incentivos', 'ihac',                 'IHAC',                   'moeda', 170, 'ihac',                 None),
+    ('incentivos', 'total_mc_ac_incentivos','TOTAL MC + AC + INCENTIVOS','calculado', 999, 'total_mc_ac_incentivos',
+     'aih_mc,aih_ac,sia_mc,sia_ac,integrasus,iac,sus_100,opo,rede_viver_sem_limite,rede_brasil_miseria,'
+     'rsme,rce_rceg,rau_hosp_sos,rca_rcan,iapi,residencia_medica,melhor_em_casa,cer,doencas_raras,oficina_ortopedica,ihac'),
+]
+
+
+def _seed_campos_config_sqlite():
+    """Seed inicial das tabelas secao_config e campo_config no SQLite."""
+    conn = get_db()
+    try:
+        count = conn.execute("SELECT COUNT(*) FROM secao_config").fetchone()[0]
+        if count == 0:
+            conn.executemany(
+                "INSERT OR IGNORE INTO secao_config (secao_key, label, cor, icone, ordem) VALUES (?,?,?,?,?)",
+                _SEED_SECOES
+            )
+        count2 = conn.execute("SELECT COUNT(*) FROM campo_config").fetchone()[0]
+        if count2 == 0:
+            conn.executemany(
+                "INSERT OR IGNORE INTO campo_config "
+                "(secao_key, campo_key, label, tipo, ordem, coluna_db, formula) VALUES (?,?,?,?,?,?,?)",
+                _SEED_CAMPOS
+            )
+        conn.commit()
+    except Exception:
+        pass
+    finally:
+        conn.close()
+
+
+def _seed_campos_config_supabase():
+    """Seed inicial no Supabase (chamado apenas se as tabelas estiverem vazias)."""
+    try:
+        sb = get_sb()
+        if not sb.table('secao_config').select('id').limit(1).execute().data:
+            for s in _SEED_SECOES:
+                sb.table('secao_config').upsert({
+                    'secao_key': s[0], 'label': s[1], 'cor': s[2], 'icone': s[3], 'ordem': s[4]
+                }, on_conflict='secao_key').execute()
+        if not sb.table('campo_config').select('id').limit(1).execute().data:
+            for c in _SEED_CAMPOS:
+                sb.table('campo_config').upsert({
+                    'secao_key': c[0], 'campo_key': c[1], 'label': c[2],
+                    'tipo': c[3], 'ordem': c[4], 'coluna_db': c[5], 'formula': c[6]
+                }, on_conflict='campo_key').execute()
+    except Exception:
+        pass
+
+
+def listar_secoes_config():
+    """Retorna todas as seções ativas, ordenadas."""
+    if USE_SUPABASE:
+        try:
+            r = get_sb().table('secao_config').select('*').eq('ativo', True).order('ordem').execute()
+            if not r.data:
+                _seed_campos_config_supabase()
+                r = get_sb().table('secao_config').select('*').eq('ativo', True).order('ordem').execute()
+            return r.data or []
+        except Exception:
+            return [{'secao_key': s[0], 'label': s[1], 'cor': s[2], 'icone': s[3], 'ordem': s[4], 'ativo': True}
+                    for s in _SEED_SECOES]
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT * FROM secao_config WHERE ativo=1 ORDER BY ordem"
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def listar_campos_config(secao_key=None, incluir_inativos=False):
+    """Retorna campos configurados, opcionalmente filtrados por seção."""
+    if USE_SUPABASE:
+        try:
+            q = get_sb().table('campo_config').select('*')
+            if secao_key:
+                q = q.eq('secao_key', secao_key)
+            if not incluir_inativos:
+                q = q.eq('ativo', True)
+            q = q.order('secao_key').order('ordem')
+            r = q.execute()
+            if not r.data and not secao_key:
+                _seed_campos_config_supabase()
+                r = q.execute()
+            return r.data or []
+        except Exception:
+            dados = _SEED_CAMPOS
+            if secao_key:
+                dados = [c for c in dados if c[0] == secao_key]
+            return [{'secao_key': c[0], 'campo_key': c[1], 'label': c[2],
+                     'tipo': c[3], 'ordem': c[4], 'coluna_db': c[5], 'formula': c[6],
+                     'ativo': True, 'obrigatorio': False, 'id': 0}
+                    for c in dados]
+    conn = get_db()
+    where_parts = []
+    params = []
+    if secao_key:
+        where_parts.append("secao_key = ?")
+        params.append(secao_key)
+    if not incluir_inativos:
+        where_parts.append("ativo = 1")
+    where = f"WHERE {' AND '.join(where_parts)}" if where_parts else ""
+    rows = conn.execute(
+        f"SELECT * FROM campo_config {where} ORDER BY secao_key, ordem", params
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def salvar_campo_config(dados):
+    """Cria ou atualiza um campo. Retorna o id."""
+    dados_clean = {k: v for k, v in dados.items() if k not in ('id', 'created_at', 'updated_at')}
+    id_ = dados.get('id')
+    if USE_SUPABASE:
+        if id_:
+            get_sb().table('campo_config').update(dados_clean).eq('id', int(id_)).execute()
+            return int(id_)
+        r = get_sb().table('campo_config').insert(dados_clean).execute()
+        return r.data[0]['id'] if r.data else None
+    conn = get_db()
+    if id_:
+        campos = list(dados_clean.keys())
+        set_clause = ', '.join([f'{k} = ?' for k in campos])
+        conn.execute(
+            f"UPDATE campo_config SET {set_clause}, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            [dados_clean[k] for k in campos] + [int(id_)]
+        )
+        conn.commit()
+        conn.close()
+        return int(id_)
+    campos = list(dados_clean.keys())
+    cur = conn.execute(
+        f"INSERT INTO campo_config ({','.join(campos)}) VALUES ({','.join(['?' for _ in campos])})",
+        [dados_clean[k] for k in campos]
+    )
+    conn.commit()
+    new_id = cur.lastrowid
+    conn.close()
+    return new_id
+
+
+def deletar_campo_config(id_):
+    """Remove permanentemente um campo personalizado (coluna_db IS NULL).
+    Campos nativos são apenas desativados."""
+    if USE_SUPABASE:
+        campo = get_sb().table('campo_config').select('coluna_db').eq('id', int(id_)).execute()
+        if campo.data and campo.data[0].get('coluna_db') is None:
+            get_sb().table('campo_config').delete().eq('id', int(id_)).execute()
+        else:
+            get_sb().table('campo_config').update({'ativo': False}).eq('id', int(id_)).execute()
+        return
+    conn = get_db()
+    row = conn.execute("SELECT coluna_db FROM campo_config WHERE id = ?", (int(id_),)).fetchone()
+    if row and row[0] is None:
+        conn.execute("DELETE FROM campo_config WHERE id = ?", (int(id_),))
+    else:
+        conn.execute("UPDATE campo_config SET ativo = 0 WHERE id = ?", (int(id_),))
+    conn.commit()
+    conn.close()
+
+
+def reordenar_campos(items):
+    """items = list of {id, ordem}"""
+    if USE_SUPABASE:
+        sb = get_sb()
+        for item in items:
+            sb.table('campo_config').update({'ordem': item['ordem']}).eq('id', item['id']).execute()
+        return
+    conn = get_db()
+    for item in items:
+        conn.execute("UPDATE campo_config SET ordem = ? WHERE id = ?", (item['ordem'], item['id']))
+    conn.commit()
+    conn.close()
+
+
+def salvar_secao_config(dados):
+    """Cria ou atualiza uma seção."""
+    dados_clean = {k: v for k, v in dados.items() if k not in ('id', 'created_at', 'updated_at')}
+    id_ = dados.get('id')
+    if USE_SUPABASE:
+        if id_:
+            get_sb().table('secao_config').update(dados_clean).eq('id', int(id_)).execute()
+            return int(id_)
+        r = get_sb().table('secao_config').insert(dados_clean).execute()
+        return r.data[0]['id'] if r.data else None
+    conn = get_db()
+    if id_:
+        campos = list(dados_clean.keys())
+        set_clause = ', '.join([f'{k} = ?' for k in campos])
+        conn.execute(
+            f"UPDATE secao_config SET {set_clause}, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            [dados_clean[k] for k in campos] + [int(id_)]
+        )
+        conn.commit()
+        conn.close()
+        return int(id_)
+    campos = list(dados_clean.keys())
+    cur = conn.execute(
+        f"INSERT INTO secao_config ({','.join(campos)}) VALUES ({','.join(['?' for _ in campos])})",
+        [dados_clean[k] for k in campos]
+    )
+    conn.commit()
+    new_id = cur.lastrowid
+    conn.close()
+    return new_id

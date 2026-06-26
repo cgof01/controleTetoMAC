@@ -262,6 +262,10 @@
            href="{{ url_for('auditoria') }}" data-tip="Auditoria">
           <i class="bi bi-shield-check"></i><span class="nav-label">Auditoria</span>
         </a>
+        <a class="nav-link {{ 'active' if request.endpoint == 'admin_campos' }}"
+           href="{{ url_for('admin_campos') }}" data-tip="Gerenciar Campos">
+          <i class="bi bi-sliders"></i><span class="nav-label">Gerenciar Campos</span>
+        </a>
       </nav>
       {% endif %}
 
