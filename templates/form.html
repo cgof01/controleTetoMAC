@@ -35,128 +35,84 @@
     <div class="card-body p-0">
       <div class="list-group list-group-flush">
 
-        <!-- Ano + Mês na mesma linha -->
+        {% macro linha_id(label, obrig=false) %}
         <div class="list-group-item px-3 py-2">
           <div class="row align-items-center">
-            <div class="col-4 col-md-3">
-              <label class="form-label fw-semibold mb-0 small">Ano <span class="text-danger">*</span></label>
+            <div class="col-5 col-md-3">
+              <label class="form-label fw-semibold mb-0 small">
+                {{ label }}{% if obrig %} <span class="text-danger">*</span>{% endif %}
+              </label>
             </div>
-            <div class="col-8 col-md-3">
-              <select name="ano" class="form-select form-select-sm" required>
-                {% for ano in anos_disponiveis %}
-                  <option value="{{ ano }}" {{ 'selected' if (r.get('ano') or ano_default|default(2026)) == ano }}>{{ ano }}</option>
-                {% endfor %}
-              </select>
-            </div>
-            <div class="col-4 col-md-2 mt-2 mt-md-0">
-              <label class="form-label fw-semibold mb-0 small">Mês <span class="text-danger">*</span></label>
-            </div>
-            <div class="col-8 col-md-4 mt-2 mt-md-0">
-              <select name="mes" class="form-select form-select-sm" required>
-                {% for num, nome in meses.items() %}
-                  <option value="{{ num }}" {{ 'selected' if (r.get('mes') or mes_default|default(1)) == num }}>{{ nome }}</option>
-                {% endfor %}
-              </select>
+            <div class="col-7 col-md-9">
+              {{ caller() }}
             </div>
           </div>
         </div>
+        {% endmacro %}
 
-        <!-- DRS + Tipo -->
-        <div class="list-group-item px-3 py-2">
-          <div class="row align-items-center">
-            <div class="col-4 col-md-3">
-              <label class="form-label fw-semibold mb-0 small">DRS</label>
-            </div>
-            <div class="col-8 col-md-3">
-              <input type="number" name="drs" class="form-control form-control-sm"
-                     value="{{ r.get('drs', '') }}" min="1" max="17" placeholder="1-17">
-            </div>
-            <div class="col-4 col-md-2 mt-2 mt-md-0">
-              <label class="form-label fw-semibold mb-0 small">Tipo de Estabelecimento</label>
-            </div>
-            <div class="col-8 col-md-4 mt-2 mt-md-0">
-              <select name="tipo" class="form-select form-select-sm">
-                <option value="">Selecione...</option>
-                {% set tipos = ['PRIVADOS - PRODUÇÃO - RES 198_23','PRIVADOS - PRODUÇÃO','PRIVADOS - FIXO','PRÓPRIOS','RESREC'] %}
-                {% for t in tipos %}
-                  <option value="{{ t }}" {{ 'selected' if r.get('tipo') == t }}>{{ t }}</option>
-                {% endfor %}
-                {% if r.get('tipo') and r.get('tipo') not in tipos %}
-                  <option value="{{ r.get('tipo') }}" selected>{{ r.get('tipo') }}</option>
-                {% endif %}
-              </select>
-            </div>
-          </div>
-        </div>
+        {% call linha_id('Ano', true) %}
+          <select name="ano" class="form-select form-select-sm" required style="max-width:160px">
+            {% for ano in anos_disponiveis %}
+              <option value="{{ ano }}" {{ 'selected' if (r.get('ano') or ano_default|default(2026)) == ano }}>{{ ano }}</option>
+            {% endfor %}
+          </select>
+        {% endcall %}
 
-        <!-- HU -->
-        <div class="list-group-item px-3 py-2">
-          <div class="row align-items-center">
-            <div class="col-4 col-md-3">
-              <label class="form-label fw-semibold mb-0 small">HU</label>
-            </div>
-            <div class="col-8 col-md-9">
-              <select name="hu" class="form-select form-select-sm" style="max-width:120px">
-                <option value="-" {{ 'selected' if r.get('hu') == '-' }}>Não</option>
-                <option value="SIM" {{ 'selected' if r.get('hu') == 'SIM' }}>SIM</option>
-              </select>
-            </div>
-          </div>
-        </div>
+        {% call linha_id('Mês', true) %}
+          <select name="mes" class="form-select form-select-sm" required style="max-width:200px">
+            {% for num, nome in meses.items() %}
+              <option value="{{ num }}" {{ 'selected' if (r.get('mes') or mes_default|default(1)) == num }}>{{ nome }}</option>
+            {% endfor %}
+          </select>
+        {% endcall %}
 
-        <!-- CNES -->
-        <div class="list-group-item px-3 py-2">
-          <div class="row align-items-center">
-            <div class="col-4 col-md-3">
-              <label class="form-label fw-semibold mb-0 small">CNES <span class="text-danger">*</span></label>
-            </div>
-            <div class="col-8 col-md-9">
-              <input type="text" name="cnes" class="form-control form-control-sm" required
-                     value="{{ r.get('cnes', '') }}" placeholder="Código CNES" id="inputCnes"
-                     style="max-width:200px">
-            </div>
-          </div>
-        </div>
+        {% call linha_id('DRS') %}
+          <input type="number" name="drs" class="form-control form-control-sm"
+                 value="{{ r.get('drs', '') }}" min="1" max="17" placeholder="1-17"
+                 style="max-width:120px">
+        {% endcall %}
 
-        <!-- CNPJ -->
-        <div class="list-group-item px-3 py-2">
-          <div class="row align-items-center">
-            <div class="col-4 col-md-3">
-              <label class="form-label fw-semibold mb-0 small">CNPJ</label>
-            </div>
-            <div class="col-8 col-md-9">
-              <input type="text" name="cnpj" class="form-control form-control-sm"
-                     value="{{ r.get('cnpj', '') }}" placeholder="CNPJ" style="max-width:260px">
-            </div>
-          </div>
-        </div>
+        {% call linha_id('Tipo de Estabelecimento') %}
+          <select name="tipo" class="form-select form-select-sm" style="max-width:380px">
+            <option value="">Selecione...</option>
+            {% set tipos = ['PRIVADOS - PRODUÇÃO - RES 198_23','PRIVADOS - PRODUÇÃO','PRIVADOS - FIXO','PRÓPRIOS','RESREC'] %}
+            {% for t in tipos %}
+              <option value="{{ t }}" {{ 'selected' if r.get('tipo') == t }}>{{ t }}</option>
+            {% endfor %}
+            {% if r.get('tipo') and r.get('tipo') not in tipos %}
+              <option value="{{ r.get('tipo') }}" selected>{{ r.get('tipo') }}</option>
+            {% endif %}
+          </select>
+        {% endcall %}
 
-        <!-- Município -->
-        <div class="list-group-item px-3 py-2">
-          <div class="row align-items-center">
-            <div class="col-4 col-md-3">
-              <label class="form-label fw-semibold mb-0 small">Município <span class="text-danger">*</span></label>
-            </div>
-            <div class="col-8 col-md-9">
-              <input type="text" name="municipio" class="form-control form-control-sm text-uppercase" required
-                     value="{{ r.get('municipio', '') }}" placeholder="Nome do município">
-            </div>
-          </div>
-        </div>
+        {% call linha_id('HU') %}
+          <select name="hu" class="form-select form-select-sm" style="max-width:120px">
+            <option value="-" {{ 'selected' if r.get('hu') == '-' }}>Não</option>
+            <option value="SIM" {{ 'selected' if r.get('hu') == 'SIM' }}>SIM</option>
+          </select>
+        {% endcall %}
 
-        <!-- Nome da Unidade -->
-        <div class="list-group-item px-3 py-2">
-          <div class="row align-items-center">
-            <div class="col-4 col-md-3">
-              <label class="form-label fw-semibold mb-0 small">Nome da Unidade <span class="text-danger">*</span></label>
-            </div>
-            <div class="col-8 col-md-9">
-              <input type="text" name="unidade" class="form-control form-control-sm text-uppercase" required
-                     value="{{ r.get('unidade', '') }}" placeholder="Nome completo do estabelecimento"
-                     id="inputUnidadeNome">
-            </div>
-          </div>
-        </div>
+        {% call linha_id('CNES', true) %}
+          <input type="text" name="cnes" class="form-control form-control-sm" required
+                 value="{{ r.get('cnes', '') }}" placeholder="Código CNES" id="inputCnes"
+                 style="max-width:200px">
+        {% endcall %}
+
+        {% call linha_id('CNPJ') %}
+          <input type="text" name="cnpj" class="form-control form-control-sm"
+                 value="{{ r.get('cnpj', '') }}" placeholder="CNPJ" style="max-width:260px">
+        {% endcall %}
+
+        {% call linha_id('Município', true) %}
+          <input type="text" name="municipio" class="form-control form-control-sm text-uppercase" required
+                 value="{{ r.get('municipio', '') }}" placeholder="Nome do município">
+        {% endcall %}
+
+        {% call linha_id('Nome da Unidade', true) %}
+          <input type="text" name="unidade" class="form-control form-control-sm text-uppercase" required
+                 value="{{ r.get('unidade', '') }}" placeholder="Nome completo do estabelecimento"
+                 id="inputUnidadeNome">
+        {% endcall %}
 
       </div><!-- /list-group -->
     </div>

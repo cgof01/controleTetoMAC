@@ -1,6 +1,7 @@
 import os
 import json
 import io
+from datetime import datetime
 from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file, Response, session, send_from_directory
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -31,6 +32,17 @@ def admin_required(f):
     return decorated
 
 BASE_TETOS = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'TETOS'))
+
+def _anos_disponiveis():
+    """Retorna anos do banco + intervalo 2020..ano_atual+2, ordenado desc."""
+    try:
+        anos_meses = db.obter_anos_meses()
+        anos_db = set(am['ano'] for am in anos_meses)
+    except Exception:
+        anos_db = set()
+    ano_atual = datetime.now().year
+    anos_range = set(range(2020, ano_atual + 3))
+    return sorted(anos_db | anos_range, reverse=True)
 
 # ── Favicon ───────────────────────────────────────────────────────────────────
 
@@ -289,12 +301,11 @@ def inserir():
             flash(f'Erro ao inserir: {e}', 'danger')
 
     anos_meses = db.obter_anos_meses()
-    anos_disponiveis = sorted(set(am['ano'] for am in anos_meses), reverse=True)
-    ultimo = anos_meses[0] if anos_meses else {'ano': 2026, 'mes': 1}
+    ultimo = anos_meses[0] if anos_meses else {'ano': datetime.now().year, 'mes': 1}
     return render_template('form.html',
         registro=None,
         meses=MESES,
-        anos_disponiveis=anos_disponiveis,
+        anos_disponiveis=_anos_disponiveis(),
         ano_default=ultimo['ano'],
         mes_default=ultimo['mes'],
         titulo='Inserir Novo Registro',
@@ -319,12 +330,10 @@ def editar(id):
         except Exception as e:
             flash(f'Erro ao atualizar: {e}', 'danger')
 
-    anos_meses = db.obter_anos_meses()
-    anos_disponiveis = sorted(set(am['ano'] for am in anos_meses), reverse=True)
     return render_template('form.html',
         registro=registro,
         meses=MESES,
-        anos_disponiveis=anos_disponiveis,
+        anos_disponiveis=_anos_disponiveis(),
         titulo=f'Editar Registro #{id}',
         secoes=db.listar_secoes_config(),
         campos=db.listar_campos_config(),
