@@ -380,6 +380,11 @@ function moedaFull(v) {
 }
 function numBR(v) { return Number(v||0).toLocaleString('pt-BR'); }
 function isNumericField(f) { return !DIMS.includes(f) && f !== '_count'; }
+const QTY_FIELDS = ['aih_fisico'];
+function fmtMetric(field, v) {
+  if (QTY_FIELDS.includes(field)) return numBR(v);
+  return isNumericField(field) ? moedaFull(v) : numBR(v);
+}
 
 let _debT;
 function debLoad() { clearTimeout(_debT); _debT = setTimeout(loadData, 450); }
@@ -568,7 +573,7 @@ function renderTable(data, dims, mets) {
             : val}</td>`;
         } else {
           const v = row[c]||0;
-          const num = isNumericField(c) ? moedaFull(v) : numBR(v);
+          const num = fmtMetric(c, v);
           return `<td class="num">${num}</td>`;
         }
       }).join('')}
@@ -581,7 +586,7 @@ function renderTable(data, dims, mets) {
       <td></td>
       ${allCols.map(c => isDim(c)
         ? `<td><strong>TOTAL</strong></td>`
-        : `<td class="num">${isNumericField(c)?moedaFull(totals[c]||0):numBR(totals[c]||0)}</td>`
+        : `<td class="num">${fmtMetric(c, totals[c]||0)}</td>`
       ).join('')}
     </tr>`;
   }
@@ -670,6 +675,14 @@ function renderChart(data, dims) {
   const isStacked = chartType === 'bar-stacked';
   const isPie = chartType === 'pie' || chartType === 'doughnut';
 
+  const allQty = mets.length>0 && mets.every(m=>QTY_FIELDS.includes(m));
+  const axisCb = allQty ? numBR : moedaK;
+  function pointField(c) {
+    if (dims.length === 0) return mets[c.dataIndex];
+    if (mets.length === 1) return mets[0];
+    return mets[c.datasetIndex];
+  }
+
   const chartConfig = {
     type: isPie ? chartType : (chartType==='line'?'line':'bar'),
     data: {labels, datasets},
@@ -677,8 +690,8 @@ function renderChart(data, dims) {
       responsive:true, maintainAspectRatio:false,
       indexAxis: isHoriz?'y':'x',
       scales: isPie||chartType==='line'&&false ? undefined : {
-        x: { stacked:isStacked, grid:{display:!isHoriz}, ticks:{font:{size:10}, callback:isHoriz?moedaK:undefined} },
-        y: { stacked:isStacked, grid:{display:isHoriz}, ticks:{font:{size:10}, callback:!isHoriz?moedaK:undefined} }
+        x: { stacked:isStacked, grid:{display:!isHoriz}, ticks:{font:{size:10}, callback:isHoriz?axisCb:undefined} },
+        y: { stacked:isStacked, grid:{display:isHoriz}, ticks:{font:{size:10}, callback:!isHoriz?axisCb:undefined} }
       },
       plugins: {
         legend:{
@@ -687,7 +700,7 @@ function renderChart(data, dims) {
           labels:{usePointStyle:true,font:{size:10},padding:8}
         },
         tooltip:{callbacks:{label:c=>
-          (datasets.length>1?(c.dataset.label+': '):'') + moedaFull(c.raw)
+          (datasets.length>1?(c.dataset.label+': '):'') + fmtMetric(pointField(c), c.raw)
         }}
       },
       cutout: chartType==='doughnut'?'50%':undefined,

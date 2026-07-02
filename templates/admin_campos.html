@@ -21,6 +21,34 @@
   Campos do tipo <strong>Calculado</strong> são preenchidos automaticamente pela fórmula definida.
 </div>
 
+<div class="card mb-3">
+  <div class="card-header d-flex align-items-center gap-2 py-2 bg-dark text-white">
+    <i class="bi bi-gear me-1"></i><strong>Configurações do Sistema</strong>
+  </div>
+  <div class="card-body">
+    <form method="post" action="{{ url_for('admin_config_salvar') }}" class="row g-3 align-items-end">
+      <div class="col-md-6">
+        <label class="form-label fw-bold">Competência padrão ao inserir novo registro</label>
+        <select name="competencia_offset_meses" class="form-select">
+          <option value="-1" {{ 'selected' if competencia_offset == -1 }}>Mês anterior</option>
+          <option value="0" {{ 'selected' if competencia_offset == 0 }}>Mês atual</option>
+          <option value="1" {{ 'selected' if competencia_offset == 1 }}>Mês seguinte</option>
+        </select>
+        <div class="form-text">
+          Define qual ano/mês já vem pré-selecionado na tela "Inserir Novo Registro",
+          calculado a partir do mês corrente do servidor. O usuário pode sempre ajustar
+          manualmente antes de salvar.
+        </div>
+      </div>
+      <div class="col-md-3">
+        <button type="submit" class="btn btn-dark">
+          <i class="bi bi-save me-1"></i>Salvar
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
 {% for secao in secoes %}
 {% set campos_secao = campos_por_secao.get(secao.secao_key, []) %}
 <div class="card mb-3" id="card-secao-{{ secao.secao_key }}">

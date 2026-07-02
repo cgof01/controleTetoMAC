@@ -61,7 +61,7 @@
           <tr>
             <td><span class="badge bg-primary">DRS {{ r.drs }}</span></td>
             <td class="text-center">{{ r.total_unidades }}</td>
-            <td class="num-moeda">{{ r.aih_fisico | moeda }}</td>
+            <td class="num-moeda">{{ r.aih_fisico | numero }}</td>
             <td class="num-moeda">{{ r.total_aih | moeda }}</td>
             <td class="num-moeda">{{ r.total_sia | moeda }}</td>
             <td class="num-moeda">{{ r.teto_mac | moeda }}</td>
@@ -85,7 +85,7 @@
           <tr>
             <td>TOTAL</td>
             <td class="text-center">{{ dados | sum(attribute='total_unidades') }}</td>
-            <td class="num-moeda">{{ dados | sum(attribute='aih_fisico') | moeda }}</td>
+            <td class="num-moeda">{{ dados | sum(attribute='aih_fisico') | numero }}</td>
             <td class="num-moeda">{{ dados | sum(attribute='total_aih') | moeda }}</td>
             <td class="num-moeda">{{ dados | sum(attribute='total_sia') | moeda }}</td>
             <td class="num-moeda">{{ dados | sum(attribute='teto_mac') | moeda }}</td>

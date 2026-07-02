@@ -280,6 +280,9 @@ function getAnoMes() {
 function moedaFull(v) {
   return v?'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'—';
 }
+function numFull(v) {
+  return v?Number(v).toLocaleString('pt-BR'):'—';
+}
 function moedaK(v) {
   const n=Number(v)||0;
   if(n>=1e9) return 'R$'+(n/1e9).toFixed(1)+'B';
@@ -421,15 +424,14 @@ async function loadFaec() {
     ['aih_fisico','aih_faec','sia_faec','equip_hemodialise','limite_complementacao','total'].forEach(k=>tot[k]+=(d[k]||0));
     html+=`<tr>
       <td><span class="badge badge-drs">DRS ${d.drs}</span></td>
-      <td class="num">${moedaFull(d.aih_fisico)}</td><td class="num">${moedaFull(d.aih_faec)}</td>
+      <td class="num">${numFull(d.aih_fisico)}</td><td class="num">${moedaFull(d.aih_faec)}</td>
       <td class="num">${moedaFull(d.sia_faec)}</td><td class="num">${moedaFull(d.equip_hemodialise)}</td>
       <td class="num">${moedaFull(d.limite_complementacao)}</td><td class="num fw-bold">${moedaFull(d.total)}</td></tr>`;
   });
-  html+=`<tr class="tot"><td>Total</td><td class="num">${moedaFull(tot.aih_fisico)}</td><td class="num">${moedaFull(tot.aih_faec)}</td><td class="num">${moedaFull(tot.sia_faec)}</td><td class="num">${moedaFull(tot.equip_hemodialise)}</td><td class="num">${moedaFull(tot.limite_complementacao)}</td><td class="num">${moedaFull(tot.total)}</td></tr>`;
+  html+=`<tr class="tot"><td>Total</td><td class="num">${numFull(tot.aih_fisico)}</td><td class="num">${moedaFull(tot.aih_faec)}</td><td class="num">${moedaFull(tot.sia_faec)}</td><td class="num">${moedaFull(tot.equip_hemodialise)}</td><td class="num">${moedaFull(tot.limite_complementacao)}</td><td class="num">${moedaFull(tot.total)}</td></tr>`;
   html+='</tbody></table>';
   document.getElementById('tbFaec').innerHTML=html;
   mk('chFaec',{type:'bar',data:{labels:data.map(d=>'DRS '+d.drs),datasets:[
-    {label:'AIH Físico',data:data.map(d=>d.aih_fisico||0),backgroundColor:'#1e3a5fcc',borderRadius:3},
     {label:'AIH FAEC',data:data.map(d=>d.aih_faec||0),backgroundColor:'#2a7dd8cc',borderRadius:3},
     {label:'SIA FAEC',data:data.map(d=>d.sia_faec||0),backgroundColor:'#1a7a4acc',borderRadius:3},
     {label:'Equip. Hemod.',data:data.map(d=>d.equip_hemodialise||0),backgroundColor:'#e07b00cc',borderRadius:3},

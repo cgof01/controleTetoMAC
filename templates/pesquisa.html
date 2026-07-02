@@ -151,7 +151,7 @@
                   {{ (r.unidade or '—')[:45] }}{% if r.unidade and r.unidade|length > 45 %}...{% endif %}
                 </a>
               </td>
-              <td class="num-moeda">{{ r.aih_fisico | moeda if r.aih_fisico else '—' }}</td>
+              <td class="num-moeda">{{ r.aih_fisico | numero if r.aih_fisico else '—' }}</td>
               <td class="num-moeda">{{ r.aih_mc | moeda if r.aih_mc else '—' }}</td>
               <td class="num-moeda">{{ r.aih_ac | moeda if r.aih_ac else '—' }}</td>
               <td class="num-moeda">{{ r.sia_mc | moeda if r.sia_mc else '—' }}</td>

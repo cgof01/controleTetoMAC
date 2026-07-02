@@ -169,13 +169,13 @@
                          name="{{ input_name }}"
                          id="campo_{{ campo.campo_key }}"
                          class="form-control text-end {{ 'fw-bold' if campo.tipo == 'calculado' else '' }}"
-                         step="0.01" min="0"
+                         step="{{ '1' if campo.tipo == 'numero' else '0.01' }}" min="0"
                          {{ 'readonly' if campo.tipo == 'calculado' else '' }}
                          {{ 'required' if campo.obrigatorio else '' }}
                          data-campo-key="{{ campo.campo_key }}"
                          data-tipo="{{ campo.tipo }}"
                          {% if campo.formula %}data-formula="{{ campo.formula }}"{% endif %}
-                         value="{{ '%.2f'|format(val|float) if val else '0.00' }}">
+                         value="{% if campo.tipo == 'numero' %}{{ val|int if val else 0 }}{% else %}{{ '%.2f'|format(val|float) if val else '0.00' }}{% endif %}">
                 </div>
 
               {% elif campo.tipo == 'texto' %}

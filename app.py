@@ -44,6 +44,22 @@ def _anos_disponiveis():
     anos_range = set(range(2020, ano_atual + 3))
     return sorted(anos_db | anos_range, reverse=True)
 
+def _competencia_padrao():
+    """Ano/mês pré-selecionados na tela de 'Inserir Novo Registro'.
+
+    Calculado a partir do mês corrente do servidor + um deslocamento (em meses)
+    configurável pelo admin em /admin/campos (chave 'competencia_offset_meses').
+    Padrão: -1 (mês anterior)."""
+    try:
+        offset = int(db.obter_config('competencia_offset_meses', -1))
+    except (TypeError, ValueError):
+        offset = -1
+    hoje = datetime.now()
+    total_meses = (hoje.year * 12 + (hoje.month - 1)) + offset
+    ano = total_meses // 12
+    mes = total_meses % 12 + 1
+    return ano, mes
+
 # ── Favicon ───────────────────────────────────────────────────────────────────
 
 @app.route('/favicon.ico')
@@ -300,14 +316,13 @@ def inserir():
         except Exception as e:
             flash(f'Erro ao inserir: {e}', 'danger')
 
-    anos_meses = db.obter_anos_meses()
-    ultimo = anos_meses[0] if anos_meses else {'ano': datetime.now().year, 'mes': 1}
+    ano_default, mes_default = _competencia_padrao()
     return render_template('form.html',
         registro=None,
         meses=MESES,
         anos_disponiveis=_anos_disponiveis(),
-        ano_default=ultimo['ano'],
-        mes_default=ultimo['mes'],
+        ano_default=ano_default,
+        mes_default=mes_default,
         titulo='Inserir Novo Registro',
         secoes=db.listar_secoes_config(),
         campos=db.listar_campos_config(),
@@ -396,7 +411,12 @@ def _form_para_dict(form):
         if meta:
             tipo = meta.get('tipo', 'moeda')
             coluna_db = meta.get('coluna_db')
-            if tipo in ('moeda', 'numero', 'calculado'):
+            if tipo == 'numero':
+                try:
+                    val = int(round(float(str(v).replace(',', '.')))) if v else 0
+                except Exception:
+                    val = 0
+            elif tipo in ('moeda', 'calculado'):
                 try:
                     val = float(str(v).replace(',', '.')) if v else 0.0
                 except Exception:
@@ -570,6 +590,8 @@ def exportar_excel():
 
     fill_par = PatternFill("solid", fgColor="EBF3FB")
     fmt_moeda = '#,##0.00'
+    fmt_numero = '#,##0'
+    col_aih_fisico = campos.index('aih_fisico') + 1
 
     for row_num, reg in enumerate(registros, 3):
         fill = fill_par if row_num % 2 == 0 else None
@@ -582,7 +604,7 @@ def exportar_excel():
             if fill:
                 cell.fill = fill
             if col > 9 and isinstance(val, (int, float)) and val:
-                cell.number_format = fmt_moeda
+                cell.number_format = fmt_numero if col == col_aih_fisico else fmt_moeda
                 cell.alignment = Alignment(horizontal='right')
 
     # Larguras
@@ -1208,11 +1230,27 @@ def admin_campos():
     campos_por_secao = {}
     for c in campos:
         campos_por_secao.setdefault(c['secao_key'], []).append(c)
+    try:
+        competencia_offset = int(db.obter_config('competencia_offset_meses', -1))
+    except (TypeError, ValueError):
+        competencia_offset = -1
     return render_template('admin_campos.html',
         secoes=secoes,
         campos_por_secao=campos_por_secao,
-        titulo='Gerenciar Campos do Formulário'
+        titulo='Gerenciar Campos do Formulário',
+        competencia_offset=competencia_offset,
     )
+
+@app.route('/admin/config/salvar', methods=['POST'])
+@admin_required
+def admin_config_salvar():
+    try:
+        offset = int(request.form.get('competencia_offset_meses', -1))
+        db.salvar_config('competencia_offset_meses', str(offset))
+        flash('Configuração salva com sucesso!', 'success')
+    except Exception as e:
+        flash(f'Erro ao salvar configuração: {e}', 'danger')
+    return redirect(url_for('admin_campos'))
 
 @app.route('/admin/campos/salvar', methods=['POST'])
 @admin_required
@@ -1302,6 +1340,15 @@ def moeda_filter(value):
         return f"R$ {float(value):_.2f}".replace('.', ',').replace('_', '.')
     except:
         return 'R$ 0,00'
+
+@app.template_filter('numero')
+def numero_filter(value):
+    if value is None:
+        return '0'
+    try:
+        return f"{int(round(float(value))):_}".replace('_', '.')
+    except Exception:
+        return '0'
 
 @app.template_filter('mes_nome')
 def mes_nome_filter(value):

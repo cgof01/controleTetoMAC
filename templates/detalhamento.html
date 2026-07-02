@@ -311,6 +311,11 @@ const fmtN = v => {
   if (!f) return '<span class="zero">—</span>';
   return f.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 };
+const fmtNI = v => {
+  const f = parseFloat(v);
+  if (!f) return '<span class="zero">—</span>';
+  return f.toLocaleString('pt-BR',{maximumFractionDigits:0});
+};
 const fmtS = v => (v!==null && v!==undefined && v!=='') ? v : '—';
 
 // ── Sorting ───────────────────────────────────────────────────────────────────
@@ -434,7 +439,7 @@ function render(rows, pg) {
       <td style="max-width:130px;overflow:hidden;text-overflow:ellipsis" title="${r.municipio||''}">${fmtS(r.municipio)}</td>
       <td style="font-family:Consolas,monospace;font-size:.72rem">${fmtS(r.cnes)}</td>
       <td style="font-size:.63rem;color:#94a3b8;border-right:2px solid #e2e8f0">${fmtS(r.cnpj)}</td>
-      <td class="num ${F}">${fmtN(r.aih_fisico)}</td>
+      <td class="num ${F}">${fmtNI(r.aih_fisico)}</td>
       <td class="num ${F}">${fmtN(r.aih_faec)}</td>
       <td class="num ${F}">${fmtN(r.sia_faec)}</td>
       <td class="num ${F}">${fmtN(r.equip_hemodialise)}</td>
@@ -504,8 +509,11 @@ function det(json) {
   document.getElementById('mdlT').textContent=r.unidade||'Unidade';
   document.getElementById('mdlS').textContent=`${fmtS(r.municipio)} · CNES ${fmtS(r.cnes)} · DRS ${fmtS(r.drs)} · ${fmtS(r.tipo)}`;
   const R=(l,v,m=true)=>{
-    const fmt=m?(parseFloat(v||0)===0?'<span class="text-muted">—</span>'
-      :'R$ '+parseFloat(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})):(v||'—');
+    let fmt;
+    if (m==='numero') fmt = parseFloat(v||0)===0?'<span class="text-muted">—</span>':parseFloat(v||0).toLocaleString('pt-BR');
+    else if (!m) fmt = (v||'—');
+    else fmt = parseFloat(v||0)===0?'<span class="text-muted">—</span>'
+      :'R$ '+parseFloat(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
     return `<div class="di"><span class="lb">${l}</span><span class="vl">${fmt}</span></div>`;
   };
   document.getElementById('mdlB').innerHTML=`
@@ -516,7 +524,7 @@ function det(json) {
         ${R('Município',r.municipio,false)}${R('CNES',r.cnes,false)}${R('CNPJ',r.cnpj,false)}
       </div>
       <div class="dg gf mt-2"><div class="fw-bold small mb-1" style="color:#134e4a"><i class="bi bi-file-medical me-1"></i>FAEC / Hemodiálise</div>
-        ${R('AIH Físico',r.aih_fisico)}${R('AIH FAEC',r.aih_faec)}${R('SIA FAEC',r.sia_faec)}
+        ${R('AIH Físico',r.aih_fisico,'numero')}${R('AIH FAEC',r.aih_faec)}${R('SIA FAEC',r.sia_faec)}
         ${R('Equip. Hemodiálise (DRC)',r.equip_hemodialise)}${R('Limite Complementação',r.limite_complementacao)}
       </div>
       <div class="dg gf mt-2"><div class="fw-bold small mb-1" style="color:#14532d"><i class="bi bi-clipboard2-pulse me-1"></i>AIH / SIA</div>

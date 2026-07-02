@@ -47,12 +47,14 @@ INSERT INTO secao_config (secao_key, label, cor, icone, ordem) VALUES
 ON CONFLICT (secao_key) DO NOTHING;
 
 -- ── Seed: Campos AIH ────────────────────────────────────────────────────────────
+-- aih_fisico é uma CONTAGEM de AIHs (quantidade), não um valor em R$ — tipo 'numero'.
+-- Por isso também não entra na fórmula de 'aih_total' (que soma apenas valores em R$).
 INSERT INTO campo_config (secao_key, campo_key, label, tipo, ordem, coluna_db, formula) VALUES
-  ('aih', 'aih_fisico', 'AIH Físico',               'moeda',     10, 'aih_fisico', NULL),
+  ('aih', 'aih_fisico', 'AIH Físico',               'numero',    10, 'aih_fisico', NULL),
   ('aih', 'aih_faec',   'AIH FAEC',                 'moeda',     20, 'aih_faec',   NULL),
   ('aih', 'aih_mc',     'AIH MC (Média Complexidade)','moeda',   30, 'aih_mc',     NULL),
   ('aih', 'aih_ac',     'AIH AC (Alta Complexidade)', 'moeda',   40, 'aih_ac',     NULL),
-  ('aih', 'aih_total',  'AIH Total',                'calculado', 50, 'aih_total',  'aih_fisico,aih_faec,aih_mc,aih_ac')
+  ('aih', 'aih_total',  'AIH Total',                'calculado', 50, 'aih_total',  'aih_faec,aih_mc,aih_ac')
 ON CONFLICT (campo_key) DO NOTHING;
 
 -- ── Seed: Campos SIA ────────────────────────────────────────────────────────────

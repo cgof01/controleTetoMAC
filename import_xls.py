@@ -151,6 +151,9 @@ def val_num(v):
     except (ValueError, TypeError):
         return 0.0
 
+def val_int(v):
+    return int(round(val_num(v)))
+
 def val_str(v):
     if v is None:
         return ''
@@ -249,7 +252,7 @@ def importar_arquivo_xls(filepath, ano=None, mes=None, substituir=False, nome_or
                 'cnes': cnes_raw,
                 'cnpj': val_str(row_vals[mapa['cnpj']]) if 'cnpj' in mapa else '',
                 'unidade': val_str(get_col('unidade')).upper(),
-                'aih_fisico': val_num(get_col('aih_fisico')),
+                'aih_fisico': val_int(get_col('aih_fisico')),
                 'aih_faec': val_num(get_col('aih_faec')),
                 'sia_faec': val_num(get_col('sia_faec')),
                 'equip_hemodialise': val_num(get_col('equip_hemodialise')),
@@ -388,7 +391,7 @@ def _importar_openpyxl(wb, filepath, ano, mes, substituir, resultado):
                           'teto_mac','total_teto_mac','integrasus','iac','sus_100','opo',
                           'residencia_medica','melhor_em_casa','cer','doencas_raras']:
                 if campo in mapa and mapa[campo] < len(row):
-                    registro[campo] = val_num(row[mapa[campo]])
+                    registro[campo] = val_int(row[mapa[campo]]) if campo == 'aih_fisico' else val_num(row[mapa[campo]])
                 else:
                     registro[campo] = 0
 

@@ -599,7 +599,7 @@ _METS_ALLOW = {
 _INC = ('integrasus+iac+sus_100+opo+rede_viver_sem_limite+rede_brasil_miseria+rsme+rce_rceg+'
         'rau_hosp_sos+rca_rcan+iapi+residencia_medica+melhor_em_casa+cer+doencas_raras+'
         'oficina_ortopedica+ihac')
-_FAEC = 'aih_fisico+aih_faec+sia_faec+equip_hemodialise+limite_complementacao'
+_FAEC = 'aih_faec+sia_faec+equip_hemodialise+limite_complementacao'
 
 
 def kpis_central(ano, mes):
@@ -619,7 +619,7 @@ def kpis_central(ano, mes):
             if row.get('drs'):       drs_s.add(str(row['drs']))
             if row.get('municipio'): mun_s.add(str(row['municipio']).strip())
             if row.get('cnes'):      cnes_s.add(str(row['cnes']))
-            faec  += sum(row.get(k) or 0 for k in ['aih_fisico','aih_faec','sia_faec','equip_hemodialise','limite_complementacao'])
+            faec  += sum(row.get(k) or 0 for k in ['aih_faec','sia_faec','equip_hemodialise','limite_complementacao'])
             aih   += (row.get('aih_mc') or 0) + (row.get('aih_ac') or 0)
             sia   += (row.get('sia_mc') or 0) + (row.get('sia_ac') or 0)
             inc   += sum(row.get(k) or 0 for k in ['integrasus','iac','sus_100','opo',
@@ -1423,6 +1423,13 @@ def _init_sqlite():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
+        CREATE TABLE IF NOT EXISTS sistema_config (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            chave TEXT UNIQUE NOT NULL,
+            valor TEXT,
+            descricao TEXT,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
         CREATE INDEX IF NOT EXISTS idx_ano_mes ON teto_mac(ano, mes);
         CREATE INDEX IF NOT EXISTS idx_cnes ON teto_mac(cnes);
         CREATE INDEX IF NOT EXISTS idx_municipio ON teto_mac(municipio);
@@ -1438,6 +1445,7 @@ def _init_sqlite():
         pass
     conn.close()
     _seed_campos_config_sqlite()
+    _seed_sistema_config_sqlite()
 
 # ── Portarias ─────────────────────────────────────────────────────────────────
 # Metadados: Supabase (tabela portarias) ou SQLite local (portarias.db)
@@ -1631,11 +1639,11 @@ _SEED_SECOES = [
 
 _SEED_CAMPOS = [
     # (secao_key, campo_key, label, tipo, ordem, coluna_db, formula)
-    ('aih', 'aih_fisico', 'AIH Físico',                 'moeda',     10, 'aih_fisico', None),
+    ('aih', 'aih_fisico', 'AIH Físico',                 'numero',    10, 'aih_fisico', None),
     ('aih', 'aih_faec',   'AIH FAEC',                   'moeda',     20, 'aih_faec',   None),
     ('aih', 'aih_mc',     'AIH MC (Média Complexidade)', 'moeda',     30, 'aih_mc',     None),
     ('aih', 'aih_ac',     'AIH AC (Alta Complexidade)',  'moeda',     40, 'aih_ac',     None),
-    ('aih', 'aih_total',  'AIH Total',                  'calculado', 50, 'aih_total',  'aih_fisico,aih_faec,aih_mc,aih_ac'),
+    ('aih', 'aih_total',  'AIH Total',                  'calculado', 50, 'aih_total',  'aih_faec,aih_mc,aih_ac'),
 
     ('sia', 'sia_faec',              'SIA FAEC',                         'moeda', 10, 'sia_faec',              None),
     ('sia', 'sia_mc',                'SIA MC (Média Complexidade)',       'moeda', 20, 'sia_mc',                None),
@@ -1872,3 +1880,64 @@ def salvar_secao_config(dados):
     new_id = cur.lastrowid
     conn.close()
     return new_id
+
+
+# ── Configurações do Sistema (sistema_config) ───────────────────────────────────
+
+_SEED_SISTEMA_CONFIG = [
+    # (chave, valor, descricao)
+    ('competencia_offset_meses', '-1',
+     'Deslocamento em meses (relativo ao mês corrente do servidor) usado para '
+     'pré-selecionar a competência (ano/mês) ao inserir um novo registro. '
+     '-1 = mês anterior, 0 = mês atual, 1 = mês seguinte.'),
+]
+
+
+def _seed_sistema_config_sqlite():
+    """Seed inicial da tabela sistema_config no SQLite."""
+    conn = get_db()
+    try:
+        conn.executemany(
+            "INSERT OR IGNORE INTO sistema_config (chave, valor, descricao) VALUES (?,?,?)",
+            _SEED_SISTEMA_CONFIG
+        )
+        conn.commit()
+    except Exception:
+        pass
+    finally:
+        conn.close()
+
+
+def obter_config(chave, default=None):
+    """Retorna o valor (string) de uma configuração do sistema, ou `default` se não existir."""
+    if USE_SUPABASE:
+        try:
+            r = get_sb().table('sistema_config').select('valor').eq('chave', chave).execute()
+            if r.data:
+                return r.data[0]['valor']
+        except Exception:
+            pass
+        return default
+    try:
+        conn = get_db()
+        row = conn.execute("SELECT valor FROM sistema_config WHERE chave=?", (chave,)).fetchone()
+        conn.close()
+        return row['valor'] if row else default
+    except Exception:
+        return default
+
+
+def salvar_config(chave, valor):
+    """Cria ou atualiza uma configuração do sistema (chave/valor)."""
+    if USE_SUPABASE:
+        get_sb().table('sistema_config').upsert(
+            {'chave': chave, 'valor': str(valor)}, on_conflict='chave'
+        ).execute()
+        return
+    conn = get_db()
+    conn.execute("""
+        INSERT INTO sistema_config (chave, valor) VALUES (?, ?)
+        ON CONFLICT(chave) DO UPDATE SET valor = excluded.valor, updated_at = CURRENT_TIMESTAMP
+    """, (chave, str(valor)))
+    conn.commit()
+    conn.close()

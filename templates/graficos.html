@@ -439,7 +439,6 @@ async function renderFaec() {
     data: {
       labels: data.map(d => 'DRS ' + d.drs),
       datasets: [
-        { label: 'AIH Físico',    data: data.map(d => d.aih_fisico||0),           backgroundColor: '#1e3a5fcc', borderRadius: 3 },
         { label: 'AIH FAEC',      data: data.map(d => d.aih_faec||0),             backgroundColor: '#2a7dd8cc', borderRadius: 3 },
         { label: 'SIA FAEC',      data: data.map(d => d.sia_faec||0),             backgroundColor: '#1a7a4acc', borderRadius: 3 },
         { label: 'Equip. Hemod.', data: data.map(d => d.equip_hemodialise||0),    backgroundColor: '#e07b00cc', borderRadius: 3 },
