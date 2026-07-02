@@ -25,6 +25,55 @@
   {% set _ = campos_calc.append(c) %}
 {% endfor %}
 
+{% if not registro %}
+<div class="card mb-3 border-info">
+  <div class="card-header bg-info text-white py-2 d-flex align-items-center gap-2" role="button"
+       data-bs-toggle="collapse" data-bs-target="#painelCopiar">
+    <i class="bi bi-clipboard-plus"></i>
+    <strong>Copiar dados de um registro anterior</strong>
+    <i class="bi bi-chevron-down ms-auto"></i>
+  </div>
+  <div class="collapse show" id="painelCopiar">
+    <div class="card-body">
+      <p class="small text-muted mb-2">
+        Selecione a competência de origem, busque a unidade e clique no resultado para
+        preencher o formulário com os dados dela. A competência de destino (ano/mês) abaixo
+        não é alterada — ajuste os valores necessários e salve.
+      </p>
+      <div class="row g-2 align-items-end mb-2">
+        <div class="col-auto">
+          <label class="form-label small fw-bold mb-1">Mês de origem</label>
+          <select id="origemMes" class="form-select form-select-sm">
+            {% for num, nome in meses.items() %}
+              <option value="{{ num }}">{{ nome }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-auto">
+          <label class="form-label small fw-bold mb-1">Ano de origem</label>
+          <select id="origemAno" class="form-select form-select-sm">
+            {% for ano in anos_disponiveis %}
+              <option value="{{ ano }}">{{ ano }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col">
+          <label class="form-label small fw-bold mb-1">Buscar unidade (nome ou CNES)</label>
+          <input type="text" id="origemBusca" class="form-control form-control-sm" placeholder="Digite para buscar...">
+        </div>
+        <div class="col-auto">
+          <button type="button" class="btn btn-sm btn-info text-white" onclick="buscarRegistrosOrigem()">
+            <i class="bi bi-search me-1"></i>Buscar
+          </button>
+        </div>
+      </div>
+      <div id="listaOrigem" class="small text-muted">Selecione a competência e busque uma unidade para copiar os dados.</div>
+      <div id="avisoCopia" class="alert alert-success py-2 mt-2 mb-0 d-none small"></div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <form method="post" class="needs-validation" novalidate>
 
   <!-- ── IDENTIFICAÇÃO (seção fixa) ──────────────────────────────────────────── -->
@@ -305,6 +354,92 @@ document.addEventListener('DOMContentLoaded', function() {
   });
   recalcularTodos(); // calcula na carga da página
 });
+
+// ── Copiar dados de um registro de outra competência ────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  const selOrigemMes = document.getElementById('origemMes');
+  const selOrigemAno = document.getElementById('origemAno');
+  if (!selOrigemMes || !selOrigemAno) return; // só existe na tela de inserir
+
+  // Pré-seleciona a origem como "um mês antes" da competência de destino atual
+  const mesDestino = parseInt(document.querySelector('[name=mes]')?.value, 10) || (new Date()).getMonth() + 1;
+  const anoDestino = parseInt(document.querySelector('[name=ano]')?.value, 10) || (new Date()).getFullYear();
+  let mesOrigem = mesDestino - 1, anoOrigem = anoDestino;
+  if (mesOrigem < 1) { mesOrigem = 12; anoOrigem -= 1; }
+  selOrigemMes.value = mesOrigem;
+  selOrigemAno.value = anoOrigem;
+
+  let _buscaOrigemDeb;
+  document.getElementById('origemBusca')?.addEventListener('input', function() {
+    clearTimeout(_buscaOrigemDeb);
+    _buscaOrigemDeb = setTimeout(buscarRegistrosOrigem, 400);
+  });
+  selOrigemMes.addEventListener('change', buscarRegistrosOrigem);
+  selOrigemAno.addEventListener('change', buscarRegistrosOrigem);
+});
+
+async function buscarRegistrosOrigem() {
+  const lista = document.getElementById('listaOrigem');
+  const ano = document.getElementById('origemAno').value;
+  const mes = document.getElementById('origemMes').value;
+  const q = document.getElementById('origemBusca').value.trim();
+  lista.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Buscando...';
+  try {
+    const params = new URLSearchParams({ ano: ano, mes: mes, per_page: '50' });
+    if (q) params.set('q', q);
+    const r = await fetch('/api/detalhamento/registros?' + params.toString());
+    const data = await r.json();
+    const regs = data.registros || [];
+    if (!regs.length) {
+      lista.innerHTML = '<span class="text-muted">Nenhum registro encontrado para essa competência/busca.</span>';
+      return;
+    }
+    lista.innerHTML = '<div class="list-group" style="max-height:260px;overflow:auto">' +
+      regs.map(function(reg) {
+        const nome = (reg.unidade || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        return '<button type="button" class="list-group-item list-group-item-action py-1 px-2" ' +
+          'onclick="copiarRegistroOrigem(' + reg.id + ', \'' + nome + '\')">' +
+          '<strong>' + (reg.unidade || '—') + '</strong>' +
+          '<span class="text-muted small"> · CNES ' + (reg.cnes || '—') +
+          ' · DRS ' + (reg.drs != null ? reg.drs : '—') +
+          ' · ' + (reg.municipio || '—') + '</span>' +
+          '</button>';
+      }).join('') + '</div>';
+  } catch (e) {
+    lista.innerHTML = '<span class="text-danger">Erro ao buscar registros.</span>';
+  }
+}
+
+async function copiarRegistroOrigem(id, nomeUnidade) {
+  try {
+    const r = await fetch('/api/registro/' + id);
+    if (!r.ok) throw new Error('não encontrado');
+    const data = await r.json();
+
+    // Campos fixos de identificação (mantém ano/mes/id da competência de destino)
+    ['drs', 'tipo', 'hu', 'cnes', 'cnpj', 'municipio', 'unidade'].forEach(function(campo) {
+      const el = document.querySelector('[name="' + campo + '"]');
+      if (el && data[campo] !== undefined && data[campo] !== null) el.value = data[campo];
+    });
+
+    // Campos dinâmicos das seções (AIH, SIA, Teto MAC, Incentivos, personalizados)
+    document.querySelectorAll('[data-campo-key]').forEach(function(el) {
+      if (el.dataset.tipo === 'calculado') return; // recalculado abaixo
+      const valor = data[el.name];
+      if (valor !== undefined && valor !== null) el.value = valor;
+    });
+
+    if (typeof recalcularTodos === 'function') recalcularTodos();
+
+    const aviso = document.getElementById('avisoCopia');
+    if (aviso) {
+      aviso.textContent = 'Dados de "' + nomeUnidade + '" copiados. Confira a competência e ajuste os valores antes de salvar.';
+      aviso.classList.remove('d-none');
+    }
+  } catch (e) {
+    alert('Erro ao copiar dados do registro selecionado.');
+  }
+}
 
 // ── Busca por CNES para autopreenchimento ─────────────────────────────────────
 document.getElementById('inputCnes')?.addEventListener('blur', function() {

@@ -302,6 +302,14 @@ def autocomplete():
     # legada: retorna lista de dicts {cnes, unidade, municipio} para o form.html
     return jsonify(db.buscar_unidades_autocomplete(q))
 
+@app.route('/api/registro/<int:id>')
+@login_required
+def api_registro(id):
+    registro = db.buscar_registro(id)
+    if not registro:
+        return jsonify({'erro': 'Registro não encontrado'}), 404
+    return jsonify(registro)
+
 # ── CRUD ──────────────────────────────────────────────────────────────────────
 
 @app.route('/inserir', methods=['GET', 'POST'])
