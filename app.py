@@ -47,15 +47,26 @@ def _anos_disponiveis():
 def _competencia_padrao():
     """Ano/mês pré-selecionados na tela de 'Inserir Novo Registro'.
 
-    Calculado a partir do mês corrente do servidor + um deslocamento (em meses)
+    O sistema trata "mês corrente" como a COMPETÊNCIA mais recente já lançada
+    (mês/ano dos dados), não a data real do calendário do servidor — o
+    lançamento de AIH/SIA/Teto MAC costuma atrasar em relação ao mês civil.
+    Calculado a partir dessa competência + um deslocamento (em meses)
     configurável pelo admin em /admin/campos (chave 'competencia_offset_meses').
-    Padrão: -1 (mês anterior)."""
+    Padrão: -1 (mês anterior). Sem nenhum registro ainda no sistema, usa a
+    data real do servidor apenas como ponto de partida (bootstrap)."""
     try:
         offset = int(db.obter_config('competencia_offset_meses', -1))
     except (TypeError, ValueError):
         offset = -1
-    hoje = datetime.now()
-    total_meses = (hoje.year * 12 + (hoje.month - 1)) + offset
+
+    anos_meses = db.obter_anos_meses()
+    if anos_meses:
+        base_ano, base_mes = anos_meses[0]['ano'], anos_meses[0]['mes']
+    else:
+        hoje = datetime.now()
+        base_ano, base_mes = hoje.year, hoje.month
+
+    total_meses = (base_ano * 12 + (base_mes - 1)) + offset
     ano = total_meses // 12
     mes = total_meses % 12 + 1
     return ano, mes

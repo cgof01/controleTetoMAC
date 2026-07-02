@@ -1962,8 +1962,9 @@ def salvar_secao_config(dados):
 _SEED_SISTEMA_CONFIG = [
     # (chave, valor, descricao)
     ('competencia_offset_meses', '-1',
-     'Deslocamento em meses (relativo ao mês corrente do servidor) usado para '
-     'pré-selecionar a competência (ano/mês) ao inserir um novo registro. '
+     'Deslocamento em meses (relativo à competência mais recente já lançada '
+     'no sistema, não à data real do calendário) usado para pré-selecionar a '
+     'competência (ano/mês) ao inserir um novo registro. '
      '-1 = mês anterior, 0 = mês atual, 1 = mês seguinte.'),
 ]
 

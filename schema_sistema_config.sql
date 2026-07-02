@@ -12,12 +12,14 @@ CREATE TABLE IF NOT EXISTS sistema_config (
 );
 
 -- ── Seed ──────────────────────────────────────────────────────────────────────
--- competencia_offset_meses: deslocamento em meses (relativo ao mês corrente do
--- servidor) usado para pré-selecionar a competência (ano/mês) na tela
--- "Inserir Novo Registro". -1 = mês anterior, 0 = mês atual, 1 = mês seguinte.
+-- competencia_offset_meses: deslocamento em meses (relativo à COMPETÊNCIA mais
+-- recente já lançada no sistema, não à data real do calendário do servidor)
+-- usado para pré-selecionar a competência (ano/mês) na tela "Inserir Novo
+-- Registro". -1 = mês anterior, 0 = mês atual, 1 = mês seguinte.
 -- Editável em /admin/campos (card "Configurações do Sistema").
 INSERT INTO sistema_config (chave, valor, descricao) VALUES
   ('competencia_offset_meses', '-1',
-   'Deslocamento em meses (relativo ao mês corrente) usado para pré-selecionar '
-   'a competência ao inserir um novo registro. -1 = mês anterior, 0 = mês atual, 1 = mês seguinte.')
+   'Deslocamento em meses (relativo à competência mais recente já lançada no '
+   'sistema, não à data real do calendário) usado para pré-selecionar a '
+   'competência ao inserir um novo registro. -1 = mês anterior, 0 = mês atual, 1 = mês seguinte.')
 ON CONFLICT (chave) DO NOTHING;
