@@ -569,6 +569,37 @@ def relatorio_comparativo_unidade():
 
 # ── Exportação Excel ──────────────────────────────────────────────────────────
 
+# Mesmo agrupamento por seção usado no formulário (campo_config: aih/sia/teto_mac/incentivos),
+# para colorir os cabeçalhos dos relatórios .xlsx e diferenciar visualmente cada bloco.
+_SECAO_POR_CAMPO_EXCEL = {
+    'aih_fisico': 'aih', 'aih_faec': 'aih', 'aih_mc': 'aih', 'aih_ac': 'aih', 'aih_total': 'aih',
+    'total_aih': 'aih',
+    'sia_faec': 'sia', 'sia_mc': 'sia', 'sia_ac': 'sia', 'sia_total': 'sia',
+    'equip_hemodialise': 'sia', 'limite_complementacao': 'sia', 'total_sia': 'sia',
+    'teto_global': 'teto_mac', 'teto_mc': 'teto_mac', 'teto_ac': 'teto_mac',
+    'teto_mac': 'teto_mac', 'total_teto_mac': 'teto_mac', 'portaria_ms_gm_8516': 'teto_mac',
+    'integrasus': 'incentivos', 'iac': 'incentivos', 'sus_100': 'incentivos', 'opo': 'incentivos',
+    'rede_viver_sem_limite': 'incentivos', 'rede_brasil_miseria': 'incentivos', 'rsme': 'incentivos',
+    'rce_rceg': 'incentivos', 'rau_hosp_sos': 'incentivos', 'rca_rcan': 'incentivos', 'iapi': 'incentivos',
+    'residencia_medica': 'incentivos', 'melhor_em_casa': 'incentivos', 'cer': 'incentivos',
+    'doencas_raras': 'incentivos', 'oficina_ortopedica': 'incentivos', 'ihac': 'incentivos',
+    'total_mc_ac_incentivos': 'incentivos', 'total_incentivos': 'incentivos',
+}
+# Mesmas cores das seções do formulário (secao_config: aih=success, sia=info,
+# teto_mac=secondary, incentivos=warning) — (cor de fundo, cor da fonte).
+_CORES_SECAO_EXCEL = {
+    'aih':        ('198754', 'FFFFFF'),
+    'sia':        ('0DCAF0', '000000'),
+    'teto_mac':   ('6C757D', 'FFFFFF'),
+    'incentivos': ('FFC107', '000000'),
+}
+_COR_HEADER_PADRAO = ('1E3A5F', 'FFFFFF')  # identificação / totais gerais / sem seção
+
+def _cores_header_campo(campo):
+    """(cor_fundo, cor_fonte) do cabeçalho .xlsx conforme a seção do campo."""
+    secao = _SECAO_POR_CAMPO_EXCEL.get(campo)
+    return _CORES_SECAO_EXCEL.get(secao, _COR_HEADER_PADRAO)
+
 @app.route('/exportar/excel')
 @login_required
 def exportar_excel():
@@ -587,19 +618,11 @@ def exportar_excel():
     ws = wb.active
     ws.title = 'Teto MAC'
 
-    azul_header = PatternFill("solid", fgColor="1e3a5f")
-    fonte_header = Font(bold=True, color="FFFFFF", size=11)
     fonte_titulo = Font(bold=True, color="1e3a5f", size=14)
     borda = Border(
         left=Side(style='thin'), right=Side(style='thin'),
         top=Side(style='thin'), bottom=Side(style='thin')
     )
-
-    ws.merge_cells('A1:AK1')
-    ws['A1'] = 'SECRETARIA DE ESTADO DA SAÚDE - SP | CONTROLE DE TETO MAC'
-    ws['A1'].font = fonte_titulo
-    ws['A1'].alignment = Alignment(horizontal='center', vertical='center')
-    ws.row_dimensions[1].height = 25
 
     headers = [
         'Ano', 'Mês', 'DRS', 'Tipo', 'HU', 'Município', 'CNES', 'CNPJ', 'Unidade',
@@ -612,13 +635,11 @@ def exportar_excel():
         'Of. Ortopédica', 'IHAC', 'Total MC+AC+Incentivos'
     ]
 
-    for col, h in enumerate(headers, 1):
-        cell = ws.cell(row=2, column=col, value=h)
-        cell.font = fonte_header
-        cell.fill = azul_header
-        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
-        cell.border = borda
-    ws.row_dimensions[2].height = 30
+    ws.merge_cells(f'A1:{get_column_letter(len(headers))}1')
+    ws['A1'] = 'SECRETARIA DE ESTADO DA SAÚDE - SP | CONTROLE DE TETO MAC'
+    ws['A1'].font = fonte_titulo
+    ws['A1'].alignment = Alignment(horizontal='center', vertical='center')
+    ws.row_dimensions[1].height = 25
 
     campos = [
         'ano', 'mes', 'drs', 'tipo', 'hu', 'municipio', 'cnes', 'cnpj', 'unidade',
@@ -630,6 +651,15 @@ def exportar_excel():
         'residencia_medica', 'melhor_em_casa', 'cer', 'doencas_raras',
         'oficina_ortopedica', 'ihac', 'total_mc_ac_incentivos'
     ]
+
+    for col, (h, campo) in enumerate(zip(headers, campos), 1):
+        cor_fundo, cor_fonte = _cores_header_campo(campo)
+        cell = ws.cell(row=2, column=col, value=h)
+        cell.font = Font(bold=True, color=cor_fonte, size=11)
+        cell.fill = PatternFill("solid", fgColor=cor_fundo)
+        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        cell.border = borda
+    ws.row_dimensions[2].height = 30
 
     fill_par = PatternFill("solid", fgColor="EBF3FB")
     fmt_moeda = '#,##0.00'
@@ -687,18 +717,18 @@ def exportar_excel_drs():
     ws = wb.active
     ws.title = f'Resumo DRS {MESES.get(mes,"")} {ano}'
 
-    azul = PatternFill("solid", fgColor="1e3a5f")
-    fonte_h = Font(bold=True, color="FFFFFF")
+    headers = ['DRS', 'Total Unidades', 'AIH Físico', 'Total AIH', 'Total SIA', 'Teto MAC', 'Total Incentivos', 'Total Geral']
 
     ws['A1'] = f'RESUMO POR DRS - {MESES.get(mes,"").upper()} {ano}'
     ws['A1'].font = Font(bold=True, size=13, color="1e3a5f")
-    ws.merge_cells('A1:I1')
+    ws.merge_cells(f'A1:{get_column_letter(len(headers))}1')
 
-    headers = ['DRS', 'Total Unidades', 'AIH Físico', 'Total AIH', 'Total SIA', 'Teto MAC', 'Total Incentivos', 'Total Geral']
-    for col, h in enumerate(headers, 1):
+    campos_h = ['drs', 'total_unidades', 'aih_fisico', 'total_aih', 'total_sia', 'teto_mac', 'total_incentivos', 'total_geral']
+    for col, (h, campo) in enumerate(zip(headers, campos_h), 1):
+        cor_fundo, cor_fonte = _cores_header_campo(campo)
         c = ws.cell(row=2, column=col, value=h)
-        c.font = fonte_h
-        c.fill = azul
+        c.font = Font(bold=True, color=cor_fonte)
+        c.fill = PatternFill("solid", fgColor=cor_fundo)
 
     for r, row in enumerate(dados, 3):
         ws.cell(r, 1, row.get('drs'))
