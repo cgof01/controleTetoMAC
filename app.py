@@ -749,6 +749,102 @@ def exportar_excel_drs():
         download_name=f'ResumoD RS_{ano}_{mes:02d}.xlsx'
     )
 
+# Campos de contagem física (não monetários) — mesma lista usada no front (QTY_FIELDS)
+_CAMPOS_QUANTIDADE = {'aih_fisico', '_count'}
+
+@app.route('/exportar/analitico-excel', methods=['POST'])
+@login_required
+def exportar_analitico_excel():
+    """Gera um .xlsx a partir do relatório exatamente como configurado/exibido na
+    Central de Relatórios Analíticos (colunas, linhas filtradas e ordenação atuais
+    são enviadas prontas pelo front-end)."""
+    try:
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
+    except ImportError:
+        return jsonify({'erro': 'openpyxl não instalado'}), 500
+
+    body = request.get_json(force=True) or {}
+    ano = body.get('ano')
+    mes = body.get('mes')
+    titulo = (body.get('titulo') or 'Relatório').strip()
+    colunas = body.get('colunas') or []
+    linhas = body.get('linhas') or []
+    if not colunas or not linhas:
+        return jsonify({'erro': 'Sem dados para exportar'}), 400
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'Relatório'
+
+    fonte_titulo = Font(bold=True, color="1e3a5f", size=14)
+    borda = Border(
+        left=Side(style='thin'), right=Side(style='thin'),
+        top=Side(style='thin'), bottom=Side(style='thin')
+    )
+
+    n_cols = len(colunas)
+    try:
+        subtitulo = f"{MESES.get(int(mes), mes)}/{int(ano)}" if ano and mes else ''
+    except (TypeError, ValueError):
+        subtitulo = ''
+    ws.merge_cells(f'A1:{get_column_letter(n_cols)}1')
+    ws['A1'] = titulo.upper() + (f' — {subtitulo}' if subtitulo else '')
+    ws['A1'].font = fonte_titulo
+    ws['A1'].alignment = Alignment(horizontal='center', vertical='center')
+    ws.row_dimensions[1].height = 25
+
+    for col, c in enumerate(colunas, 1):
+        key = c.get('key', '')
+        is_dim = bool(c.get('dimensao')) or key == '_count'
+        cor_fundo, cor_fonte = _COR_HEADER_PADRAO if is_dim else _cores_header_campo(key)
+        cell = ws.cell(row=2, column=col, value=c.get('label', key))
+        cell.font = Font(bold=True, color=cor_fonte, size=11)
+        cell.fill = PatternFill("solid", fgColor=cor_fundo)
+        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        cell.border = borda
+    ws.row_dimensions[2].height = 30
+
+    fill_par = PatternFill("solid", fgColor="EBF3FB")
+    fmt_moeda = '#,##0.00'
+    fmt_numero = '#,##0'
+
+    for row_num, linha in enumerate(linhas, 3):
+        fill = fill_par if row_num % 2 == 0 else None
+        for col, c in enumerate(colunas, 1):
+            key = c.get('key', '')
+            val = linha.get(key, '')
+            cell = ws.cell(row=row_num, column=col, value=val)
+            cell.border = borda
+            if fill:
+                cell.fill = fill
+            if not c.get('dimensao') and isinstance(val, (int, float)):
+                cell.number_format = fmt_numero if key in _CAMPOS_QUANTIDADE else fmt_moeda
+                cell.alignment = Alignment(horizontal='right')
+
+    for col, c in enumerate(colunas, 1):
+        ws.column_dimensions[get_column_letter(col)].width = 34 if c.get('dimensao') else 16
+
+    ws.freeze_panes = 'A3'
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    try:
+        ano_f, mes_f = int(ano), MESES.get(int(mes), mes)
+    except (TypeError, ValueError):
+        ano_f, mes_f = 'todos', 'todos'
+    filename = f'RelatorioAnalitico_{ano_f}_{mes_f}.xlsx'
+
+    return send_file(
+        output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=filename
+    )
+
 # ── Importação ────────────────────────────────────────────────────────────────
 
 @app.route('/importar', methods=['GET', 'POST'])
