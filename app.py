@@ -302,14 +302,6 @@ def autocomplete():
     # legada: retorna lista de dicts {cnes, unidade, municipio} para o form.html
     return jsonify(db.buscar_unidades_autocomplete(q))
 
-@app.route('/api/registro/<int:id>')
-@login_required
-def api_registro(id):
-    registro = db.buscar_registro(id)
-    if not registro:
-        return jsonify({'erro': 'Registro não encontrado'}), 404
-    return jsonify(registro)
-
 # ── CRUD ──────────────────────────────────────────────────────────────────────
 
 @app.route('/inserir', methods=['GET', 'POST'])
@@ -325,16 +317,59 @@ def inserir():
             flash(f'Erro ao inserir: {e}', 'danger')
 
     ano_default, mes_default = _competencia_padrao()
+    total_destino = ano_default * 12 + (mes_default - 1)
+    total_origem = total_destino - 1
+    ano_origem_default = total_origem // 12
+    mes_origem_default = total_origem % 12 + 1
     return render_template('form.html',
         registro=None,
         meses=MESES,
         anos_disponiveis=_anos_disponiveis(),
         ano_default=ano_default,
         mes_default=mes_default,
+        ano_origem_default=ano_origem_default,
+        mes_origem_default=mes_origem_default,
         titulo='Inserir Novo Registro',
         secoes=db.listar_secoes_config(),
         campos=db.listar_campos_config(),
     )
+
+@app.route('/replicar-competencia', methods=['POST'])
+@login_required
+def replicar_competencia():
+    ano_origem = request.form.get('ano_origem', type=int)
+    mes_origem = request.form.get('mes_origem', type=int)
+    ano_destino = request.form.get('ano_destino', type=int)
+    mes_destino = request.form.get('mes_destino', type=int)
+
+    if not all([ano_origem, mes_origem, ano_destino, mes_destino]):
+        flash('Informe a competência de origem e a de destino.', 'danger')
+        return redirect(url_for('inserir'))
+    if (ano_origem, mes_origem) == (ano_destino, mes_destino):
+        flash('A competência de origem e a de destino não podem ser a mesma.', 'danger')
+        return redirect(url_for('inserir'))
+
+    try:
+        resultado = db.replicar_competencia(ano_origem, mes_origem, ano_destino, mes_destino)
+        origem_lbl = f"{MESES.get(mes_origem, mes_origem)}/{ano_origem}"
+        destino_lbl = f"{MESES.get(mes_destino, mes_destino)}/{ano_destino}"
+        if resultado['copiados']:
+            flash(
+                f"{resultado['copiados']} registro(s) copiado(s) de {origem_lbl} para {destino_lbl}. "
+                f"{resultado['ja_existentes']} unidade(s) já tinham registro em {destino_lbl} e foram preservadas. "
+                f"Agora ajuste na Pesquisa/Detalhamento apenas o que mudou.",
+                'success'
+            )
+        else:
+            flash(
+                f"Nenhum registro novo copiado — todas as {resultado['ja_existentes']} unidade(s) de "
+                f"{origem_lbl} já tinham registro em {destino_lbl}.",
+                'info'
+            )
+        return redirect(url_for('pesquisa', ano=ano_destino, mes=mes_destino))
+    except Exception as e:
+        flash(f'Erro ao replicar competência: {e}', 'danger')
+        return redirect(url_for('inserir'))
 
 @app.route('/editar/<int:id>', methods=['GET', 'POST'])
 @login_required

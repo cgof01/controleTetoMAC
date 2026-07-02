@@ -226,6 +226,81 @@ def _pesquisar_sqlite(filtros, page, per_page):
     conn.close()
     return [_clean(dict(r)) for r in rows], total
 
+# ── Replicação de competência (copiar mês inteiro) ─────────────────────────────
+
+_COLS_FIXAS_REPLICAR = {
+    'ano', 'mes', 'drs', 'tipo', 'hu', 'municipio', 'cnes', 'cnpj', 'unidade',
+    'campos_extras', 'arquivo_origem',
+}
+
+def _fetch_todos_competencia(ano, mes):
+    """Busca TODOS os registros de uma competência, paginando para não depender
+    de limites de linhas por requisição (ex: max_rows do PostgREST no Supabase)."""
+    todos = []
+    page = 1
+    per_page = 500
+    while True:
+        regs, total = pesquisar({'ano': ano, 'mes': mes}, page=page, per_page=per_page)
+        if not regs:
+            break
+        todos.extend(regs)
+        if len(regs) < per_page or len(todos) >= total:
+            break
+        page += 1
+    return todos
+
+def replicar_competencia(ano_origem, mes_origem, ano_destino, mes_destino):
+    """Copia todos os registros de (ano_origem, mes_origem) para (ano_destino, mes_destino).
+    Unidades que já tenham registro na competência de destino (mesma chave
+    ano+mes+cnes+unidade usada em toda a importação/deduplicação do sistema) são
+    puladas e preservadas como estão."""
+    origem = _fetch_todos_competencia(ano_origem, mes_origem)
+    if not origem:
+        return {'copiados': 0, 'ja_existentes': 0, 'total_origem': 0}
+
+    destino = _fetch_todos_competencia(ano_destino, mes_destino)
+    existentes = {
+        (str(r.get('cnes') or ''), (r.get('unidade') or '').strip().upper())
+        for r in destino
+    }
+
+    campos_cfg = listar_campos_config(incluir_inativos=True)
+    colunas_validas = _COLS_FIXAS_REPLICAR | {c['coluna_db'] for c in campos_cfg if c.get('coluna_db')}
+
+    novos = []
+    ja_existentes = 0
+    for reg in origem:
+        chave = (str(reg.get('cnes') or ''), (reg.get('unidade') or '').strip().upper())
+        if chave in existentes:
+            ja_existentes += 1
+            continue
+        novo = {k: v for k, v in reg.items() if k in colunas_validas}
+        novo['ano'] = ano_destino
+        novo['mes'] = mes_destino
+        novos.append(novo)
+
+    if not novos:
+        return {'copiados': 0, 'ja_existentes': ja_existentes, 'total_origem': len(origem)}
+
+    if USE_SUPABASE:
+        sb = get_sb()
+        for i in range(0, len(novos), 200):
+            lote = [_prep_campos_extras(dict(n), True) for n in novos[i:i + 200]]
+            sb.table('teto_mac').insert(lote).execute()
+    else:
+        conn = get_db()
+        for n in novos:
+            n = _prep_campos_extras(dict(n), False)
+            campos = list(n.keys())
+            conn.execute(
+                f"INSERT INTO teto_mac ({','.join(campos)}) VALUES ({','.join(['?' for _ in campos])})",
+                [n[k] for k in campos]
+            )
+        conn.commit()
+        conn.close()
+
+    return {'copiados': len(novos), 'ja_existentes': ja_existentes, 'total_origem': len(origem)}
+
 # ── Lookups ────────────────────────────────────────────────────────────────────
 
 def obter_anos_meses():
