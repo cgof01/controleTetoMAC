@@ -18,6 +18,8 @@
         <p class="text-muted small mb-3">
           Selecione várias planilhas de uma vez. O ano e mês são detectados automaticamente
           pelo nome do arquivo (ex: <code>Teto Janeiro_2024_Final.xls</code>).
+          Reimportar uma planilha da mesma competência não duplica registros: unidades já
+          existentes são atualizadas e apenas as novas são inseridas.
         </p>
         <form method="post" enctype="multipart/form-data" id="formLote">
           <input type="hidden" name="acao" value="importar_multiplos">
@@ -33,13 +35,6 @@
             </div>
             <div id="listaArquivos" class="mt-2 small text-muted"></div>
           </div>
-          <div class="form-check mb-3">
-            <input class="form-check-input" type="checkbox" name="substituir" value="1" id="subst">
-            <label class="form-check-label" for="subst">
-              <strong class="text-warning">Substituir registros existentes</strong>
-              <small class="text-muted d-block">Se desmarcado, duplicatas serão puladas</small>
-            </label>
-          </div>
           <button type="submit" class="btn btn-primary w-100" id="btnLote" disabled>
             <i class="bi bi-play-circle me-2"></i>Importar Planilhas Selecionadas
           </button>
@@ -48,6 +43,67 @@
     </div>
   </div>
 
+  {% if session.get('usuario_perfil') == 'admin' %}
+  <!-- Excluir todos os registros de uma competência -->
+  <div class="col-md-8 mx-auto">
+    <div class="card h-100 border-danger">
+      <div class="card-header bg-danger text-white">
+        <i class="bi bi-trash3 me-2"></i><strong>Excluir Competência</strong>
+      </div>
+      <div class="card-body">
+        <p class="text-muted small mb-3">
+          Remove <strong>todos</strong> os registros de um mês/ano específico. Use antes de
+          reimportar uma planilha do zero, se necessário.
+        </p>
+        <div class="row g-2 align-items-end">
+          <div class="col-5">
+            <label class="form-label small fw-bold mb-1">Mês</label>
+            <select class="form-select" id="delMes">
+              {% for num, nome in meses.items() %}
+              <option value="{{ num }}">{{ nome }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-4">
+            <label class="form-label small fw-bold mb-1">Ano</label>
+            <select class="form-select" id="delAno">
+              {% for a in anos_disponiveis %}
+              <option value="{{ a }}">{{ a }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-3">
+            <button type="button" class="btn btn-outline-danger w-100" id="btnExcluirCompetencia">
+              Excluir
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+<!-- Confirmar exclusão de competência -->
+<div class="modal fade" id="modalExcluirCompetencia" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-danger text-white">
+        <h6 class="modal-title"><i class="bi bi-exclamation-octagon me-1"></i>Excluir Competência</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p>Esta ação irá excluir <strong>TODOS</strong> os registros de
+           <strong id="competenciaLabel"></strong>.</p>
+        <p class="text-danger mb-0"><strong>Esta operação não pode ser desfeita.</strong></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-danger" id="btnConfirmExcluirCompetencia">Excluir Tudo</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- Resultados da importação -->
@@ -56,9 +112,10 @@
   <div class="card-header bg-white d-flex justify-content-between align-items-center">
     <strong><i class="bi bi-check-circle text-success me-2"></i>Resultado da Importação</strong>
     {% set total_imp = resultados | sum(attribute='importados') %}
+    {% set total_upd = resultados | sum(attribute='atualizados') %}
     {% set total_err = resultados | sum(attribute='erros') %}
     <span class="badge {{ 'bg-success' if total_err == 0 else 'bg-warning' }}">
-      {{ total_imp }} importados / {{ total_err }} erros
+      {{ total_imp }} novos / {{ total_upd }} atualizados / {{ total_err }} erros
     </span>
   </div>
   <div class="card-body p-0">
@@ -69,8 +126,8 @@
             <th>Arquivo</th>
             <th>Ano/Mês</th>
             <th class="text-center">Total</th>
-            <th class="text-center">Importados</th>
-            <th class="text-center">Pulados</th>
+            <th class="text-center">Novos</th>
+            <th class="text-center">Atualizados</th>
             <th class="text-center">Erros</th>
             <th>Mensagens</th>
           </tr>
@@ -82,7 +139,7 @@
             <td><span class="badge badge-drs">{{ (r.mes | mes_nome)[:3] if r.mes else '?' }}/{{ r.ano or '?' }}</span></td>
             <td class="text-center">{{ r.total }}</td>
             <td class="text-center"><span class="badge bg-success">{{ r.importados }}</span></td>
-            <td class="text-center"><span class="badge bg-secondary">{{ r.pulados }}</span></td>
+            <td class="text-center"><span class="badge bg-info text-dark">{{ r.get('atualizados', 0) }}</span></td>
             <td class="text-center">
               {% if r.erros > 0 %}
                 <span class="badge bg-danger">{{ r.erros }}</span>
@@ -114,7 +171,8 @@
             <th>Data/Hora</th>
             <th>Arquivo</th>
             <th>Competência</th>
-            <th class="text-center">Importados</th>
+            <th class="text-center">Novos</th>
+            <th class="text-center">Atualizados</th>
             <th>Status</th>
           </tr>
         </thead>
@@ -131,6 +189,7 @@
               {% endif %}
             </td>
             <td class="text-center">{{ h.registros_importados }}</td>
+            <td class="text-center">{{ h.get('registros_atualizados', 0) }}</td>
             <td>
               <span class="badge {{ 'bg-success' if h.status == 'concluido' else 'bg-danger' }}">
                 {{ h.status }}
@@ -191,6 +250,38 @@
     btnLote.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Importando… Aguarde';
     btnLote.disabled = true;
   });
+
+  const btnExcluir = document.getElementById('btnExcluirCompetencia');
+  if (btnExcluir) {
+    const delMes = document.getElementById('delMes');
+    const delAno = document.getElementById('delAno');
+    const modalEl = document.getElementById('modalExcluirCompetencia');
+    const modal = new bootstrap.Modal(modalEl);
+
+    btnExcluir.addEventListener('click', () => {
+      document.getElementById('competenciaLabel').textContent =
+        `${delMes.options[delMes.selectedIndex].text}/${delAno.value}`;
+      modal.show();
+    });
+
+    document.getElementById('btnConfirmExcluirCompetencia').addEventListener('click', async () => {
+      const btn = document.getElementById('btnConfirmExcluirCompetencia');
+      btn.disabled = true;
+      try {
+        const res = await fetch('/auditoria/deletar-periodo', {
+          method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ano: parseInt(delAno.value), mes: parseInt(delMes.value)})
+        });
+        const d = await res.json();
+        modal.hide();
+        alert(d.ok ? `Competência excluída: ${d.deletados} registros removidos.` : (d.msg || 'Erro ao excluir.'));
+      } catch (e) {
+        alert('Erro ao excluir competência.');
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  }
 })();
 </script>
 {% endblock %}

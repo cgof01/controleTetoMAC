@@ -865,7 +865,6 @@ def importar():
 
     if request.method == 'POST':
         acao = request.form.get('acao')
-        substituir = request.form.get('substituir') == '1'
 
         if acao == 'importar_multiplos':
             arquivos = request.files.getlist('arquivos')
@@ -882,14 +881,15 @@ def importar():
                     arquivo.save(tmp.name)
                     tmp.close()
                     try:
-                        res = importar_arquivo_xls(tmp.name, None, None, substituir, nome_original=arquivo.filename)
+                        res = importar_arquivo_xls(tmp.name, None, None, nome_original=arquivo.filename)
                         res['arquivo'] = arquivo.filename
                         resultados.append(res)
                     finally:
                         os.unlink(tmp.name)
-                total_imp = sum(r['importados'] for r in resultados)
+                total_novos = sum(r['importados'] for r in resultados)
+                total_upd = sum(r.get('atualizados', 0) for r in resultados)
                 total_err = sum(r['erros'] for r in resultados)
-                flash(f'{len(resultados)} arquivo(s) processado(s) — {total_imp} registros importados, {total_err} erros.',
+                flash(f'{len(resultados)} arquivo(s) processado(s) — {total_novos} novos, {total_upd} atualizados, {total_err} erros.',
                       'success' if total_err == 0 else 'warning')
                 return render_template('importar.html',
                     resultados=resultados,
@@ -910,9 +910,9 @@ def importar():
                 try:
                     ano = request.form.get('ano', type=int)
                     mes = request.form.get('mes', type=int)
-                    res = importar_arquivo_xls(tmp.name, ano, mes, substituir, nome_original=arquivo.filename)
+                    res = importar_arquivo_xls(tmp.name, ano, mes, nome_original=arquivo.filename)
                     res['arquivo'] = arquivo.filename
-                    flash(f'Arquivo "{arquivo.filename}": {res["importados"]} registros importados de {res["total"]} ({res["pulados"]} pulados, {res["erros"]} erros)', 'success' if res['erros'] == 0 else 'warning')
+                    flash(f'Arquivo "{arquivo.filename}": {res["importados"]} novos, {res.get("atualizados", 0)} atualizados de {res["total"]} ({res["erros"]} erros)', 'success' if res['erros'] == 0 else 'warning')
                     return render_template('importar.html',
                         resultados=[res],
                         anos_disponiveis=list(range(2022, 2027)),

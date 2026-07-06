@@ -61,6 +61,10 @@ CREATE INDEX IF NOT EXISTS idx_teto_cnes ON teto_mac(cnes);
 CREATE INDEX IF NOT EXISTS idx_teto_municipio ON teto_mac(municipio);
 CREATE INDEX IF NOT EXISTS idx_teto_drs ON teto_mac(drs);
 
+-- Chave única por competência + unidade: impede duplicação em reimportações
+-- e permite o upsert (insere o que é novo, atualiza o que já existe)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_teto_ano_mes_cnes_unidade_uidx ON teto_mac(ano, mes, cnes, unidade);
+
 -- Tabela de histórico de importações
 CREATE TABLE IF NOT EXISTS importacoes (
     id BIGSERIAL PRIMARY KEY,
@@ -69,6 +73,7 @@ CREATE TABLE IF NOT EXISTS importacoes (
     mes INTEGER,
     total_registros INTEGER DEFAULT 0,
     registros_importados INTEGER DEFAULT 0,
+    registros_atualizados INTEGER DEFAULT 0,
     registros_erro INTEGER DEFAULT 0,
     status TEXT DEFAULT 'pendente',
     mensagem TEXT,

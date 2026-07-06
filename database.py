@@ -1453,12 +1453,14 @@ def _init_sqlite():
             campos_extras TEXT DEFAULT '{}',
             arquivo_origem TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(ano, mes, cnes, unidade)
         );
         CREATE TABLE IF NOT EXISTS importacoes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             arquivo TEXT, ano INTEGER, mes INTEGER,
             total_registros INTEGER DEFAULT 0, registros_importados INTEGER DEFAULT 0,
+            registros_atualizados INTEGER DEFAULT 0,
             registros_erro INTEGER DEFAULT 0, status TEXT DEFAULT 'pendente',
             mensagem TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
