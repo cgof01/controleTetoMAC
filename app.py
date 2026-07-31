@@ -1185,7 +1185,9 @@ def central_analitica():
 def api_kpis_central():
     ano = request.args.get('ano', type=int)
     mes = request.args.get('mes', type=int)
-    return jsonify(db.kpis_central(ano, mes))
+    ano_fim = request.args.get('ano_fim', type=int)
+    mes_fim = request.args.get('mes_fim', type=int)
+    return jsonify(db.kpis_central(ano, mes, ano_fim, mes_fim))
 
 @app.route('/api/analitico', methods=['GET', 'POST'])
 @login_required
@@ -1196,8 +1198,12 @@ def api_analitico():
         body = request.args.to_dict()
     ano  = body.get('ano') or request.args.get('ano', type=int)
     mes  = body.get('mes') or request.args.get('mes', type=int)
+    ano_fim = body.get('ano_fim') or request.args.get('ano_fim', type=int)
+    mes_fim = body.get('mes_fim') or request.args.get('mes_fim', type=int)
     try:
         ano = int(ano); mes = int(mes)
+        ano_fim = int(ano_fim) if ano_fim else None
+        mes_fim = int(mes_fim) if mes_fim else None
     except (TypeError, ValueError):
         return jsonify({'error': 'ano e mes obrigatórios'}), 400
     dimensoes   = body.get('dimensoes', [])
@@ -1205,7 +1211,7 @@ def api_analitico():
     filtros     = body.get('filtros', {})
     ordenar_por = body.get('ordenar_por')
     limite      = int(body.get('limite', 500))
-    return jsonify(db.consulta_analitica(ano, mes, dimensoes, metricas, filtros, ordenar_por, limite))
+    return jsonify(db.consulta_analitica(ano, mes, dimensoes, metricas, filtros, ordenar_por, limite, ano_fim, mes_fim))
 
 @app.route('/api/relatorio/unidade')
 @login_required

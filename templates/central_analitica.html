@@ -148,16 +148,36 @@
     <small>CGOF/SES-SP — Construa, explore e exporte relatórios do Teto MAC</small>
   </div>
   <div class="d-flex gap-2 align-items-center flex-wrap">
-    <select id="selAno" class="form-select form-select-sm" style="width:90px">
+    <div class="btn-group btn-group-sm" role="group">
+      <button type="button" class="btn btn-light active" data-modo="mes">Mês</button>
+      <button type="button" class="btn btn-light" data-modo="ano">Ano</button>
+      <button type="button" class="btn btn-light" data-modo="periodo">Período</button>
+    </div>
+    <select id="selAno" class="form-select form-select-sm" style="width:90px" onchange="recarregar()">
       {% for ano in anos_disponiveis %}
         <option value="{{ ano }}" {{ 'selected' if ano == ultimo.ano }}>{{ ano }}</option>
       {% endfor %}
     </select>
-    <select id="selMes" class="form-select form-select-sm" style="width:125px">
-      {% for num, nome in meses.items() %}
-        <option value="{{ num }}" {{ 'selected' if num == ultimo.mes }}>{{ nome }}</option>
-      {% endfor %}
-    </select>
+    <span id="wrapMesCa">
+      <select id="selMes" class="form-select form-select-sm" style="width:125px" onchange="recarregar()">
+        {% for num, nome in meses.items() %}
+          <option value="{{ num }}" {{ 'selected' if num == ultimo.mes }}>{{ nome }}</option>
+        {% endfor %}
+      </select>
+    </span>
+    <span id="periodoAteCa" class="d-none align-items-center gap-2">
+      <i class="bi bi-arrow-right text-white-50"></i>
+      <select id="selAnoFim" class="form-select form-select-sm" style="width:90px" onchange="recarregar()">
+        {% for ano in anos_disponiveis %}
+          <option value="{{ ano }}" {{ 'selected' if ano == ultimo.ano }}>{{ ano }}</option>
+        {% endfor %}
+      </select>
+      <select id="selMesFim" class="form-select form-select-sm" style="width:125px" onchange="recarregar()">
+        {% for num, nome in meses.items() %}
+          <option value="{{ num }}" {{ 'selected' if num == ultimo.mes }}>{{ nome }}</option>
+        {% endfor %}
+      </select>
+    </span>
     <button class="btn btn-light btn-sm" onclick="recarregar()"><i class="bi bi-arrow-clockwise me-1"></i>Atualizar</button>
     <button class="btn btn-success btn-sm" onclick="exportCSV()"><i class="bi bi-filetype-csv me-1"></i>CSV</button>
     <button class="btn btn-success btn-sm" onclick="exportExcel()"><i class="bi bi-file-excel me-1"></i>Excel</button>
@@ -389,9 +409,38 @@ function fmtMetric(field, v) {
 let _debT;
 function debLoad() { clearTimeout(_debT); _debT = setTimeout(loadData, 450); }
 
+// ── Modo Mês/Ano/Período — mesmo padrão da Central de Relatórios (Relatórios) ──
+let _modoCa = 'mes';
+
 function getAnoMes() {
-  return { ano: +document.getElementById('selAno').value, mes: +document.getElementById('selMes').value };
+  const ano = +document.getElementById('selAno').value;
+  const mes = +document.getElementById('selMes').value;
+  if (_modoCa === 'ano') return { ano, mes: 1, ano_fim: ano, mes_fim: 12 };
+  if (_modoCa === 'periodo') {
+    return {
+      ano, mes,
+      ano_fim: +document.getElementById('selAnoFim').value,
+      mes_fim: +document.getElementById('selMesFim').value,
+    };
+  }
+  return { ano, mes, ano_fim: null, mes_fim: null };
 }
+function periodoParams(p) {
+  const params = { ano: p.ano, mes: p.mes };
+  if (p.ano_fim) { params.ano_fim = p.ano_fim; params.mes_fim = p.mes_fim; }
+  return params;
+}
+document.querySelectorAll('.ca-header [data-modo]').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    _modoCa = btn.dataset.modo;
+    document.querySelectorAll('.ca-header [data-modo]').forEach(b => b.classList.toggle('active', b === btn));
+    document.getElementById('wrapMesCa').style.display = (_modoCa === 'ano') ? 'none' : '';
+    const ate = document.getElementById('periodoAteCa');
+    ate.classList.toggle('d-none', _modoCa !== 'periodo');
+    ate.classList.toggle('d-flex', _modoCa === 'periodo');
+    recarregar();
+  });
+});
 
 // ── Sidebar render ──────────────────────────────────────────────────────────
 function renderSb() {
@@ -446,8 +495,8 @@ function toggleSb() {
 
 // ── KPIs ────────────────────────────────────────────────────────────────────
 async function loadKPIs() {
-  const {ano, mes} = getAnoMes();
-  const kpi = await fetch(`/api/kpis-central?ano=${ano}&mes=${mes}`).then(r=>r.json()).catch(()=>({}));
+  const qs = new URLSearchParams(periodoParams(getAnoMes())).toString();
+  const kpi = await fetch(`/api/kpis-central?${qs}`).then(r=>r.json()).catch(()=>({}));
   document.getElementById('kTeto').textContent  = moedaK(kpi.total_teto_mac||0);
   document.getElementById('kFaec').textContent  = moedaK(kpi.total_faec||0);
   document.getElementById('kAih').textContent   = moedaK(kpi.total_aih||0);
@@ -462,7 +511,8 @@ async function loadKPIs() {
 
 // ── Data loading ─────────────────────────────────────────────────────────────
 async function loadData() {
-  const {ano, mes} = getAnoMes();
+  const periodo = getAnoMes();
+  const {ano, mes} = periodo;
   const filtros = {};
   const drs  = document.getElementById('fDRS')?.value;
   const tipo = document.getElementById('fTipo')?.value;
@@ -485,7 +535,7 @@ async function loadData() {
   document.getElementById('tableWrap').innerHTML = '<div class="ca-loading"><div class="spinner-border spinner-border-sm text-primary"></div> Carregando…</div>';
 
   const body = {
-    ano, mes,
+    ...periodoParams(periodo),
     dimensoes: dimsFilt,
     metricas: STATE.metricas,
     filtros,
@@ -776,7 +826,7 @@ function ddGoTo(idx) {
 }
 
 async function loadDDLevel() {
-  const {ano, mes} = getAnoMes();
+  const periodoDD = getAnoMes();
   const level = _ddStack.length;
   const nextDim = DRILL_HIER[level] || null;
   document.getElementById('ddTable').innerHTML = '<div class="ca-loading"><div class="spinner-border spinner-border-sm text-primary"></div> Carregando…</div>';
@@ -789,7 +839,7 @@ async function loadDDLevel() {
   const filtros = {};
   _ddStack.forEach(s => { filtros[s.dim] = s.val; });
 
-  const body = {ano, mes, dimensoes:[nextDim], metricas:[_ddMet], filtros, limite:200};
+  const body = {...periodoParams(periodoDD), dimensoes:[nextDim], metricas:[_ddMet], filtros, limite:200};
   let data = [];
   try {
     const r = await fetch('/api/analitico',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});

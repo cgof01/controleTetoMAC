@@ -26,25 +26,21 @@ if USE_SUPABASE:
     _httpx.Client.__init__ = _httpx_no_ssl
 
     from supabase import create_client as _create_client
-    _sb = None
-
-    def get_sb():
-        global _sb
-        if _sb is None:
-            _sb = _create_client(SUPABASE_URL, SUPABASE_KEY)
-        return _sb
-
     import threading
     _sb_thread_local = threading.local()
 
-    def get_sb_paralelo():
-        """Cliente Supabase próprio da thread atual — usado só nas buscas em
-        paralelo (_fetch_paginas_paralelo). Compartilhar o cliente global (get_sb())
-        entre threads derrubava a conexão HTTP/2 (ConnectionTerminated) quando
-        várias páginas eram buscadas ao mesmo tempo."""
+    def get_sb():
+        """Cliente Supabase próprio da thread atual (não um único cliente global
+        compartilhado). O servidor de produção roda com múltiplas threads por
+        worker (gunicorn --worker-class gthread), e as buscas paginadas em
+        paralelo (_fetch_paginas_paralelo) também usam várias threads ao mesmo
+        tempo — um cliente HTTP/2 compartilhado entre threads derruba a conexão
+        (ConnectionTerminated) sob concorrência."""
         if not hasattr(_sb_thread_local, 'sb'):
             _sb_thread_local.sb = _create_client(SUPABASE_URL, SUPABASE_KEY)
         return _sb_thread_local.sb
+
+    get_sb_paralelo = get_sb  # mesmo cliente por thread, usado nas buscas em paralelo
 
     def init_db():
         pass  # tabelas criadas via schema_supabase.sql no dashboard
@@ -716,80 +712,89 @@ _INC = ('integrasus+iac+sus_100+opo+rede_viver_sem_limite+rede_brasil_miseria+rs
 _FAEC = 'aih_faec+sia_faec+equip_hemodialise+limite_complementacao'
 
 
-def kpis_central(ano, mes):
-    """KPIs completos para a Central de Relatórios."""
-    if USE_SUPABASE:
-        sb = get_sb()
-        cols = ('drs,municipio,cnes,aih_fisico,aih_faec,sia_faec,equip_hemodialise,'
-                'limite_complementacao,aih_mc,aih_ac,sia_mc,sia_ac,teto_mac,total_teto_mac,'
-                'integrasus,iac,sus_100,opo,rede_viver_sem_limite,rede_brasil_miseria,rsme,'
-                'rce_rceg,rau_hosp_sos,rca_rcan,iapi,residencia_medica,melhor_em_casa,cer,'
-                'doencas_raras,oficina_ortopedica,ihac,total_mc_ac_incentivos')
-        r = sb.table('teto_mac').select(cols).eq('ano', ano).eq('mes', mes).limit(20000).execute()
-        data = r.data or []
-        drs_s, mun_s, cnes_s = set(), set(), set()
-        faec = aih = sia = inc = teto = geral = 0.0
-        for row in data:
-            if row.get('drs'):       drs_s.add(str(row['drs']))
-            if row.get('municipio'): mun_s.add(str(row['municipio']).strip())
-            if row.get('cnes'):      cnes_s.add(str(row['cnes']))
-            faec  += sum(row.get(k) or 0 for k in ['aih_faec','sia_faec','equip_hemodialise','limite_complementacao'])
-            aih   += (row.get('aih_mc') or 0) + (row.get('aih_ac') or 0)
-            sia   += (row.get('sia_mc') or 0) + (row.get('sia_ac') or 0)
-            inc   += sum(row.get(k) or 0 for k in ['integrasus','iac','sus_100','opo',
-                         'rede_viver_sem_limite','rede_brasil_miseria','rsme','rce_rceg',
-                         'rau_hosp_sos','rca_rcan','iapi','residencia_medica','melhor_em_casa',
-                         'cer','doencas_raras','oficina_ortopedica','ihac'])
-            teto  += (row.get('teto_mac') or 0) + (row.get('total_teto_mac') or 0)
-            geral += row.get('total_mc_ac_incentivos') or 0
-        return {'total_teto_mac': teto, 'total_faec': faec, 'total_aih': aih,
-                'total_sia': sia, 'total_incentivos': inc, 'total_geral': geral,
-                'count_drs': len(drs_s), 'count_municipios': len(mun_s),
-                'count_unidades': len(data), 'count_cnes': len(cnes_s)}
-    else:
-        conn = get_db()
-        row = conn.execute(f"""
-            SELECT SUM(teto_mac+total_teto_mac) as total_teto_mac,
-                   SUM({_FAEC}) as total_faec,
-                   SUM(aih_mc+aih_ac) as total_aih,
-                   SUM(sia_mc+sia_ac) as total_sia,
-                   SUM({_INC}) as total_incentivos,
-                   SUM(total_mc_ac_incentivos) as total_geral,
-                   COUNT(DISTINCT CAST(drs AS INTEGER)) as count_drs,
-                   COUNT(DISTINCT LOWER(TRIM(COALESCE(municipio,'')))) as count_municipios,
-                   COUNT(*) as count_unidades,
-                   COUNT(DISTINCT COALESCE(cnes,'')) as count_cnes
-            FROM teto_mac WHERE ano=? AND mes=?
-        """, (ano, mes)).fetchone()
-        conn.close()
-        return dict(row) if row else {}
+def kpis_central(ano, mes, ano_fim=None, mes_fim=None):
+    """KPIs completos para a Central de Relatórios. Usa _fetch_periodo (paginado e,
+    no Supabase, em paralelo) em vez de um .limit() fixo — que na prática o
+    PostgREST capa em 1000 linhas por requisição e truncava silenciosamente
+    qualquer competência/período com mais unidades que isso."""
+    campos = [
+        'drs', 'municipio', 'cnes', 'aih_fisico', 'aih_faec', 'sia_faec', 'equip_hemodialise',
+        'limite_complementacao', 'aih_mc', 'aih_ac', 'sia_mc', 'sia_ac', 'teto_mac', 'total_teto_mac',
+        'integrasus', 'iac', 'sus_100', 'opo', 'rede_viver_sem_limite', 'rede_brasil_miseria', 'rsme',
+        'rce_rceg', 'rau_hosp_sos', 'rca_rcan', 'iapi', 'residencia_medica', 'melhor_em_casa', 'cer',
+        'doencas_raras', 'oficina_ortopedica', 'ihac', 'total_mc_ac_incentivos',
+    ]
+    data = _fetch_periodo(ano, mes, ano_fim or ano, mes_fim or mes, campos=campos)
+    drs_s, mun_s, cnes_s = set(), set(), set()
+    faec = aih = sia = inc = teto = geral = 0.0
+    for row in data:
+        if row.get('drs'):       drs_s.add(str(row['drs']))
+        if row.get('municipio'): mun_s.add(str(row['municipio']).strip())
+        if row.get('cnes'):      cnes_s.add(str(row['cnes']))
+        faec  += sum(row.get(k) or 0 for k in ['aih_faec', 'sia_faec', 'equip_hemodialise', 'limite_complementacao'])
+        aih   += (row.get('aih_mc') or 0) + (row.get('aih_ac') or 0)
+        sia   += (row.get('sia_mc') or 0) + (row.get('sia_ac') or 0)
+        inc   += sum(row.get(k) or 0 for k in ['integrasus', 'iac', 'sus_100', 'opo',
+                     'rede_viver_sem_limite', 'rede_brasil_miseria', 'rsme', 'rce_rceg',
+                     'rau_hosp_sos', 'rca_rcan', 'iapi', 'residencia_medica', 'melhor_em_casa',
+                     'cer', 'doencas_raras', 'oficina_ortopedica', 'ihac'])
+        teto  += (row.get('teto_mac') or 0) + (row.get('total_teto_mac') or 0)
+        geral += row.get('total_mc_ac_incentivos') or 0
+    return {'total_teto_mac': teto, 'total_faec': faec, 'total_aih': aih,
+            'total_sia': sia, 'total_incentivos': inc, 'total_geral': geral,
+            'count_drs': len(drs_s), 'count_municipios': len(mun_s),
+            'count_unidades': len(data), 'count_cnes': len(cnes_s)}
 
 
-def consulta_analitica(ano, mes, dimensoes=None, metricas=None, filtros=None, ordenar_por=None, limite=500):
-    """Consulta genérica para o construtor de relatórios."""
+def _aplicar_filtros_analitico(q, filtros):
+    for k, v in (filtros or {}).items():
+        if k not in _DIMS_ALLOW or not v:
+            continue
+        if isinstance(v, list) and v:
+            q = q.in_(k, v)
+        elif isinstance(v, str) and v:
+            try:
+                fv = float(v); num_v = int(fv) if fv == int(fv) else fv
+                q = q.eq(k, num_v)
+            except (ValueError, TypeError):
+                q = q.filter(k, 'ilike', f'%{v}%')
+    return q
+
+def consulta_analitica(ano, mes, dimensoes=None, metricas=None, filtros=None, ordenar_por=None,
+                        limite=500, ano_fim=None, mes_fim=None):
+    """Consulta genérica para o construtor de relatórios (Central de Relatórios
+    Analíticos), com suporte a período (ano_fim/mes_fim opcionais — default é o
+    próprio mês, igual antes). Busca paginada (e no Supabase em paralelo) em vez
+    de um .limit() fixo, que o PostgREST capa em 1000 linhas e truncava
+    silenciosamente qualquer consulta com mais registros que isso."""
     dimensoes = [d for d in (dimensoes or []) if d in _DIMS_ALLOW]
     metricas  = [m for m in (metricas  or ['total_mc_ac_incentivos']) if m in _METS_ALLOW]
     if not metricas:
         metricas = ['total_mc_ac_incentivos']
     filtros = filtros or {}
+    ano_fim = ano_fim or ano
+    mes_fim = mes_fim or mes
+    ini = ano * 100 + mes
+    fim = ano_fim * 100 + mes_fim
 
     if USE_SUPABASE:
         sb = get_sb()
-        col_set = list(dict.fromkeys(dimensoes + metricas))
-        q = sb.table('teto_mac').select(','.join(col_set) if col_set else '*').eq('ano', ano).eq('mes', mes)
-        for k, v in filtros.items():
-            if k not in _DIMS_ALLOW or not v:
-                continue
-            if isinstance(v, list) and v:
-                q = q.in_(k, v)
-            elif isinstance(v, str) and v:
-                try:
-                    fv = float(v); num_v = int(fv) if fv == int(fv) else fv
-                    q = q.eq(k, num_v)
-                except (ValueError, TypeError):
-                    q = q.filter(k, 'ilike', f'%{v}%')
-        r = q.limit(20000).execute()
-        data = r.data or []
+        col_set = list(dict.fromkeys(['ano', 'mes'] + dimensoes + metricas))
+        cols = ','.join(col_set)
+
+        total = (_aplicar_filtros_analitico(
+            sb.table('teto_mac').select('id', count='exact').gte('ano', ano).lte('ano', ano_fim), filtros
+        ).limit(1).execute()).count or 0
+
+        def _fetch_pagina(offset):
+            q = _aplicar_filtros_analitico(
+                get_sb_paralelo().table('teto_mac').select(cols).gte('ano', ano).lte('ano', ano_fim), filtros
+            )
+            r = q.range(offset, offset + 999).execute()
+            return r.data or []
+
+        brutos = _fetch_paginas_paralelo(_fetch_pagina, total)
+        data = [row for row in brutos if ini <= (row['ano'] * 100 + row['mes']) <= fim]
         seen = {}
         for row in data:
             key = tuple(str(row.get(d) or '') for d in dimensoes) if dimensoes else ('_total_',)
@@ -804,8 +809,8 @@ def consulta_analitica(ano, mes, dimensoes=None, metricas=None, filtros=None, or
         result = list(seen.values())
     else:
         conn = get_db()
-        where  = ['ano = ?', 'mes = ?']
-        params = [ano, mes]
+        where  = ['(ano * 100 + mes) BETWEEN ? AND ?']
+        params = [ini, fim]
         for k, v in filtros.items():
             if k not in _DIMS_ALLOW or not v:
                 continue

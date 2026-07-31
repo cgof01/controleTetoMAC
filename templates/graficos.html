@@ -9,9 +9,9 @@
   </div>
   <form class="d-flex gap-2 flex-wrap align-items-center" method="get">
     <div class="btn-group btn-group-sm" role="group">
-      <button type="button" class="btn btn-outline-secondary {{ 'active' if modo_sel == 'mes' }}" onclick="setModoGraf('mes')">Mês</button>
-      <button type="button" class="btn btn-outline-secondary {{ 'active' if modo_sel == 'ano' }}" onclick="setModoGraf('ano')">Ano</button>
-      <button type="button" class="btn btn-outline-secondary {{ 'active' if modo_sel == 'periodo' }}" onclick="setModoGraf('periodo')">Período</button>
+      <button type="button" class="btn btn-light {{ 'active' if modo_sel == 'mes' }}" onclick="setModoGraf('mes')">Mês</button>
+      <button type="button" class="btn btn-light {{ 'active' if modo_sel == 'ano' }}" onclick="setModoGraf('ano')">Ano</button>
+      <button type="button" class="btn btn-light {{ 'active' if modo_sel == 'periodo' }}" onclick="setModoGraf('periodo')">Período</button>
     </div>
     <input type="hidden" name="modo" id="inputModoGraf" value="{{ modo_sel }}">
     <select name="ano" class="form-select form-select-sm" style="width:100px" onchange="this.form.submit()">
