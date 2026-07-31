@@ -115,38 +115,44 @@
 </div>
 
 <!-- Consolidado dos registros filtrados -->
-<div class="row g-2 mb-3">
-  <div class="col-6 col-md-2">
+<div class="row row-cols-2 row-cols-md-4 row-cols-xl-7 g-2 mb-3">
+  <div class="col">
     <div class="consolidado-card">
       <div class="lbl">Registros</div>
       <div class="val">{{ total | numero }}</div>
     </div>
   </div>
-  <div class="col-6 col-md-2">
+  <div class="col">
     <div class="consolidado-card">
       <div class="lbl">AIH Físico</div>
       <div class="val">{{ totais.aih_fisico | numero }}</div>
     </div>
   </div>
-  <div class="col-6 col-md-2">
+  <div class="col">
     <div class="consolidado-card">
       <div class="lbl">AIH (MC+AC)</div>
       <div class="val">{{ (totais.aih_mc + totais.aih_ac) | moeda }}</div>
     </div>
   </div>
-  <div class="col-6 col-md-2">
+  <div class="col">
     <div class="consolidado-card">
       <div class="lbl">SIA (MC+AC)</div>
       <div class="val">{{ (totais.sia_mc + totais.sia_ac) | moeda }}</div>
     </div>
   </div>
-  <div class="col-6 col-md-2">
+  <div class="col">
+    <div class="consolidado-card">
+      <div class="lbl">Incentivos</div>
+      <div class="val">{{ (totais.total_mc_ac_incentivos - totais.aih_mc - totais.aih_ac - totais.sia_mc - totais.sia_ac) | moeda }}</div>
+    </div>
+  </div>
+  <div class="col">
     <div class="consolidado-card">
       <div class="lbl">Teto MAC</div>
       <div class="val">{{ (totais.teto_mac + totais.total_teto_mac) | moeda }}</div>
     </div>
   </div>
-  <div class="col-6 col-md-2">
+  <div class="col">
     <div class="consolidado-card dest">
       <div class="lbl">Total MC+AC+Inc.</div>
       <div class="val">{{ totais.total_mc_ac_incentivos | moeda }}</div>
