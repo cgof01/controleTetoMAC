@@ -163,10 +163,7 @@ def pesquisar(filtros=None, page=1, per_page=50):
     else:
         return _pesquisar_sqlite(filtros, page, per_page)
 
-def _pesquisar_supabase(filtros, page, per_page):
-    sb = get_sb()
-    q = sb.table('teto_mac').select('*', count='exact')
-
+def _aplicar_filtros_supabase(q, filtros):
     if filtros:
         if filtros.get('ano'):
             q = q.eq('ano', int(filtros['ano']))
@@ -184,20 +181,11 @@ def _pesquisar_supabase(filtros, page, per_page):
             q = q.ilike('cnpj', f"%{filtros['cnpj']}%")
         if filtros.get('tipo'):
             q = q.ilike('tipo', f"%{filtros['tipo']}%")
+    return q
 
-    offset = (page - 1) * per_page
-    q = q.order('ano', desc=True).order('mes', desc=True).order('unidade')
-    q = q.range(offset, offset + per_page - 1)
-
-    r = q.execute()
-    total = r.count if r.count is not None else len(r.data)
-    return [_clean(row) for row in r.data], total
-
-def _pesquisar_sqlite(filtros, page, per_page):
-    conn = get_db()
+def _where_sqlite(filtros):
     where_parts = []
     params = []
-
     if filtros:
         if filtros.get('ano'):
             where_parts.append("ano = ?")
@@ -223,8 +211,24 @@ def _pesquisar_sqlite(filtros, page, per_page):
         if filtros.get('cnpj'):
             where_parts.append("cnpj LIKE ?")
             params.append(f"%{filtros['cnpj']}%")
-
     where = f"WHERE {' AND '.join(where_parts)}" if where_parts else ""
+    return where, params
+
+def _pesquisar_supabase(filtros, page, per_page):
+    sb = get_sb()
+    q = _aplicar_filtros_supabase(sb.table('teto_mac').select('*', count='exact'), filtros)
+
+    offset = (page - 1) * per_page
+    q = q.order('ano', desc=True).order('mes', desc=True).order('unidade')
+    q = q.range(offset, offset + per_page - 1)
+
+    r = q.execute()
+    total = r.count if r.count is not None else len(r.data)
+    return [_clean(row) for row in r.data], total
+
+def _pesquisar_sqlite(filtros, page, per_page):
+    conn = get_db()
+    where, params = _where_sqlite(filtros)
     total = conn.execute(f"SELECT COUNT(*) FROM teto_mac {where}", params).fetchone()[0]
     offset = (page - 1) * per_page
     rows = conn.execute(
@@ -250,6 +254,48 @@ def pesquisar_todos(filtros=None):
             break
         page += 1
     return todos
+
+_CAMPOS_SOMA_PESQUISA = [
+    'aih_fisico', 'aih_faec', 'sia_faec', 'aih_mc', 'aih_ac', 'aih_total',
+    'sia_mc', 'sia_ac', 'sia_total', 'teto_mac', 'total_teto_mac',
+    'total_mc_ac_incentivos',
+]
+
+def pesquisar_totais(filtros=None):
+    """Soma os campos numéricos principais de TODOS os registros que casam com os
+    filtros (não só a página atual) — usado para mostrar o consolidado da Pesquisa."""
+    totais = {c: 0.0 for c in _CAMPOS_SOMA_PESQUISA}
+    totais['registros'] = 0
+    if USE_SUPABASE:
+        sb = get_sb()
+        cols = ','.join(_CAMPOS_SOMA_PESQUISA)
+        offset = 0
+        page_size = 1000
+        while True:
+            q = _aplicar_filtros_supabase(sb.table('teto_mac').select(cols), filtros)
+            r = q.range(offset, offset + page_size - 1).execute()
+            rows = r.data or []
+            if not rows:
+                break
+            for row in rows:
+                totais['registros'] += 1
+                for c in _CAMPOS_SOMA_PESQUISA:
+                    totais[c] += row.get(c) or 0
+            if len(rows) < page_size:
+                break
+            offset += page_size
+    else:
+        conn = get_db()
+        where, params = _where_sqlite(filtros)
+        sel = ', '.join(f'SUM(COALESCE({c},0)) as {c}' for c in _CAMPOS_SOMA_PESQUISA)
+        row = conn.execute(f"SELECT COUNT(*) as registros, {sel} FROM teto_mac {where}", params).fetchone()
+        conn.close()
+        if row:
+            r = dict(row)
+            totais['registros'] = r.get('registros') or 0
+            for c in _CAMPOS_SOMA_PESQUISA:
+                totais[c] = r.get(c) or 0
+    return totais
 
 # ── Replicação de competência (copiar mês inteiro) ─────────────────────────────
 
@@ -1024,58 +1070,75 @@ def dashboard_kpis_geral():
 
 # ── Auditoria ─────────────────────────────────────────────────────────────────
 
+def _analisar_qualidade(registros):
+    """Recebe os registros (id,cnes,unidade,municipio,drs,total_mc_ac_incentivos) de
+    uma competência e calcula os contadores + as listas detalhadas de problemas,
+    usadas tanto pelos cards quanto pelas tabelas da tela de Auditoria."""
+    total = len(registros)
+    sem_cnes = sem_valor = sem_drs = 0
+    problemas = []
+    por_cnes = {}
+    for r in registros:
+        cnes = (r.get('cnes') or '').strip()
+        motivos = []
+        if not cnes:
+            motivos.append('Sem CNES')
+            sem_cnes += 1
+        if not r.get('total_mc_ac_incentivos') or r['total_mc_ac_incentivos'] <= 0:
+            motivos.append('Valor zero/nulo')
+            sem_valor += 1
+        if not r.get('drs'):
+            motivos.append('Sem DRS')
+            sem_drs += 1
+        if motivos:
+            problemas.append({**r, 'problema': ' + '.join(motivos)})
+        if cnes:
+            por_cnes.setdefault(cnes, []).append(r.get('unidade') or '')
+
+    dup_lista = [
+        {'cnes': cnes, 'c': len(unidades), 'unidades': ' | '.join(unidades)}
+        for cnes, unidades in por_cnes.items() if len(unidades) > 1
+    ]
+    dup_lista.sort(key=lambda d: d['c'], reverse=True)
+    duplicatas = sum(d['c'] - 1 for d in dup_lista)
+
+    return {
+        'total': total, 'sem_cnes': sem_cnes, 'sem_valor': sem_valor,
+        'sem_drs': sem_drs, 'duplicatas': duplicatas,
+        'problemas': problemas[:200],
+        'duplicatas_lista': dup_lista[:50],
+    }
+
 def auditoria_validacao(ano, mes):
-    """Relatório de qualidade de dados para um período."""
+    """Relatório de qualidade de dados para um período: contadores + a lista
+    detalhada de qual registro tem qual problema, para o usuário poder corrigir."""
+    sel = ['id', 'cnes', 'unidade', 'municipio', 'drs', 'total_mc_ac_incentivos']
     if USE_SUPABASE:
         sb = get_sb()
-        base = sb.table('teto_mac').select('id', count='exact')
-        total = (base.eq('ano', ano).eq('mes', mes).execute()).count or 0
-        sem_cnes = (sb.table('teto_mac').select('id', count='exact')
-                    .eq('ano', ano).eq('mes', mes)
-                    .or_('cnes.is.null,cnes.eq.').execute()).count or 0
-        sem_valor = (sb.table('teto_mac').select('id', count='exact')
-                     .eq('ano', ano).eq('mes', mes)
-                     .lte('total_mc_ac_incentivos', 0).execute()).count or 0
-        sem_drs = (sb.table('teto_mac').select('id', count='exact')
-                   .eq('ano', ano).eq('mes', mes)
-                   .or_('drs.is.null,drs.eq.0').execute()).count or 0
-        return {'total': total, 'sem_cnes': sem_cnes, 'sem_valor': sem_valor,
-                'sem_drs': sem_drs, 'duplicatas': 0, 'problemas': [], 'duplicatas_lista': []}
+        cols = ','.join(sel)
+        registros = []
+        offset = 0
+        page_size = 1000
+        while True:
+            r = (sb.table('teto_mac').select(cols)
+                .eq('ano', ano).eq('mes', mes)
+                .range(offset, offset + page_size - 1).execute())
+            rows = r.data or []
+            if not rows:
+                break
+            registros.extend(rows)
+            if len(rows) < page_size:
+                break
+            offset += page_size
     else:
         conn = get_db()
-        total = conn.execute("SELECT COUNT(*) FROM teto_mac WHERE ano=? AND mes=?", (ano, mes)).fetchone()[0]
-        sem_cnes  = conn.execute("SELECT COUNT(*) FROM teto_mac WHERE ano=? AND mes=? AND (cnes IS NULL OR TRIM(cnes)='')", (ano, mes)).fetchone()[0]
-        sem_valor = conn.execute("SELECT COUNT(*) FROM teto_mac WHERE ano=? AND mes=? AND (total_mc_ac_incentivos IS NULL OR total_mc_ac_incentivos<=0)", (ano, mes)).fetchone()[0]
-        sem_drs   = conn.execute("SELECT COUNT(*) FROM teto_mac WHERE ano=? AND mes=? AND (drs IS NULL OR drs=0)", (ano, mes)).fetchone()[0]
-        dup_rows  = conn.execute("""
-            SELECT cnes, COUNT(*) as c, GROUP_CONCAT(unidade, ' | ') as unidades
-            FROM teto_mac WHERE ano=? AND mes=? AND cnes IS NOT NULL AND TRIM(cnes)!=''
-            GROUP BY cnes HAVING c > 1 LIMIT 50
-        """, (ano, mes)).fetchall()
-        duplicatas = sum(r['c'] - 1 for r in dup_rows)
-        prob_rows = conn.execute("""
-            SELECT id, cnes, unidade, municipio, CAST(drs AS INTEGER) as drs,
-                   total_mc_ac_incentivos,
-                   CASE
-                     WHEN cnes IS NULL OR TRIM(cnes)='' THEN 'Sem CNES'
-                     WHEN total_mc_ac_incentivos IS NULL OR total_mc_ac_incentivos<=0 THEN 'Valor zero/nulo'
-                     WHEN drs IS NULL OR drs=0 THEN 'Sem DRS'
-                     ELSE 'Problema'
-                   END as problema
-            FROM teto_mac
-            WHERE ano=? AND mes=? AND (
-              cnes IS NULL OR TRIM(cnes)='' OR
-              total_mc_ac_incentivos IS NULL OR total_mc_ac_incentivos<=0 OR
-              drs IS NULL OR drs=0
-            ) LIMIT 200
+        rows = conn.execute(f"""
+            SELECT id, cnes, unidade, municipio, CAST(drs AS INTEGER) as drs, total_mc_ac_incentivos
+            FROM teto_mac WHERE ano=? AND mes=?
         """, (ano, mes)).fetchall()
         conn.close()
-        return {
-            'total': total, 'sem_cnes': sem_cnes, 'sem_valor': sem_valor,
-            'sem_drs': sem_drs, 'duplicatas': duplicatas,
-            'problemas': [dict(r) for r in prob_rows],
-            'duplicatas_lista': [dict(r) for r in dup_rows]
-        }
+        registros = [dict(r) for r in rows]
+    return _analisar_qualidade(registros)
 
 def auditoria_registros(ano, mes, drs=None, busca=None, page=1, per_page=50):
     """Registros paginados filtrados para auditoria."""

@@ -5,19 +5,40 @@
 <div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-2">
   <div>
     <h4 class="mb-0 fw-bold"><i class="bi bi-bar-chart-line me-2"></i>Análises Detalhadas</h4>
-    <small class="opacity-75">Comparativos, composição e tendências — {{ mes_sel | mes_nome }}/{{ ano_sel }}</small>
+    <small class="opacity-75" id="periodoSubtitulo">Comparativos, composição e tendências — {{ mes_sel | mes_nome }}/{{ ano_sel }}</small>
   </div>
-  <form class="d-flex gap-2 flex-wrap" method="get">
+  <form class="d-flex gap-2 flex-wrap align-items-center" method="get">
+    <div class="btn-group btn-group-sm" role="group">
+      <button type="button" class="btn btn-outline-secondary {{ 'active' if modo_sel == 'mes' }}" onclick="setModoGraf('mes')">Mês</button>
+      <button type="button" class="btn btn-outline-secondary {{ 'active' if modo_sel == 'ano' }}" onclick="setModoGraf('ano')">Ano</button>
+      <button type="button" class="btn btn-outline-secondary {{ 'active' if modo_sel == 'periodo' }}" onclick="setModoGraf('periodo')">Período</button>
+    </div>
+    <input type="hidden" name="modo" id="inputModoGraf" value="{{ modo_sel }}">
     <select name="ano" class="form-select form-select-sm" style="width:100px" onchange="this.form.submit()">
       {% for ano in anos_disponiveis %}
         <option value="{{ ano }}" {{ 'selected' if ano == ano_sel }}>{{ ano }}</option>
       {% endfor %}
     </select>
-    <select name="mes" class="form-select form-select-sm" style="width:130px" onchange="this.form.submit()">
-      {% for num, nome in meses.items() %}
-        <option value="{{ num }}" {{ 'selected' if num == mes_sel }}>{{ nome }}</option>
-      {% endfor %}
-    </select>
+    <span id="wrapMesGraf" style="{{ 'display:none' if modo_sel == 'ano' else '' }}">
+      <select name="mes" class="form-select form-select-sm" style="width:130px" onchange="this.form.submit()">
+        {% for num, nome in meses.items() %}
+          <option value="{{ num }}" {{ 'selected' if num == mes_sel }}>{{ nome }}</option>
+        {% endfor %}
+      </select>
+    </span>
+    <span id="periodoAteGraf" class="d-flex gap-2 align-items-center" style="{{ '' if modo_sel == 'periodo' else 'display:none' }}">
+      <i class="bi bi-arrow-right text-muted"></i>
+      <select name="ano_fim" class="form-select form-select-sm" style="width:100px" onchange="this.form.submit()">
+        {% for ano in anos_disponiveis %}
+          <option value="{{ ano }}" {{ 'selected' if ano == ano_fim_sel }}>{{ ano }}</option>
+        {% endfor %}
+      </select>
+      <select name="mes_fim" class="form-select form-select-sm" style="width:130px" onchange="this.form.submit()">
+        {% for num, nome in meses.items() %}
+          <option value="{{ num }}" {{ 'selected' if num == mes_fim_sel }}>{{ nome }}</option>
+        {% endfor %}
+      </select>
+    </span>
   </form>
 </div>
 
@@ -27,7 +48,7 @@
     <div class="card h-100">
       <div class="card-header bg-white">
         <strong><i class="bi bi-bar-chart text-success me-2"></i>Ranking por DRS</strong>
-        <span class="text-muted small ms-1">{{ mes_sel | mes_nome }}/{{ ano_sel }}</span>
+        <span class="text-muted small ms-1" id="lblPeriodoDRS">{{ mes_sel | mes_nome }}/{{ ano_sel }}</span>
       </div>
       <div class="card-body" style="position:relative;height:320px">
         <canvas id="chartDRS"></canvas>
@@ -52,7 +73,7 @@
   <div class="col-xl-7">
     <div class="card h-100">
       <div class="card-header bg-white d-flex justify-content-between align-items-center">
-        <strong><i class="bi bi-trophy text-danger me-2"></i>Top Unidades — {{ mes_sel | mes_nome }}/{{ ano_sel }}</strong>
+        <strong><i class="bi bi-trophy text-danger me-2"></i>Top Unidades — <span id="lblPeriodoTop">{{ mes_sel | mes_nome }}/{{ ano_sel }}</span></strong>
         <select id="topLimite" class="form-select form-select-sm w-auto" onchange="renderTop()">
           <option value="10">Top 10</option>
           <option value="15" selected>Top 15</option>
@@ -108,7 +129,7 @@
   <div class="col-12">
     <div class="card">
       <div class="card-header bg-white">
-        <strong><i class="bi bi-award me-2" style="color:#6f42c1"></i>Detalhamento de Incentivos — {{ mes_sel | mes_nome }}/{{ ano_sel }}</strong>
+        <strong><i class="bi bi-award me-2" style="color:#6f42c1"></i>Detalhamento de Incentivos — <span id="lblPeriodoInc">{{ mes_sel | mes_nome }}/{{ ano_sel }}</span></strong>
       </div>
       <div class="card-body" style="position:relative;height:320px">
         <canvas id="chartIncentivos"></canvas>
@@ -122,7 +143,7 @@
   <div class="col-xl-7">
     <div class="card h-100">
       <div class="card-header bg-white d-flex justify-content-between align-items-center">
-        <strong><i class="bi bi-geo-alt text-danger me-2"></i>Top Municípios — {{ mes_sel | mes_nome }}/{{ ano_sel }}</strong>
+        <strong><i class="bi bi-geo-alt text-danger me-2"></i>Top Municípios — <span id="lblPeriodoMun">{{ mes_sel | mes_nome }}/{{ ano_sel }}</span></strong>
         <select id="munLimite" class="form-select form-select-sm w-auto" onchange="renderMunicipio()">
           <option value="10">Top 10</option>
           <option value="15" selected>Top 15</option>
@@ -138,7 +159,7 @@
     <div class="card h-100">
       <div class="card-header bg-white">
         <strong><i class="bi bi-bar-chart-steps text-info me-2"></i>Composição MAC — AIH vs SIA</strong>
-        <span class="text-muted small ms-1">{{ mes_sel | mes_nome }}/{{ ano_sel }}</span>
+        <span class="text-muted small ms-1" id="lblPeriodoMac">{{ mes_sel | mes_nome }}/{{ ano_sel }}</span>
       </div>
       <div class="card-body" style="position:relative;height:400px">
         <canvas id="chartMac"></canvas>
@@ -153,7 +174,7 @@
     <div class="card">
       <div class="card-header bg-white">
         <strong><i class="bi bi-layers me-2 text-success"></i>FAEC por DRS — Fundo de Ações Estratégicas e Compensação</strong>
-        <span class="text-muted small ms-1">{{ mes_sel | mes_nome }}/{{ ano_sel }}</span>
+        <span class="text-muted small ms-1" id="lblPeriodoFaec">{{ mes_sel | mes_nome }}/{{ ano_sel }}</span>
       </div>
       <div class="card-body" style="position:relative;height:300px">
         <canvas id="chartFaec"></canvas>
@@ -167,18 +188,41 @@
 <script>
 const ANO_SEL = {{ ano_sel or 'null' }};
 const MES_SEL = {{ mes_sel or 'null' }};
+const MODO_SEL = {{ modo_sel | tojson }};
+const ANO_FIM_SEL = {{ ano_fim_sel or 'null' }};
+const MES_FIM_SEL = {{ mes_fim_sel or 'null' }};
 const CORES = ['#1e3a5f','#2a7dd8','#e07b00','#1a7a4a','#dc3545','#6f42c1','#17a2b8','#fd7e14','#20c997','#6610f2'];
 const PALETA = { 2022:'#1e3a5f', 2023:'#2a7dd8', 2024:'#e07b00', 2025:'#1a7a4a', 2026:'#dc3545', 2027:'#6f42c1' };
 const MESES_ABR = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+const MESES_NOME_GRAF = {1:'Janeiro',2:'Fevereiro',3:'Março',4:'Abril',5:'Maio',6:'Junho',7:'Julho',8:'Agosto',9:'Setembro',10:'Outubro',11:'Novembro',12:'Dezembro'};
 
 let chartDRS, chartComp, chartTop, chartTipo, chartAnual, chartInc;
 let topData = [], tipoData = [];
 
 async function fetchJSON(url) { const r = await fetch(url); return r.json(); }
 
+// ── Modo Mês/Ano/Período — usado por todos os gráficos ligados a uma competência ──
+function periodoQS() {
+  if (MODO_SEL === 'ano') return `ano=${ANO_SEL}&mes=1&ano_fim=${ANO_SEL}&mes_fim=12`;
+  if (MODO_SEL === 'periodo') return `ano=${ANO_SEL}&mes=${MES_SEL}&ano_fim=${ANO_FIM_SEL}&mes_fim=${MES_FIM_SEL}`;
+  return `ano=${ANO_SEL}&mes=${MES_SEL}`;
+}
+function periodoLabel() {
+  if (MODO_SEL === 'ano') return String(ANO_SEL);
+  if (MODO_SEL === 'periodo') return `${MESES_NOME_GRAF[MES_SEL]}/${ANO_SEL} a ${MESES_NOME_GRAF[MES_FIM_SEL]}/${ANO_FIM_SEL}`;
+  return `${MESES_NOME_GRAF[MES_SEL]}/${ANO_SEL}`;
+}
+function setModoGraf(modo) {
+  document.getElementById('inputModoGraf').value = modo;
+  document.querySelector('form').submit();
+}
+document.querySelectorAll('#lblPeriodoDRS,#lblPeriodoTop,#lblPeriodoInc,#lblPeriodoMun,#lblPeriodoMac,#lblPeriodoFaec')
+  .forEach(el => el.textContent = periodoLabel());
+document.getElementById('periodoSubtitulo').textContent = 'Comparativos, composição e tendências — ' + periodoLabel();
+
 // ── 1. Ranking DRS (horizontal) ───────────────────────────────────────────────
 async function renderDRS() {
-  const data = await fetchJSON(`/api/graficos/drs?ano=${ANO_SEL}&mes=${MES_SEL}`);
+  const data = await fetchJSON(`/api/graficos/drs?${periodoQS()}`);
   if (chartDRS) chartDRS.destroy();
   chartDRS = new Chart(document.getElementById('chartDRS').getContext('2d'), {
     type: 'bar',
@@ -244,7 +288,7 @@ async function renderComposicao() {
 // ── 3. Top Unidades (horizontal) ──────────────────────────────────────────────
 async function renderTop() {
   const limite = document.getElementById('topLimite').value;
-  topData = await fetchJSON(`/api/graficos/top-unidades?ano=${ANO_SEL}&mes=${MES_SEL}&limite=${limite}`);
+  topData = await fetchJSON(`/api/graficos/top-unidades?${periodoQS()}&limite=${limite}`);
   if (chartTop) chartTop.destroy();
   chartTop = new Chart(document.getElementById('chartTop').getContext('2d'), {
     type: 'bar',
@@ -273,7 +317,7 @@ async function renderTop() {
 
 // ── 4. Distribuição por Tipo ───────────────────────────────────────────────────
 async function renderTipo(tipo = 'doughnut') {
-  if (!tipoData.length) tipoData = await fetchJSON(`/api/graficos/tipo?ano=${ANO_SEL}&mes=${MES_SEL}`);
+  if (!tipoData.length) tipoData = await fetchJSON(`/api/graficos/tipo?${periodoQS()}`);
   if (chartTipo) chartTipo.destroy();
   chartTipo = new Chart(document.getElementById('chartTipo').getContext('2d'), {
     type: tipo,
@@ -340,7 +384,7 @@ async function renderCompAnual() {
 
 // ── 6. Incentivos detalhados (dados reais) ────────────────────────────────────
 async function renderIncentivos() {
-  const data = await fetchJSON(`/api/relatorio/incentivos?ano=${ANO_SEL}&mes=${MES_SEL}`);
+  const data = await fetchJSON(`/api/relatorio/incentivos?${periodoQS()}`);
   const sorted = [...data].sort((a,b) => (b.total||0) - (a.total||0)).filter(d => (d.total||0) > 0);
   if (chartInc) chartInc.destroy();
   chartInc = new Chart(document.getElementById('chartIncentivos').getContext('2d'), {
@@ -369,7 +413,7 @@ let chartMun, chartMacChart, chartFaecChart;
 async function renderMunicipio() {
   const limite = parseInt(document.getElementById('munLimite').value);
   if (!munData.length) {
-    munData = await fetchJSON(`/api/relatorio/municipio?ano=${ANO_SEL}&mes=${MES_SEL}`);
+    munData = await fetchJSON(`/api/relatorio/municipio?${periodoQS()}`);
   }
   const top = munData.slice(0, limite);
   if (chartMun) chartMun.destroy();
@@ -403,7 +447,7 @@ async function renderMunicipio() {
 
 // ── 8. Composição MAC por DRS ─────────────────────────────────────────────────
 async function renderMac() {
-  const data = await fetchJSON(`/api/relatorio/fundo?ano=${ANO_SEL}&mes=${MES_SEL}`);
+  const data = await fetchJSON(`/api/relatorio/fundo?${periodoQS()}`);
   if (chartMacChart) chartMacChart.destroy();
   chartMacChart = new Chart(document.getElementById('chartMac').getContext('2d'), {
     type: 'bar',
@@ -432,7 +476,7 @@ async function renderMac() {
 
 // ── 9. FAEC por DRS ───────────────────────────────────────────────────────────
 async function renderFaec() {
-  const data = await fetchJSON(`/api/relatorio/fundo?ano=${ANO_SEL}&mes=${MES_SEL}`);
+  const data = await fetchJSON(`/api/relatorio/fundo?${periodoQS()}`);
   if (chartFaecChart) chartFaecChart.destroy();
   chartFaecChart = new Chart(document.getElementById('chartFaec').getContext('2d'), {
     type: 'bar',

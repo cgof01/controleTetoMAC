@@ -6,6 +6,10 @@
   .table-teto th { font-size: 0.75rem; white-space: nowrap; }
   .table-teto td { font-size: 0.82rem; }
   .filtro-card { border-left: 4px solid var(--ses-azul); }
+  .consolidado-card { border:1px solid #e2e8f0; border-radius:10px; padding:.6rem .9rem; background:#fff; }
+  .consolidado-card .lbl { font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:#64748b; }
+  .consolidado-card .val { font-size:1.05rem; font-weight:700; color:#1e3a5f; }
+  .consolidado-card.dest .val { color:#1e7a4a; }
 </style>
 {% endblock %}
 
@@ -106,6 +110,46 @@
           </div>
         </div>
       </form>
+    </div>
+  </div>
+</div>
+
+<!-- Consolidado dos registros filtrados -->
+<div class="row g-2 mb-3">
+  <div class="col-6 col-md-2">
+    <div class="consolidado-card">
+      <div class="lbl">Registros</div>
+      <div class="val">{{ total | numero }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="consolidado-card">
+      <div class="lbl">AIH Físico</div>
+      <div class="val">{{ totais.aih_fisico | numero }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="consolidado-card">
+      <div class="lbl">AIH (MC+AC)</div>
+      <div class="val">{{ (totais.aih_mc + totais.aih_ac) | moeda }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="consolidado-card">
+      <div class="lbl">SIA (MC+AC)</div>
+      <div class="val">{{ (totais.sia_mc + totais.sia_ac) | moeda }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="consolidado-card">
+      <div class="lbl">Teto MAC</div>
+      <div class="val">{{ (totais.teto_mac + totais.total_teto_mac) | moeda }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="consolidado-card dest">
+      <div class="lbl">Total MC+AC+Inc.</div>
+      <div class="val">{{ totais.total_mc_ac_incentivos | moeda }}</div>
     </div>
   </div>
 </div>

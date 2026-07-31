@@ -223,15 +223,15 @@
            href="{{ url_for('inserir') }}" data-tip="Inserir Registro">
           <i class="bi bi-plus-square"></i><span class="nav-label">Inserir Registro</span>
         </a>
-        <a class="nav-link {{ 'active' if request.endpoint == 'graficos' }}"
-           href="{{ url_for('graficos') }}" data-tip="Gráficos">
-          <i class="bi bi-bar-chart-line"></i><span class="nav-label">Gráficos</span>
-        </a>
       </nav>
 
       <div class="sidebar-divider"></div>
       <div class="sidebar-heading">Análise &amp; Relatórios</div>
       <nav class="nav flex-column">
+        <a class="nav-link {{ 'active' if request.endpoint == 'graficos' }}"
+           href="{{ url_for('graficos') }}" data-tip="Gráficos">
+          <i class="bi bi-bar-chart-line"></i><span class="nav-label">Gráficos</span>
+        </a>
         <a class="nav-link {{ 'active' if request.endpoint == 'central_analitica' }}"
            href="{{ url_for('central_analitica') }}" data-tip="Central de Relatórios">
           <i class="bi bi-graph-up-arrow"></i><span class="nav-label">Central de Relatórios</span>

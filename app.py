@@ -281,6 +281,7 @@ def pesquisa():
 
     registros, total = db.pesquisar(filtros, page, per_page)
     total_pages = (total + per_page - 1) // per_page
+    totais = db.pesquisar_totais(filtros)
 
     anos_meses = db.obter_anos_meses()
     drs_lista = db.obter_drs_lista()
@@ -292,6 +293,7 @@ def pesquisa():
         page=page,
         per_page=per_page,
         total_pages=total_pages,
+        totais=totais,
         filtros=filtros,
         meses=MESES,
         drs_lista=drs_lista,
@@ -1246,11 +1248,19 @@ def graficos():
     if not ano_sel and anos_meses:
         ano_sel = anos_meses[0]['ano']
         mes_sel = anos_meses[0]['mes']
+    modo_sel = request.args.get('modo', 'mes')
+    if modo_sel not in ('mes', 'ano', 'periodo'):
+        modo_sel = 'mes'
+    ano_fim_sel = request.args.get('ano_fim', type=int) or ano_sel
+    mes_fim_sel = request.args.get('mes_fim', type=int) or mes_sel
     anos_disponiveis = sorted(set(am['ano'] for am in anos_meses), reverse=True)
     return render_template('graficos.html',
         anos_meses=anos_meses,
         ano_sel=ano_sel,
         mes_sel=mes_sel,
+        modo_sel=modo_sel,
+        ano_fim_sel=ano_fim_sel,
+        mes_fim_sel=mes_fim_sel,
         meses=MESES,
         anos_disponiveis=anos_disponiveis
     )
