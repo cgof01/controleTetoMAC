@@ -789,6 +789,10 @@ def _fetch_periodo(ano_ini, mes_ini, ano_fim, mes_fim, campos=None):
     campos = campos or _CAMPOS_PERIODO_PADRAO
     ini = ano_ini * 100 + mes_ini
     fim = ano_fim * 100 + mes_fim
+    # 'ano'/'mes' são obrigatórios para o filtro de mes_ini/mes_fim abaixo (Supabase)
+    # e para ordenação/uso pelos chamadores — garante que estejam sempre selecionados,
+    # mesmo quando o chamador passa uma lista de campos mais enxuta.
+    campos = list(dict.fromkeys(['ano', 'mes'] + list(campos)))
     if USE_SUPABASE:
         sb = get_sb()
         cols = ','.join(campos)
