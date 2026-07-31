@@ -343,6 +343,7 @@ def inserir():
         titulo='Inserir Novo Registro',
         secoes=db.listar_secoes_config(),
         campos=db.listar_campos_config(),
+        alterados=set(),
     )
 
 @app.route('/replicar-competencia', methods=['POST'])
@@ -406,6 +407,7 @@ def editar(id):
         titulo=f'Editar Registro #{id}',
         secoes=db.listar_secoes_config(),
         campos=db.listar_campos_config(),
+        alterados=db.campos_alterados(registro),
     )
 
 @app.route('/detalhe/<int:id>')
@@ -427,7 +429,8 @@ def detalhe(id):
         historico_json=json.dumps([{
             'label': f"{MESES.get(r['mes'],'')} {r['ano']}",
             'total': r['total'] or 0
-        } for r in historico])
+        } for r in historico]),
+        alterados=db.campos_alterados(registro),
     )
 
 @app.route('/deletar/<int:id>', methods=['POST'])
@@ -541,13 +544,17 @@ def relatorio_periodo():
     mes_ini = request.args.get('mes_ini', type=int, default=1)
     ano_fim = request.args.get('ano_fim', type=int, default=2026)
     mes_fim = request.args.get('mes_fim', type=int, default=12)
+    granularidade = request.args.get('granularidade', 'detalhado')
+    if granularidade not in ('detalhado', 'mensal', 'anual'):
+        granularidade = 'detalhado'
 
-    dados = db.relatorio_periodo(ano_ini, mes_ini, ano_fim, mes_fim)
+    dados = db.relatorio_periodo(ano_ini, mes_ini, ano_fim, mes_fim, granularidade)
     anos_meses = db.obter_anos_meses()
     anos_disponiveis = sorted(set(am['ano'] for am in anos_meses), reverse=True)
 
     return render_template('relatorio_periodo.html',
         dados=dados,
+        granularidade=granularidade,
         ano_ini=ano_ini, mes_ini=mes_ini,
         ano_fim=ano_fim, mes_fim=mes_fim,
         meses=MESES,
@@ -622,8 +629,29 @@ def exportar_excel():
         flash('openpyxl não instalado', 'danger')
         return redirect(url_for('pesquisa'))
 
-    filtros = {k: v for k, v in request.args.items() if v and k not in ('format',)}
-    registros, total = db.pesquisar(filtros, page=1, per_page=99999)
+    campos = [
+        'ano', 'mes', 'drs', 'tipo', 'hu', 'municipio', 'cnes', 'cnpj', 'unidade',
+        'aih_fisico', 'aih_faec', 'sia_faec', 'equip_hemodialise',
+        'aih_mc', 'aih_ac', 'aih_total', 'sia_mc', 'sia_ac', 'sia_total',
+        'teto_global', 'teto_mc', 'teto_ac', 'teto_mac', 'total_teto_mac',
+        'integrasus', 'iac', 'sus_100', 'opo', 'rede_viver_sem_limite',
+        'rsme', 'rce_rceg', 'rau_hosp_sos', 'rca_rcan', 'iapi',
+        'residencia_medica', 'melhor_em_casa', 'cer', 'doencas_raras',
+        'oficina_ortopedica', 'ihac', 'total_mc_ac_incentivos'
+    ]
+
+    ano_ini = request.args.get('ano_ini', type=int)
+    periodo = None
+    if ano_ini:
+        mes_ini = request.args.get('mes_ini', type=int) or 1
+        ano_fim = request.args.get('ano_fim', type=int) or ano_ini
+        mes_fim = request.args.get('mes_fim', type=int) or 12
+        registros = db.periodo_completo(ano_ini, mes_ini, ano_fim, mes_fim, campos=campos)
+        periodo = (ano_ini, mes_ini, ano_fim, mes_fim)
+        filtros = {}
+    else:
+        filtros = {k: v for k, v in request.args.items() if v and k not in ('format',)}
+        registros = db.pesquisar_todos(filtros)
 
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -651,17 +679,6 @@ def exportar_excel():
     ws['A1'].font = fonte_titulo
     ws['A1'].alignment = Alignment(horizontal='center', vertical='center')
     ws.row_dimensions[1].height = 25
-
-    campos = [
-        'ano', 'mes', 'drs', 'tipo', 'hu', 'municipio', 'cnes', 'cnpj', 'unidade',
-        'aih_fisico', 'aih_faec', 'sia_faec', 'equip_hemodialise',
-        'aih_mc', 'aih_ac', 'aih_total', 'sia_mc', 'sia_ac', 'sia_total',
-        'teto_global', 'teto_mc', 'teto_ac', 'teto_mac', 'total_teto_mac',
-        'integrasus', 'iac', 'sus_100', 'opo', 'rede_viver_sem_limite',
-        'rsme', 'rce_rceg', 'rau_hosp_sos', 'rca_rcan', 'iapi',
-        'residencia_medica', 'melhor_em_casa', 'cer', 'doencas_raras',
-        'oficina_ortopedica', 'ihac', 'total_mc_ac_incentivos'
-    ]
 
     for col, (h, campo) in enumerate(zip(headers, campos), 1):
         cor_fundo, cor_fonte = _cores_header_campo(campo)
@@ -702,9 +719,13 @@ def exportar_excel():
     wb.save(output)
     output.seek(0)
 
-    ano_f = filtros.get('ano', 'todos')
-    mes_f = MESES.get(int(filtros.get('mes', 0)), 'todos') if filtros.get('mes') else 'todos'
-    filename = f'TetMAC_{ano_f}_{mes_f}.xlsx'
+    if periodo:
+        ano_ini, mes_ini, ano_fim, mes_fim = periodo
+        filename = f'TetMAC_{ano_ini}-{mes_ini:02d}_a_{ano_fim}-{mes_fim:02d}.xlsx'
+    else:
+        ano_f = filtros.get('ano', 'todos')
+        mes_f = MESES.get(int(filtros.get('mes', 0)), 'todos') if filtros.get('mes') else 'todos'
+        filename = f'TetMAC_{ano_f}_{mes_f}.xlsx'
 
     return send_file(
         output,
@@ -1109,14 +1130,18 @@ def api_evolucao():
 def api_drs():
     ano = request.args.get('ano', type=int)
     mes = request.args.get('mes', type=int)
-    dados = db.grafico_por_drs(ano, mes)
+    ano_fim = request.args.get('ano_fim', type=int)
+    mes_fim = request.args.get('mes_fim', type=int)
+    dados = db.grafico_por_drs(ano, mes, ano_fim, mes_fim)
     return jsonify(dados)
 
 @app.route('/api/graficos/tipo')
 def api_tipo():
     ano = request.args.get('ano', type=int)
     mes = request.args.get('mes', type=int)
-    dados = db.grafico_por_tipo(ano, mes)
+    ano_fim = request.args.get('ano_fim', type=int)
+    mes_fim = request.args.get('mes_fim', type=int)
+    dados = db.grafico_por_tipo(ano, mes, ano_fim, mes_fim)
     return jsonify(dados)
 
 @app.route('/api/graficos/top-unidades')
@@ -1124,7 +1149,9 @@ def api_top_unidades():
     ano = request.args.get('ano', type=int)
     mes = request.args.get('mes', type=int)
     limite = request.args.get('limite', 15, type=int)
-    dados = db.grafico_top_unidades(ano, mes, limite)
+    ano_fim = request.args.get('ano_fim', type=int)
+    mes_fim = request.args.get('mes_fim', type=int)
+    dados = db.grafico_top_unidades(ano, mes, limite, ano_fim, mes_fim)
     return jsonify(dados)
 
 @app.route('/api/kpis')
@@ -1177,28 +1204,36 @@ def api_analitico():
 def api_relatorio_unidade():
     ano = request.args.get('ano', type=int)
     mes = request.args.get('mes', type=int)
-    return jsonify(db.relatorio_por_unidade(ano, mes))
+    ano_fim = request.args.get('ano_fim', type=int)
+    mes_fim = request.args.get('mes_fim', type=int)
+    return jsonify(db.relatorio_por_unidade(ano, mes, ano_fim, mes_fim))
 
 @app.route('/api/relatorio/municipio')
 @login_required
 def api_relatorio_municipio():
     ano = request.args.get('ano', type=int)
     mes = request.args.get('mes', type=int)
-    return jsonify(db.relatorio_por_municipio(ano, mes))
+    ano_fim = request.args.get('ano_fim', type=int)
+    mes_fim = request.args.get('mes_fim', type=int)
+    return jsonify(db.relatorio_por_municipio(ano, mes, ano_fim, mes_fim))
 
 @app.route('/api/relatorio/fundo')
 @login_required
 def api_relatorio_fundo():
     ano = request.args.get('ano', type=int)
     mes = request.args.get('mes', type=int)
-    return jsonify(db.relatorio_fundo(ano, mes))
+    ano_fim = request.args.get('ano_fim', type=int)
+    mes_fim = request.args.get('mes_fim', type=int)
+    return jsonify(db.relatorio_fundo(ano, mes, ano_fim, mes_fim))
 
 @app.route('/api/relatorio/incentivos')
 @login_required
 def api_relatorio_incentivos():
     ano = request.args.get('ano', type=int)
     mes = request.args.get('mes', type=int)
-    return jsonify(db.relatorio_incentivos(ano, mes))
+    ano_fim = request.args.get('ano_fim', type=int)
+    mes_fim = request.args.get('mes_fim', type=int)
+    return jsonify(db.relatorio_incentivos(ano, mes, ano_fim, mes_fim))
 
 # ── Gráficos dedicados ────────────────────────────────────────────────────────
 

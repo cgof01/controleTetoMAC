@@ -1,6 +1,13 @@
 {% extends "base.html" %}
 {% block title %}{{ titulo }} — Teto MAC{% endblock %}
 
+{% block extra_css %}
+<style>
+.campo-alterado { border-color:#dc3545 !important; background-color:#fff5f5 !important; }
+.form-label.campo-alterado-label { color:#dc3545; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="page-header">
   <h4 class="mb-0 fw-bold">
@@ -9,6 +16,15 @@
 </div>
 
 {% set r = registro or {} %}
+{% set snap = r.get('snapshot_replicacao') or {} %}
+
+{% if snap %}
+<div class="alert alert-warning small mb-3">
+  <i class="bi bi-copy me-1"></i>
+  Registro copiado de {{ r.origem_replicacao_mes | mes_nome }}/{{ r.origem_replicacao_ano }}.
+  Campos com <span class="text-danger fw-bold">borda vermelha</span> abaixo foram alterados depois da cópia.
+</div>
+{% endif %}
 
 {# Monta dicionário de campos por seção para acesso rápido #}
 {% set campos_por_secao = namespace(data={}) %}
@@ -137,11 +153,12 @@
         {% call linha_id('DRS') %}
           <input type="number" name="drs" class="form-control form-control-sm"
                  value="{{ r.get('drs', '') }}" min="1" max="17" placeholder="1-17"
-                 style="max-width:120px">
+                 style="max-width:120px" {% if 'drs' in snap %}data-original="{{ snap.drs }}"{% endif %}>
         {% endcall %}
 
         {% call linha_id('Tipo de Estabelecimento') %}
-          <select name="tipo" class="form-select form-select-sm" style="max-width:380px">
+          <select name="tipo" class="form-select form-select-sm" style="max-width:380px"
+                  {% if 'tipo' in snap %}data-original="{{ snap.tipo }}"{% endif %}>
             <option value="">Selecione...</option>
             {% set tipos = ['PRIVADOS - PRODUÇÃO - RES 198_23','PRIVADOS - PRODUÇÃO','PRIVADOS - FIXO','PRÓPRIOS','RESREC'] %}
             {% for t in tipos %}
@@ -154,7 +171,8 @@
         {% endcall %}
 
         {% call linha_id('HU') %}
-          <select name="hu" class="form-select form-select-sm" style="max-width:120px">
+          <select name="hu" class="form-select form-select-sm" style="max-width:120px"
+                  {% if 'hu' in snap %}data-original="{{ snap.hu }}"{% endif %}>
             <option value="-" {{ 'selected' if r.get('hu') == '-' }}>Não</option>
             <option value="SIM" {{ 'selected' if r.get('hu') == 'SIM' }}>SIM</option>
           </select>
@@ -163,23 +181,25 @@
         {% call linha_id('CNES', true) %}
           <input type="text" name="cnes" class="form-control form-control-sm" required
                  value="{{ r.get('cnes', '') }}" placeholder="Código CNES" id="inputCnes"
-                 style="max-width:200px">
+                 style="max-width:200px" {% if 'cnes' in snap %}data-original="{{ snap.cnes }}"{% endif %}>
         {% endcall %}
 
         {% call linha_id('CNPJ') %}
           <input type="text" name="cnpj" class="form-control form-control-sm"
-                 value="{{ r.get('cnpj', '') }}" placeholder="CNPJ" style="max-width:260px">
+                 value="{{ r.get('cnpj', '') }}" placeholder="CNPJ" style="max-width:260px"
+                 {% if 'cnpj' in snap %}data-original="{{ snap.cnpj }}"{% endif %}>
         {% endcall %}
 
         {% call linha_id('Município', true) %}
           <input type="text" name="municipio" class="form-control form-control-sm text-uppercase" required
-                 value="{{ r.get('municipio', '') }}" placeholder="Nome do município">
+                 value="{{ r.get('municipio', '') }}" placeholder="Nome do município"
+                 {% if 'municipio' in snap %}data-original="{{ snap.municipio }}"{% endif %}>
         {% endcall %}
 
         {% call linha_id('Nome da Unidade', true) %}
           <input type="text" name="unidade" class="form-control form-control-sm text-uppercase" required
                  value="{{ r.get('unidade', '') }}" placeholder="Nome completo do estabelecimento"
-                 id="inputUnidadeNome">
+                 id="inputUnidadeNome" {% if 'unidade' in snap %}data-original="{{ snap.unidade }}"{% endif %}>
         {% endcall %}
 
       </div><!-- /list-group -->
@@ -227,6 +247,7 @@
 
               {# campo_key usado no name: usa coluna_db se existir, senão campo_key #}
               {% set input_name = campo.coluna_db if campo.coluna_db else campo.campo_key %}
+              {% set tem_original = input_name in snap %}
 
               {% if campo.tipo in ('moeda', 'numero', 'calculado') %}
                 <div class="input-group input-group-sm" style="max-width:280px">
@@ -243,6 +264,7 @@
                          data-campo-key="{{ campo.campo_key }}"
                          data-tipo="{{ campo.tipo }}"
                          {% if campo.formula %}data-formula="{{ campo.formula }}"{% endif %}
+                         {% if tem_original %}data-original="{{ snap[input_name] }}"{% endif %}
                          value="{% if campo.tipo == 'numero' %}{{ val|int if val else 0 }}{% else %}{{ '%.2f'|format(val|float) if val else '0.00' }}{% endif %}">
                 </div>
 
@@ -253,6 +275,7 @@
                        class="form-control form-control-sm text-uppercase"
                        {{ 'required' if campo.obrigatorio else '' }}
                        data-campo-key="{{ campo.campo_key }}"
+                       {% if tem_original %}data-original="{{ snap[input_name] }}"{% endif %}
                        value="{{ val or '' }}">
 
               {% else %}{# alfanumerico #}
@@ -262,6 +285,7 @@
                        class="form-control form-control-sm"
                        {{ 'required' if campo.obrigatorio else '' }}
                        data-campo-key="{{ campo.campo_key }}"
+                       {% if tem_original %}data-original="{{ snap[input_name] }}"{% endif %}
                        value="{{ val or '' }}">
               {% endif %}
 
@@ -372,6 +396,40 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
   recalcularTodos(); // calcula na carga da página
+  destacarCamposAlterados(); // aplica o destaque de novo após o recálculo acima
+});
+
+// ── Destaque em vermelho dos campos alterados após Replicar Competência ─────────
+// Compara o valor atual de cada campo com data-original (a foto salva no momento
+// da cópia). Roda ao carregar a página e a cada edição, para o destaque ficar "ao vivo".
+function _camposAlteradosEls() {
+  return document.querySelectorAll('[data-original]');
+}
+function _destacarCampo(el) {
+  const item = el.closest('.list-group-item');
+  const label = item ? item.querySelector('.form-label') : null;
+  const original = el.dataset.original;
+  const atual = el.value;
+  const origNum = parseFloat(String(original).replace(',', '.'));
+  const atualNum = parseFloat(String(atual).replace(',', '.'));
+  let mudou;
+  if (!isNaN(origNum) && !isNaN(atualNum) && String(original).trim() !== '') {
+    mudou = Math.abs(origNum - atualNum) > 0.005;
+  } else {
+    mudou = (original || '').trim().toUpperCase() !== (atual || '').trim().toUpperCase();
+  }
+  el.classList.toggle('campo-alterado', mudou);
+  if (label) label.classList.toggle('campo-alterado-label', mudou);
+}
+function destacarCamposAlterados() {
+  _camposAlteradosEls().forEach(_destacarCampo);
+}
+document.addEventListener('DOMContentLoaded', function() {
+  _camposAlteradosEls().forEach(function(el) {
+    el.addEventListener('input', function() { _destacarCampo(el); });
+    el.addEventListener('change', function() { _destacarCampo(el); });
+  });
+  destacarCamposAlterados();
 });
 
 // ── Replicar todos os registros de uma competência para outra ───────────────────

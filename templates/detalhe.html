@@ -25,6 +25,20 @@
   </div>
 </div>
 
+{% if registro.snapshot_replicacao %}
+<div class="alert alert-warning d-flex align-items-center gap-2 no-print mb-3">
+  <i class="bi bi-copy fs-5"></i>
+  <div>
+    <strong>Registro copiado</strong> de {{ registro.origem_replicacao_mes | mes_nome }}/{{ registro.origem_replicacao_ano }} via Replicar Competência.
+    {% if alterados %}
+      Os campos em <span class="text-danger fw-bold">vermelho</span> abaixo foram alterados depois da cópia.
+    {% else %}
+      Nenhum campo foi alterado desde a cópia.
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
 <!-- Identificação -->
 <div class="row g-3 mb-3">
   <div class="col-md-8">
@@ -32,19 +46,19 @@
       <div class="card-header bg-primary text-white"><strong><i class="bi bi-info-circle me-2"></i>Dados da Unidade</strong></div>
       <div class="card-body">
         <div class="row g-2">
-          {% macro info(label, val, bold=false) %}
+          {% macro info(label, val, bold=false, campo=None) %}
             <div class="col-md-6">
               <div class="small text-muted">{{ label }}</div>
-              <div class="{{ 'fw-bold' if bold else '' }}">{{ val or '—' }}</div>
+              <div class="{{ 'fw-bold' if bold else '' }} {{ 'text-danger' if campo and campo in alterados else '' }}">{{ val or '—' }}</div>
             </div>
           {% endmacro %}
-          {{ info('Nome', registro.unidade, true) }}
-          {{ info('Município', registro.municipio) }}
-          {{ info('CNES', registro.cnes) }}
-          {{ info('CNPJ', registro.cnpj) }}
-          {{ info('DRS', registro.drs | int if registro.drs else None) }}
-          {{ info('Tipo', registro.tipo) }}
-          {{ info('Hospital Universitário', registro.hu) }}
+          {{ info('Nome', registro.unidade, true, 'unidade') }}
+          {{ info('Município', registro.municipio, false, 'municipio') }}
+          {{ info('CNES', registro.cnes, false, 'cnes') }}
+          {{ info('CNPJ', registro.cnpj, false, 'cnpj') }}
+          {{ info('DRS', registro.drs | int if registro.drs else None, false, 'drs') }}
+          {{ info('Tipo', registro.tipo, false, 'tipo') }}
+          {{ info('Hospital Universitário', registro.hu, false, 'hu') }}
           {{ info('Competência', (registro.mes | mes_nome) ~ ' / ' ~ registro.ano) }}
           {% if registro.arquivo_origem %}
             {{ info('Arquivo Origem', registro.arquivo_origem) }}
@@ -81,12 +95,20 @@
     <div class="card h-100">
       <div class="card-header bg-success text-white"><strong><i class="bi bi-cash me-2"></i>AIH — Internações</strong></div>
       <div class="card-body">
+        {% macro linha(label, campo, valor, filtro='moeda', destaque_total=false) %}
+          <tr class="{{ 'table-active fw-bold' if destaque_total else '' }}">
+            <td>{{ label }}</td>
+            <td class="text-end num-moeda {{ 'text-danger' if campo in alterados else '' }}">
+              {{ valor | numero if filtro == 'numero' else valor | moeda }}
+            </td>
+          </tr>
+        {% endmacro %}
         <table class="table table-sm">
-          <tr><td>AIH Físico</td><td class="text-end num-moeda">{{ registro.aih_fisico | numero }}</td></tr>
-          <tr><td>AIH FAEC</td><td class="text-end num-moeda">{{ registro.aih_faec | moeda }}</td></tr>
-          <tr><td>AIH MC (Média Complexidade)</td><td class="text-end num-moeda">{{ registro.aih_mc | moeda }}</td></tr>
-          <tr><td>AIH AC (Alta Complexidade)</td><td class="text-end num-moeda">{{ registro.aih_ac | moeda }}</td></tr>
-          <tr class="table-active fw-bold"><td>AIH Total</td><td class="text-end num-moeda">{{ registro.aih_total | moeda }}</td></tr>
+          {{ linha('AIH Físico', 'aih_fisico', registro.aih_fisico, 'numero') }}
+          {{ linha('AIH FAEC', 'aih_faec', registro.aih_faec) }}
+          {{ linha('AIH MC (Média Complexidade)', 'aih_mc', registro.aih_mc) }}
+          {{ linha('AIH AC (Alta Complexidade)', 'aih_ac', registro.aih_ac) }}
+          {{ linha('AIH Total', 'aih_total', registro.aih_total, 'moeda', true) }}
         </table>
       </div>
     </div>
@@ -96,12 +118,12 @@
       <div class="card-header bg-info text-white"><strong><i class="bi bi-clipboard me-2"></i>SIA — Ambulatório</strong></div>
       <div class="card-body">
         <table class="table table-sm">
-          <tr><td>SIA FAEC</td><td class="text-end num-moeda">{{ registro.sia_faec | moeda }}</td></tr>
-          <tr><td>SIA MC (Média Complexidade)</td><td class="text-end num-moeda">{{ registro.sia_mc | moeda }}</td></tr>
-          <tr><td>SIA AC (Alta Complexidade)</td><td class="text-end num-moeda">{{ registro.sia_ac | moeda }}</td></tr>
-          <tr><td>Equip. Hemodiálise (DRC)</td><td class="text-end num-moeda">{{ registro.equip_hemodialise | moeda }}</td></tr>
-          <tr><td>Limite Compl. Tabela SUS</td><td class="text-end num-moeda">{{ registro.limite_complementacao | moeda }}</td></tr>
-          <tr class="table-active fw-bold"><td>SIA Total</td><td class="text-end num-moeda">{{ registro.sia_total | moeda }}</td></tr>
+          {{ linha('SIA FAEC', 'sia_faec', registro.sia_faec) }}
+          {{ linha('SIA MC (Média Complexidade)', 'sia_mc', registro.sia_mc) }}
+          {{ linha('SIA AC (Alta Complexidade)', 'sia_ac', registro.sia_ac) }}
+          {{ linha('Equip. Hemodiálise (DRC)', 'equip_hemodialise', registro.equip_hemodialise) }}
+          {{ linha('Limite Compl. Tabela SUS', 'limite_complementacao', registro.limite_complementacao) }}
+          {{ linha('SIA Total', 'sia_total', registro.sia_total, 'moeda', true) }}
         </table>
       </div>
     </div>
@@ -114,30 +136,35 @@
   <div class="card-body">
     <div class="row g-2">
       {% set incentivos = [
-        ('IntegraSUS', registro.integrasus),
-        ('IAC', registro.iac),
-        ('100% SUS', registro.sus_100),
-        ('OPO', registro.opo),
-        ('Rede Viver Sem Limite', registro.rede_viver_sem_limite),
-        ('Rede Brasil Sem Miséria', registro.rede_brasil_miseria),
-        ('RSME', registro.rsme),
-        ('RCE/RCEG', registro.rce_rceg),
-        ('RAU/HOSP SOS', registro.rau_hosp_sos),
-        ('RCA/RCAN', registro.rca_rcan),
-        ('IAPI', registro.iapi),
-        ('Residência Médica', registro.residencia_medica),
-        ('Melhor em Casa', registro.melhor_em_casa),
-        ('CER', registro.cer),
-        ('Doenças Raras', registro.doencas_raras),
-        ('Oficina Ortopédica', registro.oficina_ortopedica),
-        ('IHAC', registro.ihac),
+        ('IntegraSUS', 'integrasus', registro.integrasus),
+        ('IAC', 'iac', registro.iac),
+        ('100% SUS', 'sus_100', registro.sus_100),
+        ('OPO', 'opo', registro.opo),
+        ('Rede Viver Sem Limite', 'rede_viver_sem_limite', registro.rede_viver_sem_limite),
+        ('Rede Brasil Sem Miséria', 'rede_brasil_miseria', registro.rede_brasil_miseria),
+        ('RSME', 'rsme', registro.rsme),
+        ('RCE/RCEG', 'rce_rceg', registro.rce_rceg),
+        ('RAU/HOSP SOS', 'rau_hosp_sos', registro.rau_hosp_sos),
+        ('RCA/RCAN', 'rca_rcan', registro.rca_rcan),
+        ('IAPI', 'iapi', registro.iapi),
+        ('Residência Médica', 'residencia_medica', registro.residencia_medica),
+        ('Melhor em Casa', 'melhor_em_casa', registro.melhor_em_casa),
+        ('CER', 'cer', registro.cer),
+        ('Doenças Raras', 'doencas_raras', registro.doencas_raras),
+        ('Oficina Ortopédica', 'oficina_ortopedica', registro.oficina_ortopedica),
+        ('IHAC', 'ihac', registro.ihac),
+        ('Rede Alyne', 'rede_alyne', registro.rede_alyne),
+        ('PNCP - Cuidados Paliativos', 'pncp', registro.pncp),
+        ('RCE/RCEG - Custeio UTI', 'rce_rceg_custeio', registro.rce_rceg_custeio),
+        ('RAU/HOSP SOS - Custeio UTI', 'rau_hosp_sos_custeio', registro.rau_hosp_sos_custeio),
+        ('RCA/RCAN - Custeio', 'rca_rcan_custeio', registro.rca_rcan_custeio),
       ] %}
-      {% for nome, val in incentivos %}
-        {% if val and val > 0 %}
+      {% for nome, campo, val in incentivos %}
+        {% if (val and val > 0) or campo in alterados %}
           <div class="col-md-3 col-6">
             <div class="d-flex justify-content-between border-bottom pb-1 mb-1">
               <small class="text-muted">{{ nome }}</small>
-              <small class="fw-bold num-moeda">{{ val | moeda }}</small>
+              <small class="fw-bold num-moeda {{ 'text-danger' if campo in alterados else '' }}">{{ val | moeda }}</small>
             </div>
           </div>
         {% endif %}

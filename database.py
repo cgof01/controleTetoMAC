@@ -82,15 +82,23 @@ def _clean(row):
         for k, v in result['campos_extras'].items():
             if k not in result:
                 result[k] = v
+    # Desserializa snapshot_replicacao (foto dos valores no momento da cópia de competência)
+    sr = result.get('snapshot_replicacao')
+    if isinstance(sr, str):
+        try:
+            result['snapshot_replicacao'] = json.loads(sr) if sr else None
+        except Exception:
+            result['snapshot_replicacao'] = None
     return result
 
 # ── CRUD ───────────────────────────────────────────────────────────────────────
 
 def _prep_campos_extras(dados_clean, use_supabase):
-    """Serializa campos_extras para TEXT no SQLite; deixa como dict no Supabase."""
-    ce = dados_clean.get('campos_extras')
-    if ce is not None and not use_supabase and isinstance(ce, dict):
-        dados_clean['campos_extras'] = json.dumps(ce, ensure_ascii=False)
+    """Serializa campos_extras/snapshot_replicacao para TEXT no SQLite; deixa como dict no Supabase."""
+    for campo in ('campos_extras', 'snapshot_replicacao'):
+        v = dados_clean.get(campo)
+        if v is not None and not use_supabase and isinstance(v, dict):
+            dados_clean[campo] = json.dumps(v, ensure_ascii=False)
     return dados_clean
 
 def inserir_registro(dados):
@@ -226,11 +234,36 @@ def _pesquisar_sqlite(filtros, page, per_page):
     conn.close()
     return [_clean(dict(r)) for r in rows], total
 
+def pesquisar_todos(filtros=None):
+    """Busca TODOS os registros que casam com os filtros, paginando — evita truncar
+    silenciosamente exportações grandes por causa do limite de linhas por requisição
+    do Supabase/PostgREST (o mesmo problema que existia em relatorio_periodo)."""
+    todos = []
+    page = 1
+    per_page = 1000
+    while True:
+        regs, total = pesquisar(filtros, page=page, per_page=per_page)
+        if not regs:
+            break
+        todos.extend(regs)
+        if len(regs) < per_page or len(todos) >= total:
+            break
+        page += 1
+    return todos
+
 # ── Replicação de competência (copiar mês inteiro) ─────────────────────────────
 
 _COLS_FIXAS_REPLICAR = {
     'ano', 'mes', 'drs', 'tipo', 'hu', 'municipio', 'cnes', 'cnpj', 'unidade',
     'campos_extras', 'arquivo_origem',
+}
+
+# Chaves que nunca entram na "foto" usada para detectar o que foi alterado
+# depois de uma replicação de competência (metadados, não campos de negócio).
+_META_EXCLUIR_SNAPSHOT = {
+    'id', 'created_at', 'updated_at', 'ano', 'mes', 'campos_extras',
+    'snapshot_replicacao', 'origem_replicacao_ano', 'origem_replicacao_mes',
+    'arquivo_origem',
 }
 
 def _fetch_todos_competencia(ano, mes):
@@ -277,6 +310,13 @@ def replicar_competencia(ano_origem, mes_origem, ano_destino, mes_destino):
         novo = {k: v for k, v in reg.items() if k in colunas_validas}
         novo['ano'] = ano_destino
         novo['mes'] = mes_destino
+        # Guarda uma foto dos valores de origem para poder destacar em vermelho,
+        # na tela do registro, o que for alterado depois da cópia (ver campos_alterados).
+        novo['snapshot_replicacao'] = {
+            k: v for k, v in reg.items() if k not in _META_EXCLUIR_SNAPSHOT
+        }
+        novo['origem_replicacao_ano'] = ano_origem
+        novo['origem_replicacao_mes'] = mes_origem
         novos.append(novo)
 
     if not novos:
@@ -300,6 +340,27 @@ def replicar_competencia(ano_origem, mes_origem, ano_destino, mes_destino):
         conn.close()
 
     return {'copiados': len(novos), 'ja_existentes': ja_existentes, 'total_origem': len(origem)}
+
+def _valor_normalizado(v):
+    """Normaliza um valor para comparação tolerante (número vs texto, None vs 0/''.)"""
+    if v is None or v == '':
+        return None
+    try:
+        return round(float(v), 2)
+    except (TypeError, ValueError):
+        return str(v).strip().upper()
+
+def campos_alterados(registro):
+    """Retorna o conjunto de campos cujo valor atual difere da foto salva no momento
+    em que o registro foi copiado por replicar_competencia. Vazio se o registro não
+    veio de uma replicação de competência ou se nada foi alterado desde a cópia."""
+    snap = (registro or {}).get('snapshot_replicacao')
+    if not snap:
+        return set()
+    return {
+        campo for campo, valor_original in snap.items()
+        if _valor_normalizado(registro.get(campo)) != _valor_normalizado(valor_original)
+    }
 
 # ── Lookups ────────────────────────────────────────────────────────────────────
 
@@ -422,31 +483,6 @@ def grafico_evolucao_mensal(anos=None):
         conn.close()
         return [dict(r) for r in rows]
 
-def grafico_por_drs(ano, mes):
-    if USE_SUPABASE:
-        r = get_sb().table('teto_mac').select(
-            'drs,total_mc_ac_incentivos'
-        ).eq('ano', ano).eq('mes', mes).execute()
-        rows = r.data or []
-        seen = {}
-        for row in rows:
-            drs = int(row.get('drs') or 0)
-            if drs not in seen:
-                seen[drs] = {'drs': drs, 'total': 0.0, 'unidades': 0}
-            seen[drs]['total']    += row.get('total_mc_ac_incentivos') or 0
-            seen[drs]['unidades'] += 1
-        return sorted(seen.values(), key=lambda x: x['total'], reverse=True)
-    else:
-        conn = get_db()
-        rows = conn.execute("""
-            SELECT CAST(drs AS INTEGER) as drs,
-                SUM(total_mc_ac_incentivos) as total, COUNT(*) as unidades
-            FROM teto_mac WHERE ano = ? AND mes = ? AND drs IS NOT NULL
-            GROUP BY CAST(drs AS INTEGER) ORDER BY total DESC
-        """, (ano, mes)).fetchall()
-        conn.close()
-        return [dict(r) for r in rows]
-
 _EXCLUIR_UNIDADES = ('TOTAL', 'SUBTOTAL', 'TOTAL GERAL', 'GERAL')
 
 def _filtrar_totais(dados):
@@ -458,175 +494,110 @@ def _filtrar_totais(dados):
         )
     ]
 
-def grafico_top_unidades(ano, mes, limite=15):
-    if USE_SUPABASE:
-        r = get_sb().table('teto_mac').select(
-            'unidade,municipio,total_mc_ac_incentivos'
-        ).eq('ano', ano).eq('mes', mes).order('total_mc_ac_incentivos', desc=True).limit(limite + 20).execute()
-        dados = [
-            {'unidade': d.get('unidade'), 'municipio': d.get('municipio'),
-             'total': d.get('total_mc_ac_incentivos') or 0}
-            for d in (r.data or [])
-        ]
-        return _filtrar_totais(dados)[:limite]
-    else:
-        conn = get_db()
-        rows = conn.execute("""
-            SELECT unidade, municipio, total_mc_ac_incentivos as total
-            FROM teto_mac
-            WHERE ano = ? AND mes = ? AND total_mc_ac_incentivos > 0
-              AND UPPER(TRIM(unidade)) NOT IN ('TOTAL','SUBTOTAL','TOTAL GERAL','GERAL')
-            ORDER BY total DESC LIMIT ?
-        """, (ano, mes, limite)).fetchall()
-        conn.close()
-        return [dict(r) for r in rows]
+# As funções analíticas abaixo aceitam `ano_fim`/`mes_fim` opcionais para relatórios
+# por período/ano (não só um único mês). Quando omitidos, o período é o próprio
+# mês (`ano`,`mes`) — comportamento idêntico ao de antes. Todas usam _fetch_periodo,
+# que já pagina para não truncar períodos grandes.
 
-def grafico_por_tipo(ano, mes):
+def grafico_por_drs(ano, mes, ano_fim=None, mes_fim=None):
+    rows = _fetch_periodo(ano, mes, ano_fim or ano, mes_fim or mes,
+                           campos=['drs', 'total_mc_ac_incentivos'])
+    seen = {}
+    for row in rows:
+        drs = int(row.get('drs') or 0)
+        if drs not in seen:
+            seen[drs] = {'drs': drs, 'total': 0.0, 'unidades': 0}
+        seen[drs]['total']    += row.get('total_mc_ac_incentivos') or 0
+        seen[drs]['unidades'] += 1
+    return sorted(seen.values(), key=lambda x: x['total'], reverse=True)
+
+def grafico_top_unidades(ano, mes, limite=15, ano_fim=None, mes_fim=None):
+    rows = _fetch_periodo(ano, mes, ano_fim or ano, mes_fim or mes,
+                           campos=['unidade', 'municipio', 'total_mc_ac_incentivos'])
+    acc = {}
+    for row in rows:
+        un = row.get('unidade') or ''
+        if un not in acc:
+            acc[un] = {'unidade': un, 'municipio': row.get('municipio'), 'total': 0.0}
+        acc[un]['total'] += row.get('total_mc_ac_incentivos') or 0
+    dados = _filtrar_totais(list(acc.values()))
+    dados = [d for d in dados if d['total'] > 0]
+    dados.sort(key=lambda x: x['total'], reverse=True)
+    return dados[:limite]
+
+def grafico_por_tipo(ano, mes, ano_fim=None, mes_fim=None):
     def _agrupar(t):
         t = (t or '').strip().upper()
         if 'PRÓPRIO' in t or 'PROPRIO' in t: return 'Rede Própria'
         if 'PRIVADO' in t: return 'Privados'
         return t.title() if t else 'Outros'
 
-    if USE_SUPABASE:
-        r = get_sb().table('teto_mac').select(
-            'tipo,total_mc_ac_incentivos'
-        ).eq('ano', ano).eq('mes', mes).execute()
-        rows = r.data or []
-        acc = {}
-        for row in rows:
-            tipo = _agrupar(row.get('tipo'))
-            if tipo not in acc:
-                acc[tipo] = {'tipo': tipo, 'total': 0.0, 'unidades': 0}
-            acc[tipo]['total']    += row.get('total_mc_ac_incentivos') or 0
-            acc[tipo]['unidades'] += 1
-        return sorted(acc.values(), key=lambda x: x['total'], reverse=True)
-    else:
-        conn = get_db()
-        rows = conn.execute("""
-            SELECT
-              CASE
-                WHEN UPPER(tipo) LIKE '%PRÓPRIO%' OR UPPER(tipo) LIKE '%PROPRIO%' THEN 'Rede Própria'
-                WHEN UPPER(tipo) LIKE '%PRIVADO%' THEN 'Privados'
-                ELSE COALESCE(TRIM(tipo), 'Outros')
-              END as tipo_agrupado,
-              SUM(total_mc_ac_incentivos) as total, COUNT(*) as unidades
-            FROM teto_mac WHERE ano = ? AND mes = ?
-            GROUP BY tipo_agrupado ORDER BY total DESC
-        """, (ano, mes)).fetchall()
-        conn.close()
-        return [{'tipo': r['tipo_agrupado'], 'total': r['total'], 'unidades': r['unidades']}
-                for r in rows]
+    rows = _fetch_periodo(ano, mes, ano_fim or ano, mes_fim or mes,
+                           campos=['tipo', 'total_mc_ac_incentivos'])
+    acc = {}
+    for row in rows:
+        tipo = _agrupar(row.get('tipo'))
+        if tipo not in acc:
+            acc[tipo] = {'tipo': tipo, 'total': 0.0, 'unidades': 0}
+        acc[tipo]['total']    += row.get('total_mc_ac_incentivos') or 0
+        acc[tipo]['unidades'] += 1
+    return sorted(acc.values(), key=lambda x: x['total'], reverse=True)
 
-def relatorio_por_unidade(ano, mes):
+def relatorio_por_unidade(ano, mes, ano_fim=None, mes_fim=None):
     """Ranking de unidades por total no período."""
-    excl = "('TOTAL','SUBTOTAL','TOTAL GERAL','GERAL')"
-    if USE_SUPABASE:
-        r = get_sb().table('teto_mac').select(
-            'unidade,cnes,municipio,drs,aih_mc,aih_ac,sia_mc,sia_ac,total_mc_ac_incentivos'
-        ).eq('ano', ano).eq('mes', mes).order('total_mc_ac_incentivos', desc=True).limit(1000).execute()
-        data = r.data or []
-        seen = {}
-        for row in data:
-            un = (row.get('unidade') or '').strip().upper()
-            if un in ('TOTAL', 'SUBTOTAL', 'TOTAL GERAL', 'GERAL'):
-                continue
-            key = (row.get('cnes') or '', row.get('unidade') or '')
-            if key not in seen:
-                seen[key] = {'unidade': row.get('unidade', ''), 'cnes': row.get('cnes', ''),
-                             'municipio': row.get('municipio', ''), 'drs': row.get('drs', 0),
-                             'total_aih': 0.0, 'total_sia': 0.0, 'total_geral': 0.0}
-            seen[key]['total_aih'] += (row.get('aih_mc') or 0) + (row.get('aih_ac') or 0)
-            seen[key]['total_sia'] += (row.get('sia_mc') or 0) + (row.get('sia_ac') or 0)
-            seen[key]['total_geral'] += row.get('total_mc_ac_incentivos') or 0
-        return sorted(seen.values(), key=lambda x: x['total_geral'], reverse=True)
-    else:
-        conn = get_db()
-        rows = conn.execute(f"""
-            SELECT unidade, cnes, municipio, CAST(drs AS INTEGER) as drs,
-                SUM(aih_mc + aih_ac) as total_aih, SUM(sia_mc + sia_ac) as total_sia,
-                SUM(total_mc_ac_incentivos) as total_geral
-            FROM teto_mac WHERE ano=? AND mes=?
-              AND UPPER(TRIM(COALESCE(unidade,''))) NOT IN {excl}
-            GROUP BY cnes, unidade ORDER BY total_geral DESC
-        """, (ano, mes)).fetchall()
-        conn.close()
-        return [dict(r) for r in rows]
+    rows = _fetch_periodo(ano, mes, ano_fim or ano, mes_fim or mes, campos=[
+        'unidade', 'cnes', 'municipio', 'drs', 'aih_mc', 'aih_ac', 'sia_mc', 'sia_ac',
+        'total_mc_ac_incentivos',
+    ])
+    seen = {}
+    for row in rows:
+        un = (row.get('unidade') or '').strip().upper()
+        if un in _EXCLUIR_UNIDADES:
+            continue
+        key = (row.get('cnes') or '', row.get('unidade') or '')
+        if key not in seen:
+            seen[key] = {'unidade': row.get('unidade', ''), 'cnes': row.get('cnes', ''),
+                         'municipio': row.get('municipio', ''), 'drs': row.get('drs', 0),
+                         'total_aih': 0.0, 'total_sia': 0.0, 'total_geral': 0.0}
+        seen[key]['total_aih'] += (row.get('aih_mc') or 0) + (row.get('aih_ac') or 0)
+        seen[key]['total_sia'] += (row.get('sia_mc') or 0) + (row.get('sia_ac') or 0)
+        seen[key]['total_geral'] += row.get('total_mc_ac_incentivos') or 0
+    return sorted(seen.values(), key=lambda x: x['total_geral'], reverse=True)
 
-
-def relatorio_por_municipio(ano, mes):
+def relatorio_por_municipio(ano, mes, ano_fim=None, mes_fim=None):
     """Totais agrupados por município."""
-    if USE_SUPABASE:
-        r = get_sb().table('teto_mac').select(
-            'municipio,aih_mc,aih_ac,sia_mc,sia_ac,total_mc_ac_incentivos'
-        ).eq('ano', ano).eq('mes', mes).execute()
-        data = r.data or []
-        seen = {}
-        for row in data:
-            mun = (row.get('municipio') or 'Não Informado').strip()
-            if mun not in seen:
-                seen[mun] = {'municipio': mun, 'unidades': 0,
-                             'total_aih': 0.0, 'total_sia': 0.0, 'total_geral': 0.0}
-            seen[mun]['unidades'] += 1
-            seen[mun]['total_aih'] += (row.get('aih_mc') or 0) + (row.get('aih_ac') or 0)
-            seen[mun]['total_sia'] += (row.get('sia_mc') or 0) + (row.get('sia_ac') or 0)
-            seen[mun]['total_geral'] += row.get('total_mc_ac_incentivos') or 0
-        return sorted(seen.values(), key=lambda x: x['total_geral'], reverse=True)
-    else:
-        conn = get_db()
-        rows = conn.execute("""
-            SELECT COALESCE(NULLIF(TRIM(municipio),''), 'Não Informado') as municipio,
-                COUNT(*) as unidades,
-                SUM(aih_mc + aih_ac) as total_aih,
-                SUM(sia_mc + sia_ac) as total_sia,
-                SUM(total_mc_ac_incentivos) as total_geral
-            FROM teto_mac WHERE ano=? AND mes=?
-            GROUP BY COALESCE(NULLIF(TRIM(municipio),''), 'Não Informado')
-            ORDER BY total_geral DESC
-        """, (ano, mes)).fetchall()
-        conn.close()
-        return [dict(r) for r in rows]
+    rows = _fetch_periodo(ano, mes, ano_fim or ano, mes_fim or mes,
+        campos=['municipio', 'aih_mc', 'aih_ac', 'sia_mc', 'sia_ac', 'total_mc_ac_incentivos'])
+    seen = {}
+    for row in rows:
+        mun = (row.get('municipio') or 'Não Informado').strip()
+        if mun not in seen:
+            seen[mun] = {'municipio': mun, 'unidades': 0,
+                         'total_aih': 0.0, 'total_sia': 0.0, 'total_geral': 0.0}
+        seen[mun]['unidades'] += 1
+        seen[mun]['total_aih'] += (row.get('aih_mc') or 0) + (row.get('aih_ac') or 0)
+        seen[mun]['total_sia'] += (row.get('sia_mc') or 0) + (row.get('sia_ac') or 0)
+        seen[mun]['total_geral'] += row.get('total_mc_ac_incentivos') or 0
+    return sorted(seen.values(), key=lambda x: x['total_geral'], reverse=True)
 
-
-def relatorio_fundo(ano, mes):
+def relatorio_fundo(ano, mes, ano_fim=None, mes_fim=None):
     """Componentes FAEC + MAC agrupados por DRS."""
-    if USE_SUPABASE:
-        r = get_sb().table('teto_mac').select(
-            'drs,aih_fisico,aih_faec,sia_faec,equip_hemodialise,limite_complementacao,'
-            'aih_mc,aih_ac,sia_mc,sia_ac,total_mc_ac_incentivos'
-        ).eq('ano', ano).eq('mes', mes).execute()
-        data = r.data or []
-        seen = {}
-        for row in data:
-            drs = int(row.get('drs') or 0)
-            if drs not in seen:
-                seen[drs] = {k: 0.0 for k in ['aih_fisico','aih_faec','sia_faec',
-                             'equip_hemodialise','limite_complementacao',
-                             'aih_mc','aih_ac','sia_mc','sia_ac','total']}
-                seen[drs]['drs'] = drs
-            for k in ['aih_fisico','aih_faec','sia_faec','equip_hemodialise',
-                      'limite_complementacao','aih_mc','aih_ac','sia_mc','sia_ac']:
-                seen[drs][k] += row.get(k) or 0
-            seen[drs]['total'] += row.get('total_mc_ac_incentivos') or 0
-        return sorted(seen.values(), key=lambda x: x['drs'])
-    else:
-        conn = get_db()
-        rows = conn.execute("""
-            SELECT CAST(drs AS INTEGER) as drs,
-                SUM(aih_fisico) as aih_fisico, SUM(aih_faec) as aih_faec,
-                SUM(sia_faec) as sia_faec, SUM(equip_hemodialise) as equip_hemodialise,
-                SUM(limite_complementacao) as limite_complementacao,
-                SUM(aih_mc) as aih_mc, SUM(aih_ac) as aih_ac,
-                SUM(sia_mc) as sia_mc, SUM(sia_ac) as sia_ac,
-                SUM(total_mc_ac_incentivos) as total
-            FROM teto_mac WHERE ano=? AND mes=? AND drs IS NOT NULL
-            GROUP BY CAST(drs AS INTEGER) ORDER BY CAST(drs AS INTEGER)
-        """, (ano, mes)).fetchall()
-        conn.close()
-        return [dict(r) for r in rows]
+    campos_soma = ['aih_fisico', 'aih_faec', 'sia_faec', 'equip_hemodialise',
+                   'limite_complementacao', 'aih_mc', 'aih_ac', 'sia_mc', 'sia_ac']
+    rows = _fetch_periodo(ano, mes, ano_fim or ano, mes_fim or mes,
+                           campos=['drs'] + campos_soma + ['total_mc_ac_incentivos'])
+    seen = {}
+    for row in rows:
+        drs = int(row.get('drs') or 0)
+        if drs not in seen:
+            seen[drs] = {k: 0.0 for k in campos_soma + ['total']}
+            seen[drs]['drs'] = drs
+        for k in campos_soma:
+            seen[drs][k] += row.get(k) or 0
+        seen[drs]['total'] += row.get('total_mc_ac_incentivos') or 0
+    return sorted(seen.values(), key=lambda x: x['drs'])
 
-
-def relatorio_incentivos(ano, mes):
+def relatorio_incentivos(ano, mes, ano_fim=None, mes_fim=None):
     """Totais de cada incentivo individual."""
     INCENTIVOS = [
         ('integrasus','IntegraSUS'), ('iac','IAC'), ('sus_100','100% SUS'),
@@ -638,25 +609,13 @@ def relatorio_incentivos(ano, mes):
         ('doencas_raras','Doenças Raras'), ('oficina_ortopedica','Oficina Ortopédica'),
         ('ihac','IHAC'),
     ]
-    if USE_SUPABASE:
-        cols = ','.join(k for k, _ in INCENTIVOS)
-        r = get_sb().table('teto_mac').select(cols).eq('ano', ano).eq('mes', mes).execute()
-        data = r.data or []
-        totais = {k: 0.0 for k, _ in INCENTIVOS}
-        for row in data:
-            for k, _ in INCENTIVOS:
-                totais[k] += row.get(k) or 0
-        return [{'campo': k, 'label': lbl, 'total': totais[k]} for k, lbl in INCENTIVOS]
-    else:
-        conn = get_db()
-        sel = ', '.join(f'SUM(COALESCE({k},0)) as {k}' for k, _ in INCENTIVOS)
-        row = conn.execute(f"SELECT {sel} FROM teto_mac WHERE ano=? AND mes=?",
-                          (ano, mes)).fetchone()
-        conn.close()
-        if not row:
-            return []
-        r = dict(row)
-        return [{'campo': k, 'label': lbl, 'total': r.get(k) or 0} for k, lbl in INCENTIVOS]
+    rows = _fetch_periodo(ano, mes, ano_fim or ano, mes_fim or mes,
+                           campos=[k for k, _ in INCENTIVOS])
+    totais = {k: 0.0 for k, _ in INCENTIVOS}
+    for row in rows:
+        for k, _ in INCENTIVOS:
+            totais[k] += row.get(k) or 0
+    return [{'campo': k, 'label': lbl, 'total': totais[k]} for k, lbl in INCENTIVOS]
 
 
 # ── Central de Relatórios Analíticos ─────────────────────────────────────────
@@ -818,33 +777,77 @@ def relatorio_resumo_drs(ano, mes):
         conn.close()
         return [dict(r) for r in rows]
 
-def relatorio_periodo(ano_ini, mes_ini, ano_fim, mes_fim):
+_CAMPOS_PERIODO_PADRAO = [
+    'ano', 'mes', 'drs', 'tipo', 'municipio', 'cnes', 'cnpj', 'unidade',
+    'aih_mc', 'aih_ac', 'sia_mc', 'sia_ac', 'teto_mac', 'total_teto_mac', 'total_mc_ac_incentivos',
+]
+
+def _fetch_periodo(ano_ini, mes_ini, ano_fim, mes_fim, campos=None):
+    """Busca registros de teto_mac num intervalo de competências (ano,mes), inclusive,
+    paginando para não depender do limite de linhas por requisição do Supabase/PostgREST
+    (o `.limit()` fixo usado antes aqui truncava silenciosamente períodos longos)."""
+    campos = campos or _CAMPOS_PERIODO_PADRAO
+    ini = ano_ini * 100 + mes_ini
+    fim = ano_fim * 100 + mes_fim
     if USE_SUPABASE:
-        r = (get_sb().table('teto_mac')
-            .select('ano,mes,drs,tipo,municipio,cnes,cnpj,unidade,aih_mc,aih_ac,sia_mc,sia_ac,teto_mac,total_teto_mac,total_mc_ac_incentivos')
-            .gte('ano', ano_ini)
-            .lte('ano', ano_fim)
-            .order('ano').order('mes').order('unidade')
-            .limit(5000)
-            .execute())
-        # filtrar mes_ini e mes_fim
-        result = []
-        for row in r.data:
-            val = row['ano'] * 100 + row['mes']
-            if ano_ini * 100 + mes_ini <= val <= ano_fim * 100 + mes_fim:
-                result.append(_clean(row))
-        return result
+        sb = get_sb()
+        cols = ','.join(campos)
+        todos = []
+        offset = 0
+        page_size = 1000
+        while True:
+            r = (sb.table('teto_mac').select(cols)
+                .gte('ano', ano_ini).lte('ano', ano_fim)
+                .range(offset, offset + page_size - 1)
+                .execute())
+            rows = r.data or []
+            if not rows:
+                break
+            todos.extend(rows)
+            if len(rows) < page_size:
+                break
+            offset += page_size
+        return [row for row in todos if ini <= (row['ano'] * 100 + row['mes']) <= fim]
     else:
         conn = get_db()
-        rows = conn.execute("""
-            SELECT ano, mes, drs, tipo, municipio, cnes, cnpj, unidade,
-                aih_mc, aih_ac, sia_mc, sia_ac, teto_mac, total_teto_mac, total_mc_ac_incentivos
-            FROM teto_mac
+        cols = ','.join(campos)
+        rows = conn.execute(f"""
+            SELECT {cols} FROM teto_mac
             WHERE (ano * 100 + mes) BETWEEN ? AND ?
             ORDER BY ano, mes, unidade
-        """, (ano_ini * 100 + mes_ini, ano_fim * 100 + mes_fim)).fetchall()
+        """, (ini, fim)).fetchall()
         conn.close()
-        return [_clean(dict(r)) for r in rows]
+        return [dict(r) for r in rows]
+
+def relatorio_periodo(ano_ini, mes_ini, ano_fim, mes_fim, granularidade='detalhado'):
+    """Registros de teto_mac num período. granularidade:
+    'detalhado' (uma linha por unidade/competência, comportamento original),
+    'mensal' (soma dos valores por competência) ou 'anual' (soma dos valores por ano)."""
+    dados = _fetch_periodo(ano_ini, mes_ini, ano_fim, mes_fim)
+    if granularidade == 'detalhado':
+        return sorted(dados, key=lambda r: (r['ano'], r['mes'], r.get('unidade') or ''))
+
+    campos_soma = ['aih_mc', 'aih_ac', 'sia_mc', 'sia_ac', 'teto_mac', 'total_teto_mac', 'total_mc_ac_incentivos']
+    grupos = {}
+    for row in dados:
+        chave = (row['ano'], row['mes']) if granularidade == 'mensal' else (row['ano'],)
+        if chave not in grupos:
+            grupos[chave] = {c: 0.0 for c in campos_soma}
+            grupos[chave]['unidades'] = 0
+            grupos[chave]['ano'] = row['ano']
+            if granularidade == 'mensal':
+                grupos[chave]['mes'] = row['mes']
+        grupos[chave]['unidades'] += 1
+        for c in campos_soma:
+            grupos[chave][c] += row.get(c) or 0
+    chave_ordenacao = (lambda x: (x['ano'], x['mes'])) if granularidade == 'mensal' else (lambda x: x['ano'])
+    return sorted(grupos.values(), key=chave_ordenacao)
+
+def periodo_completo(ano_ini, mes_ini, ano_fim, mes_fim, campos=None):
+    """Wrapper público de _fetch_periodo, para uso fora deste módulo (ex.: exportação
+    de Excel por período, que precisa de todas as colunas — não só as usadas pelos
+    relatórios analíticos)."""
+    return _fetch_periodo(ano_ini, mes_ini, ano_fim, mes_fim, campos=campos)
 
 def comparativo_unidade(cnes, ano_ini=2022, ano_fim=2026):
     if USE_SUPABASE:
@@ -1451,6 +1454,9 @@ def _init_sqlite():
             oficina_ortopedica REAL DEFAULT 0, ihac REAL DEFAULT 0,
             total_mc_ac_incentivos REAL DEFAULT 0,
             campos_extras TEXT DEFAULT '{}',
+            snapshot_replicacao TEXT,
+            origem_replicacao_ano INTEGER,
+            origem_replicacao_mes INTEGER,
             arquivo_origem TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -1514,12 +1520,18 @@ def _init_sqlite():
         CREATE INDEX IF NOT EXISTS idx_campo_secao ON campo_config(secao_key, ordem);
     """)
     conn.commit()
-    # Adiciona campos_extras em tabelas existentes (migration segura)
-    try:
-        conn.execute("ALTER TABLE teto_mac ADD COLUMN campos_extras TEXT DEFAULT '{}'")
-        conn.commit()
-    except Exception:
-        pass
+    # Adiciona colunas em tabelas existentes (migration segura, uma tentativa por coluna)
+    for alter_sql in (
+        "ALTER TABLE teto_mac ADD COLUMN campos_extras TEXT DEFAULT '{}'",
+        "ALTER TABLE teto_mac ADD COLUMN snapshot_replicacao TEXT",
+        "ALTER TABLE teto_mac ADD COLUMN origem_replicacao_ano INTEGER",
+        "ALTER TABLE teto_mac ADD COLUMN origem_replicacao_mes INTEGER",
+    ):
+        try:
+            conn.execute(alter_sql)
+            conn.commit()
+        except Exception:
+            pass
     conn.close()
     _seed_campos_config_sqlite()
     _seed_sistema_config_sqlite()

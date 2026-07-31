@@ -2,6 +2,7 @@ import xlrd
 import openpyxl
 import os
 import re
+import json
 from config import USE_SUPABASE
 from database import MESES_PT
 
@@ -115,6 +116,22 @@ def mapear_colunas(headers):
             mapa['rede_brasil_miseria'] = i
         elif hn == 'RSME':
             mapa['rsme'] = i
+        elif 'REDE ALYNE' in hn:
+            mapa['rede_alyne'] = i
+        elif 'CUIDADOS PALIATIVOS' in hn or hn == 'PNCP' or 'PNCP' in hn:
+            mapa['pncp'] = i
+        # As variantes "Custeio UTI" / "Custeio" são colunas distintas do valor de
+        # Incentivo já mapeado abaixo (mesma sigla RCE/RAU/RCA, mas outro conceito) —
+        # por isso precisam ser checadas ANTES das condições genéricas de RCE/RAU/RCA.
+        elif ('RCE' in hn or 'RCEG' in hn) and 'CUSTEIO' in hn:
+            if 'rce_rceg_custeio' not in mapa:
+                mapa['rce_rceg_custeio'] = i
+        elif ('RAU' in hn or 'HOSP SOS' in hn) and 'CUSTEIO' in hn:
+            if 'rau_hosp_sos_custeio' not in mapa:
+                mapa['rau_hosp_sos_custeio'] = i
+        elif ('RCA' in hn or 'RCAN' in hn) and 'CUSTEIO' in hn:
+            if 'rca_rcan_custeio' not in mapa:
+                mapa['rca_rcan_custeio'] = i
         elif 'RCE' in hn or 'RCEG' in hn:
             if 'rce_rceg' not in mapa:
                 mapa['rce_rceg'] = i
@@ -138,7 +155,9 @@ def mapear_colunas(headers):
             mapa['oficina_ortopedica'] = i
         elif 'IHAC' in hn or 'AMIGO DA CRIAN' in hn:
             mapa['ihac'] = i
-        elif 'TOTAL MC' in hn and 'INCENTIVO' in hn:
+        elif 'MC' in hn and 'AC' in hn and 'INCENTIVO' in hn:
+            # Cobre tanto "TOTAL MC + AC + INCENTIVOS" quanto a variante mais antiga
+            # sem o prefixo "TOTAL" ("MC + AC + INCENTIVOS", vista em arquivos de 2020).
             mapa['total_mc_ac_incentivos'] = i
 
     return mapa
@@ -162,7 +181,14 @@ def val_str(v):
         s = s[:-2]
     return s
 
-def _montar_registro(row_vals, mapa, ano, mes, filepath):
+# Colunas reconhecidas por mapear_colunas que ainda não têm coluna dedicada em
+# teto_mac — vão para campos_extras (JSON), o mesmo mecanismo usado pelos campos
+# personalizados criados em Admin > Campos, sem precisar de migração de schema.
+_CAMPOS_EXTRAS_IMPORT = (
+    'rede_alyne', 'pncp', 'rce_rceg_custeio', 'rau_hosp_sos_custeio', 'rca_rcan_custeio',
+)
+
+def _montar_registro(row_vals, mapa, ano, mes, nome_arquivo):
     """Constrói o dict de uma linha da planilha, ou None se a linha estiver em branco."""
     drs_val = row_vals[mapa['drs']] if 'drs' in mapa and mapa['drs'] < len(row_vals) else ''
     unidade_val = row_vals[mapa['unidade']] if 'unidade' in mapa and mapa['unidade'] < len(row_vals) else ''
@@ -179,7 +205,7 @@ def _montar_registro(row_vals, mapa, ano, mes, filepath):
         except (ValueError, TypeError):
             pass
 
-    return {
+    registro = {
         'ano': ano, 'mes': mes,
         'drs': val_num(get_col('drs')),
         'tipo': val_str(get_col('tipo')),
@@ -223,15 +249,24 @@ def _montar_registro(row_vals, mapa, ano, mes, filepath):
         'oficina_ortopedica': val_num(get_col('oficina_ortopedica')),
         'ihac': val_num(get_col('ihac')),
         'total_mc_ac_incentivos': val_num(get_col('total_mc_ac_incentivos')),
-        'arquivo_origem': os.path.basename(filepath),
+        'arquivo_origem': nome_arquivo,
     }
 
-def _gravar_registros(linhas, mapa, ano, mes, filepath, resultado):
+    # Só grava campos_extras quando a planilha realmente tem alguma dessas colunas —
+    # não sobrescrever com {} e apagar campos personalizados que já existam no
+    # registro (ex.: adicionados manualmente em Admin > Campos) quando a mesma
+    # competência for reimportada.
+    extras = {campo: val_num(get_col(campo)) for campo in _CAMPOS_EXTRAS_IMPORT if campo in mapa}
+    if extras:
+        registro['campos_extras'] = extras
+    return registro
+
+def _gravar_registros(linhas, mapa, ano, mes, nome_arquivo, resultado):
     """Grava as linhas já mapeadas no banco, atualizando quem já existe (mesma
     competência + cnes + unidade) e inserindo apenas o que for novo — nunca duplica."""
     registros = {}
     for row_vals in linhas:
-        registro = _montar_registro(row_vals, mapa, ano, mes, filepath)
+        registro = _montar_registro(row_vals, mapa, ano, mes, nome_arquivo)
         if registro is None:
             continue
         resultado['total'] += 1
@@ -270,6 +305,9 @@ def _gravar_registros(linhas, mapa, ano, mes, filepath, resultado):
                 ).fetchone()[0] > 0
                 conn.execute("DELETE FROM teto_mac WHERE ano=? AND mes=? AND cnes=? AND unidade=?",
                              (ano, mes, cnes_v, unidade_v))
+                if isinstance(registro.get('campos_extras'), dict):
+                    registro = dict(registro)
+                    registro['campos_extras'] = json.dumps(registro['campos_extras'], ensure_ascii=False)
                 campos = list(registro.keys())
                 conn.execute(
                     f"INSERT INTO teto_mac ({','.join(campos)}) VALUES ({','.join(['?']*len(campos))})",
@@ -360,7 +398,7 @@ def importar_arquivo_xls(filepath, ano=None, mes=None, nome_original=None):
         resultado['erros'] = 1
         return resultado
 
-    _gravar_registros(linhas, mapa, ano, mes, filepath, resultado)
+    _gravar_registros(linhas, mapa, ano, mes, nome_original or os.path.basename(filepath), resultado)
     _registrar_importacao(resultado)
     return resultado
 

@@ -78,16 +78,36 @@
     <small style="opacity:.75">Análises por diferentes dimensões do Teto MAC</small>
   </div>
   <div class="d-flex gap-2 align-items-center flex-wrap">
+    <div class="btn-group btn-group-sm" role="group" id="modoRelatorio">
+      <button type="button" class="btn btn-light active" data-modo="mes">Mês</button>
+      <button type="button" class="btn btn-light" data-modo="ano">Ano</button>
+      <button type="button" class="btn btn-light" data-modo="periodo">Período</button>
+    </div>
     <select id="selAno" class="form-select form-select-sm" style="width:90px" onchange="reloadActive()">
       {% for ano in anos_disponiveis %}
         <option value="{{ ano }}" {{ 'selected' if ano == ultimo.ano }}>{{ ano }}</option>
       {% endfor %}
     </select>
-    <select id="selMes" class="form-select form-select-sm" style="width:125px" onchange="reloadActive()">
-      {% for num, nome in meses.items() %}
-        <option value="{{ num }}" {{ 'selected' if num == ultimo.mes }}>{{ nome }}</option>
-      {% endfor %}
-    </select>
+    <span id="wrapMes">
+      <select id="selMes" class="form-select form-select-sm" style="width:125px" onchange="reloadActive()">
+        {% for num, nome in meses.items() %}
+          <option value="{{ num }}" {{ 'selected' if num == ultimo.mes }}>{{ nome }}</option>
+        {% endfor %}
+      </select>
+    </span>
+    <span id="periodoAte" class="d-none align-items-center gap-2">
+      <i class="bi bi-arrow-right text-white-50"></i>
+      <select id="selAnoFim" class="form-select form-select-sm" style="width:90px" onchange="reloadActive()">
+        {% for ano in anos_disponiveis %}
+          <option value="{{ ano }}" {{ 'selected' if ano == ultimo.ano }}>{{ ano }}</option>
+        {% endfor %}
+      </select>
+      <select id="selMesFim" class="form-select form-select-sm" style="width:125px" onchange="reloadActive()">
+        {% for num, nome in meses.items() %}
+          <option value="{{ num }}" {{ 'selected' if num == ultimo.mes }}>{{ nome }}</option>
+        {% endfor %}
+      </select>
+    </span>
     <button class="btn btn-light btn-sm" onclick="exportCSV()"><i class="bi bi-filetype-csv me-1"></i>CSV</button>
     <a id="lnkXls" href="{{ url_for('exportar_excel') }}" class="btn btn-light btn-sm"><i class="bi bi-file-excel me-1"></i>Excel</a>
   </div>
@@ -274,9 +294,55 @@ const CORES = ['#1e3a5f','#2a7dd8','#1a7a4a','#e07b00','#dc3545','#6f42c1',
                '#198754','#ffc107','#0d6efd','#6c757d','#d63384'];
 const CP = CORES.map(c=>c+'cc');
 
-function getAnoMes() {
-  return {ano:+document.getElementById('selAno').value, mes:+document.getElementById('selMes').value};
+// ── Modo do relatório: Mês único, Ano inteiro ou Período (intervalo) ───────────
+let _modo = 'mes';
+
+function getPeriodo() {
+  const ano = +document.getElementById('selAno').value;
+  const mes = +document.getElementById('selMes').value;
+  if (_modo === 'ano') {
+    return {ano, mes: 1, ano_fim: ano, mes_fim: 12};
+  }
+  if (_modo === 'periodo') {
+    return {
+      ano, mes,
+      ano_fim: +document.getElementById('selAnoFim').value,
+      mes_fim: +document.getElementById('selMesFim').value,
+    };
+  }
+  return {ano, mes, ano_fim: null, mes_fim: null};
 }
+function periodoQS() {
+  const p = getPeriodo();
+  let qs = `ano=${p.ano}&mes=${p.mes}`;
+  if (p.ano_fim) qs += `&ano_fim=${p.ano_fim}&mes_fim=${p.mes_fim}`;
+  return qs;
+}
+function periodoLabel() {
+  const p = getPeriodo();
+  const nomeMes = n => document.querySelector(`#selMes option[value="${n}"]`)?.textContent || n;
+  if (_modo === 'ano') return String(p.ano);
+  if (_modo === 'periodo') return `${nomeMes(p.mes)}/${p.ano} a ${nomeMes(p.mes_fim)}/${p.ano_fim}`;
+  return `${nomeMes(p.mes)}/${p.ano}`;
+}
+function atualizarLinkExcel() {
+  const p = getPeriodo();
+  const params = p.ano_fim
+    ? {ano_ini: p.ano, mes_ini: p.mes, ano_fim: p.ano_fim, mes_fim: p.mes_fim}
+    : {ano: p.ano, mes: p.mes};
+  const qs = new URLSearchParams(params).toString();
+  document.getElementById('lnkXls').href = "{{ url_for('exportar_excel') }}?" + qs;
+}
+document.querySelectorAll('#modoRelatorio [data-modo]').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    _modo = btn.dataset.modo;
+    document.querySelectorAll('#modoRelatorio [data-modo]').forEach(b => b.classList.toggle('active', b === btn));
+    document.getElementById('wrapMes').style.display = (_modo === 'ano') ? 'none' : '';
+    document.getElementById('periodoAte').classList.toggle('d-none', _modo !== 'periodo');
+    document.getElementById('periodoAte').classList.toggle('d-flex', _modo === 'periodo');
+    reloadActive();
+  });
+});
 function moedaFull(v) {
   return v?'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}):'—';
 }
@@ -308,8 +374,7 @@ async function fetchJ(url) { return (await fetch(url)).json(); }
 // ── DRS ──────────────────────────────────────────────────────────────────────
 async function loadDRS() {
   if(_loaded.drs) return; _loaded.drs=true;
-  const {ano,mes}=getAnoMes();
-  const data = await fetchJ(`/api/graficos/drs?ano=${ano}&mes=${mes}`);
+  const data = await fetchJ(`/api/graficos/drs?${periodoQS()}`);
   const total = data.reduce((s,d)=>s+(d.total||0),0);
   let html=`<table class="rel-tbl"><thead><tr>
     <th class="rk" style="width:36px">#</th>
@@ -333,8 +398,7 @@ async function loadDRS() {
 // ── TIPO ──────────────────────────────────────────────────────────────────────
 async function loadTipo() {
   if(_loaded.tipo) return; _loaded.tipo=true;
-  const {ano,mes}=getAnoMes();
-  const data = await fetchJ(`/api/graficos/tipo?ano=${ano}&mes=${mes}`);
+  const data = await fetchJ(`/api/graficos/tipo?${periodoQS()}`);
   const total = data.reduce((s,d)=>s+(d.total||0),0);
   let html=`<table class="rel-tbl"><thead><tr>
     <th class="rk">#</th><th>Tipo</th><th class="num">Unidades</th>
@@ -356,8 +420,7 @@ async function loadTipo() {
 // ── UNIDADE ───────────────────────────────────────────────────────────────────
 async function loadUnidade() {
   if(_loaded.unidade) return; _loaded.unidade=true;
-  const {ano,mes}=getAnoMes();
-  const data = await fetchJ(`/api/relatorio/unidade?ano=${ano}&mes=${mes}`);
+  const data = await fetchJ(`/api/relatorio/unidade?${periodoQS()}`);
   const total = data.reduce((s,d)=>s+(d.total_geral||0),0);
   let html=`<table class="rel-tbl"><thead><tr>
     <th class="rk">#</th><th>Unidade</th><th>CNES</th><th>Município</th><th>DRS</th>
@@ -384,8 +447,7 @@ async function loadUnidade() {
 // ── MUNICÍPIO ─────────────────────────────────────────────────────────────────
 async function loadMunicipio() {
   if(_loaded.municipio) return; _loaded.municipio=true;
-  const {ano,mes}=getAnoMes();
-  const data = await fetchJ(`/api/relatorio/municipio?ano=${ano}&mes=${mes}`);
+  const data = await fetchJ(`/api/relatorio/municipio?${periodoQS()}`);
   const total = data.reduce((s,d)=>s+(d.total_geral||0),0);
   let html=`<table class="rel-tbl"><thead><tr>
     <th class="rk">#</th><th>Município</th><th class="num">Unidades</th>
@@ -412,8 +474,7 @@ async function loadMunicipio() {
 // ── FAEC ──────────────────────────────────────────────────────────────────────
 async function loadFaec() {
   if(_loaded.faec) return; _loaded.faec=true;
-  const {ano,mes}=getAnoMes();
-  const data = await fetchJ(`/api/relatorio/fundo?ano=${ano}&mes=${mes}`);
+  const data = await fetchJ(`/api/relatorio/fundo?${periodoQS()}`);
   let tot={aih_fisico:0,aih_faec:0,sia_faec:0,equip_hemodialise:0,limite_complementacao:0,total:0};
   let html=`<table class="rel-tbl"><thead><tr>
     <th>DRS</th><th class="num">AIH Físico</th><th class="num">AIH FAEC</th>
@@ -442,8 +503,7 @@ async function loadFaec() {
 // ── MAC ───────────────────────────────────────────────────────────────────────
 async function loadMac() {
   if(_loaded.mac) return; _loaded.mac=true;
-  const {ano,mes}=getAnoMes();
-  const data = await fetchJ(`/api/relatorio/fundo?ano=${ano}&mes=${mes}`);
+  const data = await fetchJ(`/api/relatorio/fundo?${periodoQS()}`);
   let html=`<table class="rel-tbl"><thead><tr>
     <th>DRS</th><th class="num">AIH MC</th><th class="num">AIH AC</th><th class="num">AIH Total</th>
     <th class="num">SIA MC</th><th class="num">SIA AC</th><th class="num">SIA Total</th><th class="num">Total MAC</th>
@@ -475,8 +535,7 @@ async function loadMac() {
 // ── INCENTIVOS ────────────────────────────────────────────────────────────────
 async function loadInc() {
   if(_loaded.inc) return; _loaded.inc=true;
-  const {ano,mes}=getAnoMes();
-  const data = await fetchJ(`/api/relatorio/incentivos?ano=${ano}&mes=${mes}`);
+  const data = await fetchJ(`/api/relatorio/incentivos?${periodoQS()}`);
   const sorted=[...data].sort((a,b)=>(b.total||0)-(a.total||0)).filter(d=>(d.total||0)>0);
   const total=sorted.reduce((s,d)=>s+(d.total||0),0);
   let html=`<table class="rel-tbl"><thead><tr>
@@ -501,10 +560,9 @@ let _lastData=[], _lastHdr=[];
 function exportCSV() {
   if(!_lastData.length) { alert('Navegue para uma aba de dados primeiro.'); return; }
   const csv=[_lastHdr,..._lastData].map(r=>r.map(v=>String(v??'').replace(/;/g,'|')).join(';')).join('\n');
-  const {ano,mes}=getAnoMes();
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'}));
-  a.download=`relatorio_${ano}_${mes}.csv`; a.click();
+  a.download=`relatorio_${periodoLabel().replace(/\//g,'-').replace(/ /g,'')}.csv`; a.click();
 }
 
 // ── Routing ───────────────────────────────────────────────────────────────────
@@ -512,6 +570,7 @@ const _handlers = {drs:loadDRS,tipo:loadTipo,unidade:loadUnidade,municipio:loadM
 
 function reloadActive() {
   Object.keys(_loaded).forEach(k=>delete _loaded[k]);
+  atualizarLinkExcel();
   const aba=document.querySelector('#relTabs .nav-link.active')?.dataset.aba;
   if(aba&&_handlers[aba]) _handlers[aba]();
 }
@@ -524,6 +583,7 @@ document.querySelectorAll('#relTabs [data-bs-toggle="tab"]').forEach(tab=>{
 });
 
 // Load first tab on page open
+atualizarLinkExcel();
 loadDRS();
 </script>
 {% endblock %}
