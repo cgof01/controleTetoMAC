@@ -190,14 +190,17 @@
         <tbody>
           {% if registros %}
             {% for r in registros %}
-            <tr>
+            <tr class="{{ 'table-danger' if r._alterado else '' }}">
               <td><span class="badge badge-drs">{{ (r.mes | mes_nome)[:3] }}/{{ r.ano }}</span></td>
               <td><span class="badge bg-secondary">{{ r.drs | int if r.drs else '—' }}</span></td>
               <td><small class="text-muted">{{ r.tipo[:20] if r.tipo else '—' }}</small></td>
               <td><small>{{ r.municipio or '—' }}</small></td>
               <td><code class="small">{{ r.cnes or '—' }}</code></td>
               <td>
-                <a href="{{ url_for('detalhe', id=r.id) }}" class="text-decoration-none fw-bold text-dark">
+                {% if r._alterado %}
+                  <i class="bi bi-exclamation-circle-fill text-danger me-1" title="Alterado depois de replicar a competência — veja o detalhe para saber o que mudou"></i>
+                {% endif %}
+                <a href="{{ url_for('detalhe', id=r.id) }}" class="text-decoration-none fw-bold {{ 'text-danger' if r._alterado else 'text-dark' }}">
                   {{ (r.unidade or '—')[:45] }}{% if r.unidade and r.unidade|length > 45 %}...{% endif %}
                 </a>
               </td>

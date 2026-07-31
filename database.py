@@ -4,6 +4,7 @@ Fallback automático para SQLite em desenvolvimento.
 """
 import os
 import json
+import concurrent.futures
 from config import SUPABASE_URL, SUPABASE_KEY, USE_SUPABASE
 
 MESES = {
@@ -32,6 +33,18 @@ if USE_SUPABASE:
         if _sb is None:
             _sb = _create_client(SUPABASE_URL, SUPABASE_KEY)
         return _sb
+
+    import threading
+    _sb_thread_local = threading.local()
+
+    def get_sb_paralelo():
+        """Cliente Supabase próprio da thread atual — usado só nas buscas em
+        paralelo (_fetch_paginas_paralelo). Compartilhar o cliente global (get_sb())
+        entre threads derrubava a conexão HTTP/2 (ConnectionTerminated) quando
+        várias páginas eram buscadas ao mesmo tempo."""
+        if not hasattr(_sb_thread_local, 'sb'):
+            _sb_thread_local.sb = _create_client(SUPABASE_URL, SUPABASE_KEY)
+        return _sb_thread_local.sb
 
     def init_db():
         pass  # tabelas criadas via schema_supabase.sql no dashboard
@@ -238,22 +251,46 @@ def _pesquisar_sqlite(filtros, page, per_page):
     conn.close()
     return [_clean(dict(r)) for r in rows], total
 
+def _fetch_paginas_paralelo(fetch_pagina, total, page_size=1000, max_workers=10):
+    """Busca em PARALELO (várias requisições HTTP ao mesmo tempo) todas as páginas
+    de 0 até `total`, já que o PostgREST/Supabase limita cada requisição a no máximo
+    1000 linhas. Buscar essas páginas em sequência (uma de cada vez) é o que deixava
+    telas como Pesquisa extremamente lentas com dezenas de milhares de registros —
+    em paralelo o tempo total fica perto do tempo de UMA requisição, não da soma
+    de todas. `fetch_pagina(offset)` deve devolver a lista de linhas daquele offset."""
+    offsets = list(range(0, total, page_size))
+    if not offsets:
+        return []
+    todos = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(max_workers, len(offsets))) as ex:
+        for rows in ex.map(fetch_pagina, offsets):
+            todos.extend(rows)
+    return todos
+
 def pesquisar_todos(filtros=None):
-    """Busca TODOS os registros que casam com os filtros, paginando — evita truncar
+    """Busca TODOS os registros que casam com os filtros — evita truncar
     silenciosamente exportações grandes por causa do limite de linhas por requisição
     do Supabase/PostgREST (o mesmo problema que existia em relatorio_periodo)."""
-    todos = []
-    page = 1
-    per_page = 1000
-    while True:
-        regs, total = pesquisar(filtros, page=page, per_page=per_page)
-        if not regs:
-            break
-        todos.extend(regs)
-        if len(regs) < per_page or len(todos) >= total:
-            break
-        page += 1
-    return todos
+    if USE_SUPABASE:
+        sb = get_sb()
+        total = (_aplicar_filtros_supabase(sb.table('teto_mac').select('id', count='exact'), filtros)
+                  .limit(1).execute()).count or 0
+
+        def _fetch_pagina(offset):
+            q = _aplicar_filtros_supabase(get_sb_paralelo().table('teto_mac').select('*'), filtros)
+            q = q.order('ano', desc=True).order('mes', desc=True).order('unidade')
+            r = q.range(offset, offset + 999).execute()
+            return [_clean(row) for row in (r.data or [])]
+
+        return _fetch_paginas_paralelo(_fetch_pagina, total)
+    else:
+        conn = get_db()
+        where, params = _where_sqlite(filtros)
+        rows = conn.execute(
+            f"SELECT * FROM teto_mac {where} ORDER BY ano DESC, mes DESC, unidade", params
+        ).fetchall()
+        conn.close()
+        return [_clean(dict(r)) for r in rows]
 
 _CAMPOS_SOMA_PESQUISA = [
     'aih_fisico', 'aih_faec', 'sia_faec', 'aih_mc', 'aih_ac', 'aih_total',
@@ -269,21 +306,18 @@ def pesquisar_totais(filtros=None):
     if USE_SUPABASE:
         sb = get_sb()
         cols = ','.join(_CAMPOS_SOMA_PESQUISA)
-        offset = 0
-        page_size = 1000
-        while True:
-            q = _aplicar_filtros_supabase(sb.table('teto_mac').select(cols), filtros)
-            r = q.range(offset, offset + page_size - 1).execute()
-            rows = r.data or []
-            if not rows:
-                break
-            for row in rows:
-                totais['registros'] += 1
-                for c in _CAMPOS_SOMA_PESQUISA:
-                    totais[c] += row.get(c) or 0
-            if len(rows) < page_size:
-                break
-            offset += page_size
+        total = (_aplicar_filtros_supabase(sb.table('teto_mac').select('id', count='exact'), filtros)
+                  .limit(1).execute()).count or 0
+        totais['registros'] = total
+
+        def _fetch_pagina(offset):
+            q = _aplicar_filtros_supabase(get_sb_paralelo().table('teto_mac').select(cols), filtros)
+            r = q.range(offset, offset + 999).execute()
+            return r.data or []
+
+        for row in _fetch_paginas_paralelo(_fetch_pagina, total):
+            for c in _CAMPOS_SOMA_PESQUISA:
+                totais[c] += row.get(c) or 0
     else:
         conn = get_db()
         where, params = _where_sqlite(filtros)
@@ -842,21 +876,17 @@ def _fetch_periodo(ano_ini, mes_ini, ano_fim, mes_fim, campos=None):
     if USE_SUPABASE:
         sb = get_sb()
         cols = ','.join(campos)
-        todos = []
-        offset = 0
-        page_size = 1000
-        while True:
-            r = (sb.table('teto_mac').select(cols)
+        total = (sb.table('teto_mac').select('id', count='exact')
+                 .gte('ano', ano_ini).lte('ano', ano_fim).limit(1).execute()).count or 0
+
+        def _fetch_pagina(offset):
+            r = (get_sb_paralelo().table('teto_mac').select(cols)
                 .gte('ano', ano_ini).lte('ano', ano_fim)
-                .range(offset, offset + page_size - 1)
+                .range(offset, offset + 999)
                 .execute())
-            rows = r.data or []
-            if not rows:
-                break
-            todos.extend(rows)
-            if len(rows) < page_size:
-                break
-            offset += page_size
+            return r.data or []
+
+        todos = _fetch_paginas_paralelo(_fetch_pagina, total)
         return [row for row in todos if ini <= (row['ano'] * 100 + row['mes']) <= fim]
     else:
         conn = get_db()

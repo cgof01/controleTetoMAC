@@ -275,13 +275,19 @@ def dashboard():
 @app.route('/pesquisa')
 @login_required
 def pesquisa():
-    filtros = {k: v for k, v in request.args.items() if v}
+    filtros = {k: v for k, v in request.args.items() if v and k != 'page'}
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 50, type=int)
 
     registros, total = db.pesquisar(filtros, page, per_page)
     total_pages = (total + per_page - 1) // per_page
     totais = db.pesquisar_totais(filtros)
+
+    # Marca (só na página atual, já carregada — sem custo extra) quais registros
+    # foram replicados de outra competência e alterados depois da cópia, para
+    # destacar em vermelho na lista, igual ao detalhe/edição do registro.
+    for r in registros:
+        r['_alterado'] = bool(db.campos_alterados(r))
 
     anos_meses = db.obter_anos_meses()
     drs_lista = db.obter_drs_lista()
