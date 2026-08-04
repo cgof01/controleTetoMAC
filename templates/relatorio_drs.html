@@ -51,6 +51,9 @@
             <th class="text-end">Total AIH</th>
             <th class="text-end">Total SIA</th>
             <th class="text-end">Teto MAC</th>
+            {% for campo, label in incentivos %}
+            <th class="text-end">{{ label }}</th>
+            {% endfor %}
             <th class="text-end">Total Incentivos</th>
             <th class="text-end" style="background:#1e3a5f">Total Geral</th>
             <th class="no-print">%</th>
@@ -65,6 +68,9 @@
             <td class="num-moeda">{{ r.total_aih | moeda }}</td>
             <td class="num-moeda">{{ r.total_sia | moeda }}</td>
             <td class="num-moeda">{{ r.teto_mac | moeda }}</td>
+            {% for campo, label in incentivos %}
+            <td class="num-moeda">{{ r.get(campo) | moeda }}</td>
+            {% endfor %}
             <td class="num-moeda">{{ r.total_incentivos | moeda }}</td>
             <td class="num-moeda fw-bold text-primary">{{ r.total_geral | moeda }}</td>
             <td class="no-print">
@@ -89,6 +95,9 @@
             <td class="num-moeda">{{ dados | sum(attribute='total_aih') | moeda }}</td>
             <td class="num-moeda">{{ dados | sum(attribute='total_sia') | moeda }}</td>
             <td class="num-moeda">{{ dados | sum(attribute='teto_mac') | moeda }}</td>
+            {% for campo, label in incentivos %}
+            <td class="num-moeda">{{ dados | sum(attribute=campo) | moeda }}</td>
+            {% endfor %}
             <td class="num-moeda">{{ dados | sum(attribute='total_incentivos') | moeda }}</td>
             <td class="num-moeda text-primary">{{ total_geral | moeda }}</td>
             <td class="no-print">100%</td>

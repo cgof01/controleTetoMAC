@@ -444,6 +444,124 @@ def campos_alterados(registro):
         if _valor_normalizado(registro.get(campo)) != _valor_normalizado(valor_original)
     }
 
+# ── Ajustes de campo (trava de valor + adição/subtração com justificativa) ─────
+# Ao editar um registro já existente (inclusive um recém-criado por
+# replicar_competencia), os campos de valor não são mais sobrescritos direto:
+# o usuário lança um ajuste (adição ou subtração de uma quantia, ex.: referente
+# a uma Portaria/SIB) com justificativa obrigatória, e o campo pode acumular
+# vários ajustes ao longo do tempo. A coluna em teto_mac continua sendo o
+# "valor atual" (valor travado original + soma de todos os ajustes já
+# lançados) — por isso nenhum relatório/RPC existente precisa mudar para
+# enxergar o efeito de um ajuste; eles já leem a coluna normalmente.
+
+CAMPOS_AJUSTAVEIS_SECOES = {'aih', 'sia', 'teto_mac', 'incentivos'}
+
+def campo_ajustavel(campo_cfg):
+    """Um campo entra no fluxo de trava+ajuste quando é um valor numérico de
+    negócio (moeda/número) numa das seções de valor — não uma identificação
+    (Unidade, CNES, Município...) nem um campo 'calculado' automaticamente."""
+    return (
+        campo_cfg.get('ativo', True)
+        and campo_cfg.get('tipo') in ('moeda', 'numero')
+        and campo_cfg.get('secao_key') in CAMPOS_AJUSTAVEIS_SECOES
+    )
+
+def listar_ajustes(registro_id):
+    """Todos os ajustes já lançados num registro, mais recentes primeiro."""
+    if USE_SUPABASE:
+        r = (get_sb().table('ajustes_campo').select('*')
+             .eq('registro_id', int(registro_id))
+             .order('created_at', desc=True).execute())
+        return r.data or []
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT * FROM ajustes_campo WHERE registro_id=? ORDER BY created_at DESC",
+        (int(registro_id),)
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+def _recalcular_calculados(valores, campos_cfg):
+    """Reaplica a soma dos campos 'calculado' (mesma lógica de recalcularTodos()
+    em form.html, só que em Python) a partir de `valores` — dict com os valores
+    atuais de negócio já refletindo o ajuste que acabou de ser aplicado.
+    Devolve {coluna_db: novo_total} só dos campos calculado."""
+    recalculados = {}
+    for c in campos_cfg:
+        if c.get('tipo') != 'calculado' or not c.get('formula'):
+            continue
+        formula_keys = [k.strip() for k in c['formula'].split(',') if k.strip()]
+        total = sum(float(valores.get(k) or 0) for k in formula_keys)
+        destino = c.get('coluna_db') or c['campo_key']
+        recalculados[destino] = total
+    return recalculados
+
+def registrar_ajuste(registro_id, campo_key, tipo, valor, justificativa, usuario_nome):
+    """Lança um ajuste (adição/subtração) sobre um campo travado: soma/subtrai
+    `valor` do valor atual, recalcula os campos 'calculado', persiste tudo num
+    único UPDATE em teto_mac e grava a linha no ledger ajustes_campo.
+    Levanta ValueError se o campo não for ajustável ou os dados forem inválidos."""
+    campos_cfg = listar_campos_config(incluir_inativos=True)
+    meta = next((c for c in campos_cfg if c['campo_key'] == campo_key), None)
+    if not meta or not campo_ajustavel(meta):
+        raise ValueError(f'Campo "{campo_key}" não pode receber ajustes.')
+    if tipo not in ('adicao', 'subtracao'):
+        raise ValueError('Tipo de ajuste inválido.')
+    try:
+        valor = float(valor)
+    except (TypeError, ValueError):
+        raise ValueError('Valor do ajuste inválido.')
+    if valor <= 0:
+        raise ValueError('Valor do ajuste deve ser maior que zero.')
+    justificativa = (justificativa or '').strip()
+    if not justificativa:
+        raise ValueError('Justificativa é obrigatória.')
+
+    registro = buscar_registro(registro_id)
+    if not registro:
+        raise ValueError('Registro não encontrado.')
+
+    coluna_db = meta.get('coluna_db')
+    delta = valor if tipo == 'adicao' else -valor
+    atual = float(registro.get(campo_key) or 0)
+    novo_valor = atual + delta
+
+    dados_update = {}
+    valores_para_formula = dict(registro)
+    valores_para_formula[campo_key] = novo_valor
+    if coluna_db:
+        dados_update[coluna_db] = novo_valor
+        valores_para_formula[coluna_db] = novo_valor
+    else:
+        extras = dict(registro.get('campos_extras') or {})
+        extras[campo_key] = novo_valor
+        dados_update['campos_extras'] = extras
+
+    dados_update.update(_recalcular_calculados(valores_para_formula, campos_cfg))
+    atualizar_registro(registro_id, dados_update)
+
+    ajuste = {
+        'registro_id': int(registro_id), 'campo_key': campo_key, 'tipo': tipo,
+        'valor': valor, 'justificativa': justificativa,
+        'usuario_nome': usuario_nome or 'Sistema',
+    }
+    if USE_SUPABASE:
+        r = get_sb().table('ajustes_campo').insert(ajuste).execute()
+        ajuste = r.data[0] if r.data else ajuste
+    else:
+        conn = get_db()
+        cur = conn.execute(
+            "INSERT INTO ajustes_campo (registro_id, campo_key, tipo, valor, justificativa, usuario_nome) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (ajuste['registro_id'], ajuste['campo_key'], ajuste['tipo'], ajuste['valor'],
+             ajuste['justificativa'], ajuste['usuario_nome'])
+        )
+        conn.commit()
+        ajuste['id'] = cur.lastrowid
+        conn.close()
+
+    return {'novo_valor': novo_valor, 'ajuste': ajuste}
+
 # ── Lookups ────────────────────────────────────────────────────────────────────
 
 def obter_anos_meses():
@@ -662,6 +780,40 @@ def relatorio_por_municipio(ano, mes, ano_fim=None, mes_fim=None):
         seen[mun]['total_geral'] += row.get('total_mc_ac_incentivos') or 0
     return sorted(seen.values(), key=lambda x: x['total_geral'], reverse=True)
 
+# Lista canônica de todos os incentivos — reaproveitada por todo relatório/KPI que
+# soma ou lista incentivos individualmente. Antes cada lugar (relatorio_resumo_drs,
+# kpis_central, relatorio_incentivos, RPCs do Supabase) tinha sua própria lista
+# copiada à mão, e cada cópia esquecia campos diferentes (nenhuma somava os 5
+# INCENTIVOS_EXTRAS, que ficam dentro de campos_extras — ver import_xls.py
+# _CAMPOS_EXTRAS_IMPORT — em vez de coluna própria em teto_mac).
+INCENTIVOS_NATIVOS = [
+    ('integrasus', 'IntegraSUS'), ('iac', 'IAC'), ('sus_100', '100% SUS'),
+    ('opo', 'OPO'), ('rede_viver_sem_limite', 'Rede Viver Sem Limite'),
+    ('rede_brasil_miseria', 'Rede Brasil Sem Miséria'), ('rsme', 'RSME'),
+    ('rce_rceg', 'RCE/RCEG'), ('rau_hosp_sos', 'RAU/Hosp. SOS'),
+    ('rca_rcan', 'RCA/RCAN'), ('iapi', 'IAPI'), ('residencia_medica', 'Residência Médica'),
+    ('melhor_em_casa', 'Melhor em Casa'), ('cer', 'CER'),
+    ('doencas_raras', 'Doenças Raras'), ('oficina_ortopedica', 'Oficina Ortopédica'),
+    ('ihac', 'IHAC'),
+]
+INCENTIVOS_EXTRAS = [
+    ('rede_alyne', 'Rede Alyne'), ('pncp', 'Política Nacional de Cuidados Paliativos - PNCP'),
+    ('rce_rceg_custeio', 'RCE/RCEG - Custeio UTI'),
+    ('rau_hosp_sos_custeio', 'RAU/Hosp. SOS - Custeio UTI'),
+    ('rca_rcan_custeio', 'RCA/RCAN - Custeio'),
+]
+INCENTIVOS_TODOS = INCENTIVOS_NATIVOS + INCENTIVOS_EXTRAS
+
+def _extras_dict(row):
+    """Desserializa campos_extras de uma linha crua (TEXT no SQLite, dict/JSONB no Supabase)."""
+    extras = row.get('campos_extras')
+    if isinstance(extras, str):
+        try:
+            return json.loads(extras) if extras else {}
+        except Exception:
+            return {}
+    return extras or {}
+
 def relatorio_fundo(ano, mes, ano_fim=None, mes_fim=None):
     """Componentes FAEC + MAC agrupados por DRS."""
     campos_soma = ['aih_fisico', 'aih_faec', 'sia_faec', 'equip_hemodialise',
@@ -680,24 +832,17 @@ def relatorio_fundo(ano, mes, ano_fim=None, mes_fim=None):
     return sorted(seen.values(), key=lambda x: x['drs'])
 
 def relatorio_incentivos(ano, mes, ano_fim=None, mes_fim=None):
-    """Totais de cada incentivo individual."""
-    INCENTIVOS = [
-        ('integrasus','IntegraSUS'), ('iac','IAC'), ('sus_100','100% SUS'),
-        ('opo','OPO'), ('rede_viver_sem_limite','Rede Viver Sem Limite'),
-        ('rede_brasil_miseria','Rede Brasil Sem Miséria'), ('rsme','RSME'),
-        ('rce_rceg','RCE/RCEG'), ('rau_hosp_sos','RAU/Hosp. SOS'),
-        ('rca_rcan','RCA/RCAN'), ('iapi','IAPI'), ('residencia_medica','Residência Médica'),
-        ('melhor_em_casa','Melhor em Casa'), ('cer','CER'),
-        ('doencas_raras','Doenças Raras'), ('oficina_ortopedica','Oficina Ortopédica'),
-        ('ihac','IHAC'),
-    ]
+    """Totais de cada incentivo individual (nativos + os guardados em campos_extras)."""
     rows = _fetch_periodo(ano, mes, ano_fim or ano, mes_fim or mes,
-                           campos=[k for k, _ in INCENTIVOS])
-    totais = {k: 0.0 for k, _ in INCENTIVOS}
+                           campos=[k for k, _ in INCENTIVOS_NATIVOS] + ['campos_extras'])
+    totais = {k: 0.0 for k, _ in INCENTIVOS_TODOS}
     for row in rows:
-        for k, _ in INCENTIVOS:
+        extras = _extras_dict(row)
+        for k, _ in INCENTIVOS_NATIVOS:
             totais[k] += row.get(k) or 0
-    return [{'campo': k, 'label': lbl, 'total': totais[k]} for k, lbl in INCENTIVOS]
+        for k, _ in INCENTIVOS_EXTRAS:
+            totais[k] += extras.get(k) or 0
+    return [{'campo': k, 'label': lbl, 'total': totais[k]} for k, lbl in INCENTIVOS_TODOS]
 
 
 # ── Central de Relatórios Analíticos ─────────────────────────────────────────
@@ -738,10 +883,8 @@ def kpis_central(ano, mes, ano_fim=None, mes_fim=None):
     campos = [
         'drs', 'municipio', 'cnes', 'aih_fisico', 'aih_faec', 'sia_faec', 'equip_hemodialise',
         'limite_complementacao', 'aih_mc', 'aih_ac', 'sia_mc', 'sia_ac', 'teto_mac', 'total_teto_mac',
-        'integrasus', 'iac', 'sus_100', 'opo', 'rede_viver_sem_limite', 'rede_brasil_miseria', 'rsme',
-        'rce_rceg', 'rau_hosp_sos', 'rca_rcan', 'iapi', 'residencia_medica', 'melhor_em_casa', 'cer',
-        'doencas_raras', 'oficina_ortopedica', 'ihac', 'total_mc_ac_incentivos',
-    ]
+        'total_mc_ac_incentivos', 'campos_extras',
+    ] + [k for k, _ in INCENTIVOS_NATIVOS]
     data = _fetch_periodo(ano, mes, ano_fim or ano, mes_fim or mes, campos=campos)
     drs_s, mun_s, cnes_s = set(), set(), set()
     faec = aih = sia = inc = teto = geral = 0.0
@@ -749,13 +892,12 @@ def kpis_central(ano, mes, ano_fim=None, mes_fim=None):
         if row.get('drs'):       drs_s.add(str(row['drs']))
         if row.get('municipio'): mun_s.add(str(row['municipio']).strip())
         if row.get('cnes'):      cnes_s.add(str(row['cnes']))
+        extras = _extras_dict(row)
         faec  += sum(row.get(k) or 0 for k in ['aih_faec', 'sia_faec', 'equip_hemodialise', 'limite_complementacao'])
         aih   += (row.get('aih_mc') or 0) + (row.get('aih_ac') or 0)
         sia   += (row.get('sia_mc') or 0) + (row.get('sia_ac') or 0)
-        inc   += sum(row.get(k) or 0 for k in ['integrasus', 'iac', 'sus_100', 'opo',
-                     'rede_viver_sem_limite', 'rede_brasil_miseria', 'rsme', 'rce_rceg',
-                     'rau_hosp_sos', 'rca_rcan', 'iapi', 'residencia_medica', 'melhor_em_casa',
-                     'cer', 'doencas_raras', 'oficina_ortopedica', 'ihac'])
+        inc   += sum(row.get(k) or 0 for k, _ in INCENTIVOS_NATIVOS)
+        inc   += sum(extras.get(k) or 0 for k, _ in INCENTIVOS_EXTRAS)
         teto  += (row.get('teto_mac') or 0) + (row.get('total_teto_mac') or 0)
         geral += row.get('total_mc_ac_incentivos') or 0
     return {'total_teto_mac': teto, 'total_faec': faec, 'total_aih': aih,
@@ -907,29 +1049,57 @@ def consulta_analitica(ano, mes, dimensoes=None, metricas=None, filtros=None, or
 
 
 def relatorio_resumo_drs(ano, mes):
+    """Resumo por DRS, com cada incentivo (nativo + campos_extras) em chave própria,
+    além de total_incentivos/total_geral. Agregação em Python (não SQL GROUP BY) no
+    SQLite para poder somar os campos guardados em campos_extras (JSON), mesmo padrão
+    já usado em kpis_central/relatorio_incentivos."""
     if USE_SUPABASE:
         r = get_sb().rpc('get_resumo_drs', {'p_ano': ano, 'p_mes': mes}).execute()
         return r.data if isinstance(r.data, list) else []
     else:
+        campos = (['drs', 'aih_fisico', 'aih_mc', 'aih_ac', 'sia_mc', 'sia_ac',
+                    'teto_mac', 'total_teto_mac', 'total_mc_ac_incentivos', 'campos_extras']
+                   + [k for k, _ in INCENTIVOS_NATIVOS])
         conn = get_db()
-        rows = conn.execute("""
-            SELECT CAST(drs AS INTEGER) as drs, COUNT(*) as total_unidades,
-                SUM(aih_fisico) as aih_fisico, SUM(aih_mc + aih_ac) as total_aih,
-                SUM(sia_mc + sia_ac) as total_sia, SUM(teto_mac + total_teto_mac) as teto_mac,
-                SUM(integrasus + iac + sus_100 + opo + rede_viver_sem_limite + rsme +
-                    rce_rceg + rau_hosp_sos + rca_rcan + iapi + residencia_medica +
-                    melhor_em_casa + cer + doencas_raras + oficina_ortopedica + ihac) as total_incentivos,
-                SUM(total_mc_ac_incentivos) as total_geral
-            FROM teto_mac WHERE ano = ? AND mes = ? AND drs IS NOT NULL
-            GROUP BY CAST(drs AS INTEGER) ORDER BY CAST(drs AS INTEGER)
-        """, (ano, mes)).fetchall()
+        cols = ','.join(campos)
+        rows = conn.execute(
+            f"SELECT {cols} FROM teto_mac WHERE ano = ? AND mes = ? AND drs IS NOT NULL",
+            (ano, mes)
+        ).fetchall()
         conn.close()
-        return [dict(r) for r in rows]
+        seen = {}
+        for raw in rows:
+            row = dict(raw)
+            drs = int(row.get('drs') or 0)
+            if drs not in seen:
+                g = {k: 0.0 for k, _ in INCENTIVOS_TODOS}
+                g.update({'drs': drs, 'total_unidades': 0, 'aih_fisico': 0.0,
+                          'total_aih': 0.0, 'total_sia': 0.0, 'teto_mac': 0.0,
+                          'total_incentivos': 0.0, 'total_geral': 0.0})
+                seen[drs] = g
+            g = seen[drs]
+            extras = _extras_dict(row)
+            g['total_unidades'] += 1
+            g['aih_fisico'] += row.get('aih_fisico') or 0
+            g['total_aih'] += (row.get('aih_mc') or 0) + (row.get('aih_ac') or 0)
+            g['total_sia'] += (row.get('sia_mc') or 0) + (row.get('sia_ac') or 0)
+            g['teto_mac'] += (row.get('teto_mac') or 0) + (row.get('total_teto_mac') or 0)
+            g['total_geral'] += row.get('total_mc_ac_incentivos') or 0
+            for k, _ in INCENTIVOS_NATIVOS:
+                v = row.get(k) or 0
+                g[k] += v
+                g['total_incentivos'] += v
+            for k, _ in INCENTIVOS_EXTRAS:
+                v = extras.get(k) or 0
+                g[k] += v
+                g['total_incentivos'] += v
+        return sorted(seen.values(), key=lambda x: x['drs'])
 
 _CAMPOS_PERIODO_PADRAO = [
     'ano', 'mes', 'drs', 'tipo', 'municipio', 'cnes', 'cnpj', 'unidade',
     'aih_mc', 'aih_ac', 'sia_mc', 'sia_ac', 'teto_mac', 'total_teto_mac', 'total_mc_ac_incentivos',
-]
+    'campos_extras',
+] + [k for k, _ in INCENTIVOS_NATIVOS]
 
 def _fetch_periodo(ano_ini, mes_ini, ano_fim, mes_fim, campos=None):
     """Busca registros de teto_mac num intervalo de competências (ano,mes), inclusive,
@@ -977,10 +1147,17 @@ def relatorio_periodo(ano_ini, mes_ini, ano_fim, mes_fim, granularidade='detalha
     'detalhado' (uma linha por unidade/competência, comportamento original),
     'mensal' (soma dos valores por competência) ou 'anual' (soma dos valores por ano)."""
     dados = _fetch_periodo(ano_ini, mes_ini, ano_fim, mes_fim)
+    # Achata campos_extras (rede_alyne, pncp, custeio...) direto na linha, para o
+    # template acessar r.pncp igual aos campos nativos, em vez de r.campos_extras.pncp.
+    for row in dados:
+        extras = _extras_dict(row)
+        for k, _ in INCENTIVOS_EXTRAS:
+            row[k] = extras.get(k) or 0
     if granularidade == 'detalhado':
         return sorted(dados, key=lambda r: (r['ano'], r['mes'], r.get('unidade') or ''))
 
-    campos_soma = ['aih_mc', 'aih_ac', 'sia_mc', 'sia_ac', 'teto_mac', 'total_teto_mac', 'total_mc_ac_incentivos']
+    campos_soma = (['aih_mc', 'aih_ac', 'sia_mc', 'sia_ac', 'teto_mac', 'total_teto_mac',
+                    'total_mc_ac_incentivos'] + [k for k, _ in INCENTIVOS_TODOS])
     grupos = {}
     for row in dados:
         chave = (row['ano'], row['mes']) if granularidade == 'mensal' else (row['ano'],)
@@ -1003,21 +1180,34 @@ def periodo_completo(ano_ini, mes_ini, ano_fim, mes_fim, campos=None):
     return _fetch_periodo(ano_ini, mes_ini, ano_fim, mes_fim, campos=campos)
 
 def comparativo_unidade(cnes, ano_ini=2022, ano_fim=2026):
+    """Histórico de uma unidade por CNES, com cada incentivo (nativo + campos_extras)
+    em chave própria — antes só trazia integrasus/iac/sus_100."""
     if USE_SUPABASE:
         r = (get_sb().rpc('get_historico_unidade', {'p_cnes': str(cnes)}).execute())
         return r.data if isinstance(r.data, list) else []
     else:
+        campos = (['ano', 'mes', 'unidade', 'municipio', 'drs', 'total_mc_ac_incentivos',
+                    'aih_mc', 'aih_ac', 'sia_mc', 'sia_ac', 'teto_mac', 'total_teto_mac',
+                    'campos_extras']
+                   + [k for k, _ in INCENTIVOS_NATIVOS])
         conn = get_db()
-        rows = conn.execute("""
-            SELECT ano, mes, unidade, municipio, drs,
-                total_mc_ac_incentivos as total, aih_mc, aih_ac, sia_mc, sia_ac,
-                teto_mac + total_teto_mac as teto,
-                integrasus, iac, sus_100
-            FROM teto_mac WHERE cnes = ? AND ano BETWEEN ? AND ?
+        cols = ','.join(campos)
+        rows = conn.execute(f"""
+            SELECT {cols} FROM teto_mac WHERE cnes = ? AND ano BETWEEN ? AND ?
             ORDER BY ano, mes
         """, (str(cnes), ano_ini, ano_fim)).fetchall()
         conn.close()
-        return [dict(r) for r in rows]
+        resultado = []
+        for raw in rows:
+            row = dict(raw)
+            extras = _extras_dict(row)
+            row['total'] = row.pop('total_mc_ac_incentivos') or 0
+            row['teto'] = (row.pop('teto_mac') or 0) + (row.pop('total_teto_mac') or 0)
+            for k, _ in INCENTIVOS_EXTRAS:
+                row[k] = extras.get(k) or 0
+            row.pop('campos_extras', None)
+            resultado.append(row)
+        return resultado
 
 def buscar_unidades_autocomplete(termo):
     if USE_SUPABASE:
@@ -1684,11 +1874,22 @@ def _init_sqlite():
             descricao TEXT,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
+        CREATE TABLE IF NOT EXISTS ajustes_campo (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            registro_id INTEGER NOT NULL REFERENCES teto_mac(id) ON DELETE CASCADE,
+            campo_key TEXT NOT NULL,
+            tipo TEXT NOT NULL CHECK (tipo IN ('adicao','subtracao')),
+            valor REAL NOT NULL,
+            justificativa TEXT NOT NULL,
+            usuario_nome TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
         CREATE INDEX IF NOT EXISTS idx_ano_mes ON teto_mac(ano, mes);
         CREATE INDEX IF NOT EXISTS idx_cnes ON teto_mac(cnes);
         CREATE INDEX IF NOT EXISTS idx_municipio ON teto_mac(municipio);
         CREATE INDEX IF NOT EXISTS idx_drs ON teto_mac(drs);
         CREATE INDEX IF NOT EXISTS idx_campo_secao ON campo_config(secao_key, ordem);
+        CREATE INDEX IF NOT EXISTS idx_ajustes_registro_campo ON ajustes_campo(registro_id, campo_key);
     """)
     conn.commit()
     # Adiciona colunas em tabelas existentes (migration segura, uma tentativa por coluna)

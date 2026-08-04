@@ -25,6 +25,20 @@
   </div>
 </div>
 
+{# Badge somente-leitura com a contagem de ajustes (adição/subtração + justificativa)
+   já lançados num campo travado — ver Editar Registro para lançar novos. #}
+{% macro badge_ajustes(campo) %}
+  {% set lista = ajustes_por_campo.get(campo, []) %}
+  {% if lista %}
+    {% set titulo = lista | map(attribute='justificativa') | join(' | ') %}
+    <a href="{{ url_for('editar', id=registro.id) }}"
+       class="badge bg-info text-decoration-none ms-1" style="font-size:.65rem"
+       title="{{ titulo }}">
+      <i class="bi bi-clock-history"></i> {{ lista | length }}
+    </a>
+  {% endif %}
+{% endmacro %}
+
 {% if registro.snapshot_replicacao %}
 <div class="alert alert-warning d-flex align-items-center gap-2 no-print mb-3">
   <i class="bi bi-copy fs-5"></i>
@@ -97,7 +111,7 @@
       <div class="card-body">
         {% macro linha(label, campo, valor, filtro='moeda', destaque_total=false) %}
           <tr class="{{ 'table-active fw-bold' if destaque_total else '' }}">
-            <td>{{ label }}</td>
+            <td>{{ label }}{{ badge_ajustes(campo) }}</td>
             <td class="text-end num-moeda {{ 'text-danger' if campo in alterados else '' }}">
               {{ valor | numero if filtro == 'numero' else valor | moeda }}
             </td>
@@ -163,7 +177,7 @@
         {% if (val and val > 0) or campo in alterados %}
           <div class="col-md-3 col-6">
             <div class="d-flex justify-content-between border-bottom pb-1 mb-1">
-              <small class="text-muted">{{ nome }}</small>
+              <small class="text-muted">{{ nome }}{{ badge_ajustes(campo) }}</small>
               <small class="fw-bold num-moeda {{ 'text-danger' if campo in alterados else '' }}">{{ val | moeda }}</small>
             </div>
           </div>

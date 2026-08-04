@@ -351,6 +351,8 @@ def inserir():
         titulo='Inserir Novo Registro',
         secoes=db.listar_secoes_config(),
         campos=db.listar_campos_config(),
+        campos_ajustaveis=set(),
+        ajustes_por_campo={},
         alterados=set(),
     )
 
@@ -408,13 +410,20 @@ def editar(id):
         except Exception as e:
             flash(f'Erro ao atualizar: {e}', 'danger')
 
+    campos = db.listar_campos_config()
+    ajustes_por_campo = {}
+    for a in db.listar_ajustes(id):
+        ajustes_por_campo.setdefault(a['campo_key'], []).append(a)
+
     return render_template('form.html',
         registro=registro,
         meses=MESES,
         anos_disponiveis=_anos_disponiveis(),
         titulo=f'Editar Registro #{id}',
         secoes=db.listar_secoes_config(),
-        campos=db.listar_campos_config(),
+        campos=campos,
+        campos_ajustaveis={c['campo_key'] for c in campos if db.campo_ajustavel(c)},
+        ajustes_por_campo=ajustes_por_campo,
         alterados=db.campos_alterados(registro),
     )
 
@@ -430,6 +439,10 @@ def detalhe(id):
     if registro.get('cnes'):
         historico = db.comparativo_unidade(registro['cnes'])
 
+    ajustes_por_campo = {}
+    for a in db.listar_ajustes(id):
+        ajustes_por_campo.setdefault(a['campo_key'], []).append(a)
+
     return render_template('detalhe.html',
         registro=registro,
         meses=MESES,
@@ -439,6 +452,7 @@ def detalhe(id):
             'total': r['total'] or 0
         } for r in historico]),
         alterados=db.campos_alterados(registro),
+        ajustes_por_campo=ajustes_por_campo,
     )
 
 @app.route('/deletar/<int:id>', methods=['POST'])
@@ -542,7 +556,8 @@ def relatorio_resumo_drs():
         total_geral=total_geral,
         meses=MESES,
         anos_disponiveis=anos_disponiveis,
-        anos_meses=anos_meses
+        anos_meses=anos_meses,
+        incentivos=db.INCENTIVOS_TODOS
     )
 
 @app.route('/relatorio/periodo')
@@ -552,9 +567,9 @@ def relatorio_periodo():
     mes_ini = request.args.get('mes_ini', type=int, default=1)
     ano_fim = request.args.get('ano_fim', type=int, default=2026)
     mes_fim = request.args.get('mes_fim', type=int, default=12)
-    granularidade = request.args.get('granularidade', 'detalhado')
+    granularidade = request.args.get('granularidade', 'mensal')
     if granularidade not in ('detalhado', 'mensal', 'anual'):
-        granularidade = 'detalhado'
+        granularidade = 'mensal'
 
     dados = db.relatorio_periodo(ano_ini, mes_ini, ano_fim, mes_fim, granularidade)
     anos_meses = db.obter_anos_meses()
@@ -566,7 +581,8 @@ def relatorio_periodo():
         ano_ini=ano_ini, mes_ini=mes_ini,
         ano_fim=ano_fim, mes_fim=mes_fim,
         meses=MESES,
-        anos_disponiveis=anos_disponiveis
+        anos_disponiveis=anos_disponiveis,
+        incentivos=db.INCENTIVOS_TODOS
     )
 
 @app.route('/relatorio/comparativo-unidade')
@@ -585,6 +601,7 @@ def relatorio_comparativo_unidade():
         cnes=cnes,
         unidade_nome=unidade_nome,
         meses=MESES,
+        incentivos=db.INCENTIVOS_TODOS,
         historico_json=json.dumps([{
             'label': f"{MESES.get(r['mes'],'')} {r['ano']}",
             'total': r['total'] or 0,
@@ -609,6 +626,8 @@ _SECAO_POR_CAMPO_EXCEL = {
     'rce_rceg': 'incentivos', 'rau_hosp_sos': 'incentivos', 'rca_rcan': 'incentivos', 'iapi': 'incentivos',
     'residencia_medica': 'incentivos', 'melhor_em_casa': 'incentivos', 'cer': 'incentivos',
     'doencas_raras': 'incentivos', 'oficina_ortopedica': 'incentivos', 'ihac': 'incentivos',
+    'rede_alyne': 'incentivos', 'pncp': 'incentivos', 'rce_rceg_custeio': 'incentivos',
+    'rau_hosp_sos_custeio': 'incentivos', 'rca_rcan_custeio': 'incentivos',
     'total_mc_ac_incentivos': 'incentivos', 'total_incentivos': 'incentivos',
 }
 # Mesmas cores das seções do formulário (secao_config: aih=success, sia=info,
@@ -757,13 +776,17 @@ def exportar_excel_drs():
     ws = wb.active
     ws.title = f'Resumo DRS {MESES.get(mes,"")} {ano}'
 
-    headers = ['DRS', 'Total Unidades', 'AIH Físico', 'Total AIH', 'Total SIA', 'Teto MAC', 'Total Incentivos', 'Total Geral']
+    headers = (['DRS', 'Total Unidades', 'AIH Físico', 'Total AIH', 'Total SIA', 'Teto MAC']
+               + [label for _, label in db.INCENTIVOS_TODOS]
+               + ['Total Incentivos', 'Total Geral'])
+    campos_h = (['drs', 'total_unidades', 'aih_fisico', 'total_aih', 'total_sia', 'teto_mac']
+                + [campo for campo, _ in db.INCENTIVOS_TODOS]
+                + ['total_incentivos', 'total_geral'])
 
     ws['A1'] = f'RESUMO POR DRS - {MESES.get(mes,"").upper()} {ano}'
     ws['A1'].font = Font(bold=True, size=13, color="1e3a5f")
     ws.merge_cells(f'A1:{get_column_letter(len(headers))}1')
 
-    campos_h = ['drs', 'total_unidades', 'aih_fisico', 'total_aih', 'total_sia', 'teto_mac', 'total_incentivos', 'total_geral']
     for col, (h, campo) in enumerate(zip(headers, campos_h), 1):
         cor_fundo, cor_fonte = _cores_header_campo(campo)
         c = ws.cell(row=2, column=col, value=h)
@@ -771,14 +794,8 @@ def exportar_excel_drs():
         c.fill = PatternFill("solid", fgColor=cor_fundo)
 
     for r, row in enumerate(dados, 3):
-        ws.cell(r, 1, row.get('drs'))
-        ws.cell(r, 2, row.get('total_unidades'))
-        ws.cell(r, 3, row.get('aih_fisico'))
-        ws.cell(r, 4, row.get('total_aih'))
-        ws.cell(r, 5, row.get('total_sia'))
-        ws.cell(r, 6, row.get('teto_mac'))
-        ws.cell(r, 7, row.get('total_incentivos'))
-        ws.cell(r, 8, row.get('total_geral'))
+        for col, campo in enumerate(campos_h, 1):
+            ws.cell(r, col, row.get(campo))
 
     output = io.BytesIO()
     wb.save(output)
@@ -1370,6 +1387,30 @@ def _comprimir_pdf_bytes(input_bytes):
         return out.read()
     except Exception:
         return None
+
+@app.route('/ajuste/registrar', methods=['POST'])
+@login_required
+def ajuste_registrar():
+    body = request.get_json(silent=True) or request.form
+    try:
+        registro_id = int(body.get('registro_id'))
+        resultado = db.registrar_ajuste(
+            registro_id=registro_id,
+            campo_key=body.get('campo_key', ''),
+            tipo=body.get('tipo', ''),
+            valor=body.get('valor'),
+            justificativa=body.get('justificativa', ''),
+            usuario_nome=session.get('usuario_nome', 'Sistema'),
+        )
+        registro = db.buscar_registro(registro_id)
+        calculados = {c['campo_key']: registro.get(c['campo_key'])
+                      for c in db.listar_campos_config(incluir_inativos=True) if c.get('tipo') == 'calculado'}
+        return jsonify({'ok': True, 'novo_valor': resultado['novo_valor'],
+                         'ajuste': resultado['ajuste'], 'calculados': calculados})
+    except ValueError as e:
+        return jsonify({'ok': False, 'msg': str(e)}), 400
+    except Exception as e:
+        return jsonify({'ok': False, 'msg': f'Erro ao registrar ajuste: {e}'}), 500
 
 @app.route('/api/portarias/<cnes>')
 @login_required

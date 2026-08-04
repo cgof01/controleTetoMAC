@@ -72,9 +72,9 @@
             <th class="text-end">SIA MC</th>
             <th class="text-end">SIA AC</th>
             <th class="text-end">Teto</th>
-            <th class="text-end">IntegraSUS</th>
-            <th class="text-end">IAC</th>
-            <th class="text-end">100% SUS</th>
+            {% for campo, label in incentivos %}
+            <th class="text-end">{{ label }}</th>
+            {% endfor %}
             <th class="text-end fw-bold">Total</th>
             <th>Var %</th>
           </tr>
@@ -95,9 +95,9 @@
             <td class="num-moeda small">{{ r.sia_mc | moeda }}</td>
             <td class="num-moeda small">{{ r.sia_ac | moeda }}</td>
             <td class="num-moeda small fw-bold">{{ r.teto | moeda }}</td>
-            <td class="num-moeda small">{{ r.integrasus | moeda }}</td>
-            <td class="num-moeda small">{{ r.iac | moeda }}</td>
-            <td class="num-moeda small">{{ r.sus_100 | moeda }}</td>
+            {% for campo, label in incentivos %}
+            <td class="num-moeda small">{{ r.get(campo) | moeda }}</td>
+            {% endfor %}
             <td class="num-moeda fw-bold text-primary">{{ total | moeda }}</td>
             <td>
               {% if var != 0 %}

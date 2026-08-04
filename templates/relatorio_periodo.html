@@ -46,6 +46,9 @@
             <th class="text-end">SIA MC</th>
             <th class="text-end">SIA AC</th>
             <th class="text-end">Teto MAC</th>
+            {% for campo, label in incentivos %}
+            <th class="text-end">{{ label }}</th>
+            {% endfor %}
             <th class="text-end">Total MC+AC+Inc.</th>
           </tr>
         </thead>
@@ -66,6 +69,9 @@
             <td class="num-moeda small">{{ r.sia_mc | moeda }}</td>
             <td class="num-moeda small">{{ r.sia_ac | moeda }}</td>
             <td class="num-moeda small fw-bold">{{ (r.teto_mac or r.total_teto_mac) | moeda }}</td>
+            {% for campo, label in incentivos %}
+            <td class="num-moeda small">{{ r.get(campo) | moeda }}</td>
+            {% endfor %}
             <td class="num-moeda small fw-bold text-primary">{{ r.total_mc_ac_incentivos | moeda }}</td>
           </tr>
           {% endfor %}
@@ -83,6 +89,9 @@
             <th class="text-end">SIA MC</th>
             <th class="text-end">SIA AC</th>
             <th class="text-end">Teto MAC</th>
+            {% for campo, label in incentivos %}
+            <th class="text-end">{{ label }}</th>
+            {% endfor %}
             <th class="text-end">Total MC+AC+Inc.</th>
           </tr>
         </thead>
@@ -102,6 +111,9 @@
             <td class="num-moeda small">{{ r.sia_mc | moeda }}</td>
             <td class="num-moeda small">{{ r.sia_ac | moeda }}</td>
             <td class="num-moeda small fw-bold">{{ (r.teto_mac or r.total_teto_mac) | moeda }}</td>
+            {% for campo, label in incentivos %}
+            <td class="num-moeda small">{{ r.get(campo) | moeda }}</td>
+            {% endfor %}
             <td class="num-moeda small fw-bold text-primary">{{ r.total_mc_ac_incentivos | moeda }}</td>
           </tr>
           {% endfor %}
