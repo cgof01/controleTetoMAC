@@ -30,11 +30,11 @@
     <span class="badge bg-secondary">{{ dados|length }} {{ 'registros' if granularidade == 'detalhado' else ('competências' if granularidade == 'mensal' else 'anos') }}</span>
   </div>
   <div class="card-body p-0">
-    <div class="table-responsive" style="max-height:600px; overflow-y:auto">
+    <div>
 
       {% if granularidade == 'detalhado' %}
       <table class="table table-sm table-hover table-bordered mb-0" id="tabelaPeriodo">
-        <thead class="table-dark sticky-top">
+        <thead class="table-dark">
           <tr>
             <th>Ano/Mês</th>
             <th>DRS</th>
@@ -80,7 +80,7 @@
 
       {% else %}
       <table class="table table-sm table-hover table-bordered mb-0" id="tabelaPeriodo">
-        <thead class="table-dark sticky-top">
+        <thead class="table-dark">
           <tr>
             <th>{{ 'Competência' if granularidade == 'mensal' else 'Ano' }}</th>
             <th class="text-end">Unidades</th>
@@ -136,7 +136,8 @@ $(document).ready(function() {
     },
     dom: 'Bfrtip',
     order: [[0,'desc']],
-    scrollY: '400px',
+    scrollX: true,
+    scrollY: '60vh',
     scrollCollapse: true,
     paging: true
   });

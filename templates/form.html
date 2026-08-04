@@ -255,16 +255,17 @@
               {% if campo.campo_key in campos_ajustaveis %}
                 {# Valor travado: só muda lançando um ajuste (+ /-) com justificativa,
                    pelo modal — ver #modalAjuste no fim da página. #}
-                <div class="d-flex align-items-center gap-2 flex-wrap">
-                  <span class="fw-semibold" id="campo_{{ campo.campo_key }}" data-valor="{{ val or 0 }}">
+                <div class="d-flex align-items-center gap-2" style="min-height:31px">
+                  <span class="fw-semibold text-end" id="campo_{{ campo.campo_key }}" data-valor="{{ val or 0 }}"
+                        style="min-width:110px; display:inline-block">
                     {{ (val or 0) | moeda if campo.tipo == 'moeda' else (val or 0) | numero }}
                   </span>
-                  <button type="button" class="btn btn-outline-primary btn-sm py-0"
+                  <button type="button" class="btn btn-outline-primary btn-sm py-0 flex-shrink-0"
                           data-campo-key="{{ campo.campo_key }}" data-campo-label="{{ campo.label }}"
                           data-campo-tipo="{{ campo.tipo }}" onclick="abrirModalAjuste(this)">
                     <i class="bi bi-sliders"></i> Ajustar
                   </button>
-                  <span class="badge {{ 'bg-info' if lista_ajustes else 'bg-secondary' }}" id="badge_{{ campo.campo_key }}">
+                  <span class="badge {{ 'bg-info' if lista_ajustes else 'bg-secondary' }} flex-shrink-0" id="badge_{{ campo.campo_key }}">
                     {{ lista_ajustes | length }} ajuste{{ 's' if lista_ajustes | length != 1 else '' }}
                   </span>
                 </div>
@@ -343,7 +344,7 @@
 {% if registro %}
 <!-- ── MODAL DE AJUSTE (fora do form principal) ────────────────────────────── -->
 <div class="modal fade" id="modalAjuste" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-lg">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title"><i class="bi bi-sliders me-2"></i>Ajustes — <span id="ajusteCampoLabel"></span></h5>
@@ -470,7 +471,13 @@ function abrirModalAjuste(btn) {
   document.getElementById('ajusteErro').textContent = '';
   document.getElementById('formNovoAjuste').reset();
   _renderHistoricoAjuste();
-  new bootstrap.Modal(document.getElementById('modalAjuste')).show();
+  const modalEl = document.getElementById('modalAjuste');
+  // Garante que o modal seja filho direto do <body> — se ficar dentro de algum
+  // ancestral com CSS que crie um novo "containing block" (transform, etc.), o
+  // position:fixed do Bootstrap passa a ser relativo a esse ancestral em vez da
+  // tela inteira, e o modal aparece deslocado/cortado no topo da página.
+  if (modalEl.parentElement !== document.body) document.body.appendChild(modalEl);
+  bootstrap.Modal.getOrCreateInstance(modalEl).show();
 }
 
 function _renderHistoricoAjuste() {

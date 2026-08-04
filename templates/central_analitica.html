@@ -68,6 +68,15 @@
 .ca-tab.active { background:#eff6ff; color:#1e3a5f; font-weight:600; }
 .ca-tab:hover:not(.active) { background:#f1f5f9; }
 .ca-content { flex:1; overflow:auto; }
+/* Painéis com gráfico + tabela (Construtor/Drill-Down): vira coluna flex para
+   o gráfico crescer e ocupar a altura disponível — sem isso o gráfico ficava
+   fixo em 260px e sobrava um vão vazio abaixo da tabela quando ela tinha
+   poucas linhas (ex.: aba Incentivos com só ~20 categorias). */
+#panelConstrutor, #panelDrilldown { display:flex; flex-direction:column; overflow:hidden; }
+#panelConstrutor .chart-box, #panelDrilldown .chart-box { flex:1 1 45%; min-height:220px; }
+#panelConstrutor > div[style*="overflow:auto"], #panelDrilldown > div[style*="overflow:auto"] {
+  flex:1 1 55%; min-height:160px;
+}
 
 /* ── Construtor ──────────────────────────────────────────────────────── */
 .chart-box {
