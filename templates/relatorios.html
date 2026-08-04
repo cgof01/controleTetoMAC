@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Relatórios — Teto MAC{% endblock %}
+{% block title %}Relatórios Rápidos — Teto MAC{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -74,8 +74,8 @@
 <!-- Header -->
 <div class="rel-header">
   <div>
-    <h5><i class="bi bi-file-earmark-bar-graph me-2"></i>Relatórios Analíticos</h5>
-    <small style="opacity:.75">Análises por diferentes dimensões do Teto MAC</small>
+    <h5><i class="bi bi-file-earmark-bar-graph me-2"></i>Relatórios Rápidos</h5>
+    <small style="opacity:.75">Visões prontas por DRS, Tipo, Unidade, Município e mais — para montar um relatório do zero, use a Central de Relatórios</small>
   </div>
   <div class="d-flex gap-2 align-items-center flex-wrap">
     <div class="btn-group btn-group-sm" role="group" id="modoRelatorio">
@@ -201,14 +201,8 @@
 
   <!-- ── INCENTIVOS ───────────────────────────────── -->
   <div class="tab-pane fade" id="tInc">
-    <div class="rel-split">
-      <div class="chart-col" style="max-width:480px">
-        <div class="ch-title">Incentivos — Total por Componente</div>
-        <div style="flex:1;position:relative"><canvas id="chInc"></canvas></div>
-      </div>
-      <div class="table-col">
-        <div id="tbInc"><div class="rel-loading"><div class="spinner-border spinner-border-sm"></div> Carregando…</div></div>
-      </div>
+    <div class="table-col" style="max-height:65vh">
+      <div id="tbInc"><div class="rel-loading"><div class="spinner-border spinner-border-sm"></div> Carregando…</div></div>
     </div>
   </div>
 
@@ -551,8 +545,6 @@ async function loadInc() {
   html+=`<tr class="tot"><td></td><td>Total</td><td class="num">${moedaFull(total)}</td><td class="num">100%</td></tr>`;
   html+='</tbody></table>';
   document.getElementById('tbInc').innerHTML=html;
-  mk('chInc',{type:'bar',data:{labels:sorted.map(d=>d.label),datasets:[{label:'Total',data:sorted.map(d=>d.total||0),backgroundColor:CORES.map(c=>c+'cc'),borderColor:CORES,borderWidth:1.5,borderRadius:4}]},
-    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>moedaFull(c.raw)}}},scales:{x:{ticks:{callback:moedaK}},y:{ticks:{font:{size:10}},grid:{display:false}}}}});
 }
 
 // ── CSV Export ────────────────────────────────────────────────────────────────
