@@ -352,21 +352,25 @@ const FIELD_LABELS = {
   portaria_ms_gm_8516:'Portaria 8516',
   integrasus:'IntegraSUS', iac:'IAC', sus_100:'100% SUS', opo:'OPO',
   rede_viver_sem_limite:'Rede Viver S/ Limite', rede_brasil_miseria:'Rede Brasil S/ Miséria',
-  rsme:'RSME', rce_rceg:'RCE/RCEG (Rede Alyne)',
+  rsme:'RSME', rce_rceg:'RCE/RCEG',
   rau_hosp_sos:'RAU/Hosp. SOS', rca_rcan:'RCA/RCAN', iapi:'IAPI',
   residencia_medica:'Residência Médica', melhor_em_casa:'Melhor em Casa',
   cer:'CER', doencas_raras:'Doenças Raras', oficina_ortopedica:'Oficina Ortopédica',
-  ihac:'IHAC', total_mc_ac_incentivos:'Total MC+AC+Incentivos',
+  ihac:'IHAC', rede_alyne:'Rede Alyne', pncp:'PNCP - Cuidados Paliativos',
+  rce_rceg_custeio:'RCE/RCEG - Custeio UTI', rau_hosp_sos_custeio:'RAU/Hosp. SOS - Custeio UTI',
+  rca_rcan_custeio:'RCA/RCAN - Custeio',
+  total_mc_ac_incentivos:'Total MC+AC+Incentivos',
   _count:'Registros'
 };
 
 const DIMS = ['drs','municipio','unidade','cnes','cnpj','tipo','hu'];
 const METS_FAEC = ['aih_fisico','aih_faec','sia_faec','equip_hemodialise','limite_complementacao'];
-const METS_MAC  = ['aih_mc','aih_ac','sia_mc','sia_ac'];
+const METS_MAC  = ['aih_mc','aih_ac','aih_total','sia_mc','sia_ac','sia_total'];
 const METS_INC  = ['integrasus','iac','sus_100','opo','rede_viver_sem_limite','rede_brasil_miseria',
                    'rsme','rce_rceg','rau_hosp_sos','rca_rcan','iapi','residencia_medica',
-                   'melhor_em_casa','cer','doencas_raras','oficina_ortopedica','ihac'];
-const METS_TOT  = ['teto_mac','total_teto_mac','total_mc_ac_incentivos'];
+                   'melhor_em_casa','cer','doencas_raras','oficina_ortopedica','ihac',
+                   'rede_alyne','pncp','rce_rceg_custeio','rau_hosp_sos_custeio','rca_rcan_custeio'];
+const METS_TOT  = ['teto_global','teto_mc','teto_ac','teto_mac','total_teto_mac','portaria_ms_gm_8516','total_mc_ac_incentivos'];
 
 const CORES = ['#1e3a5f','#2a7dd8','#1a7a4a','#e07b00','#dc3545','#6f42c1',
                '#17a2b8','#fd7e14','#20c997','#6610f2','#e83e8c','#0dcaf0',

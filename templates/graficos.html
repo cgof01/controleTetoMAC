@@ -192,7 +192,7 @@ const MODO_SEL = {{ modo_sel | tojson }};
 const ANO_FIM_SEL = {{ ano_fim_sel or 'null' }};
 const MES_FIM_SEL = {{ mes_fim_sel or 'null' }};
 const CORES = ['#1e3a5f','#2a7dd8','#e07b00','#1a7a4a','#dc3545','#6f42c1','#17a2b8','#fd7e14','#20c997','#6610f2'];
-const PALETA = { 2022:'#1e3a5f', 2023:'#2a7dd8', 2024:'#e07b00', 2025:'#1a7a4a', 2026:'#dc3545', 2027:'#6f42c1' };
+const PALETA = { 2020:'#6c757d', 2021:'#17a2b8', 2022:'#1e3a5f', 2023:'#2a7dd8', 2024:'#e07b00', 2025:'#1a7a4a', 2026:'#dc3545', 2027:'#6f42c1' };
 const MESES_ABR = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const MESES_NOME_GRAF = {1:'Janeiro',2:'Fevereiro',3:'Março',4:'Abril',5:'Maio',6:'Junho',7:'Julho',8:'Agosto',9:'Setembro',10:'Outubro',11:'Novembro',12:'Dezembro'};
 
@@ -345,17 +345,29 @@ function mudarTipo(tipo, btn) {
 }
 
 // ── 5. Comparativo Anual ──────────────────────────────────────────────────────
+// Restringe o intervalo de meses comparado ao modo Mês/Ano/Período selecionado
+// no topo da página (antes sempre mostrava Jan-Dez, ignorando a seleção).
+function mesRangeAtual() {
+  if (MODO_SEL === 'ano') return { ini: 1, fim: 12 };
+  if (MODO_SEL === 'periodo') return { ini: MES_SEL, fim: MES_FIM_SEL };
+  return { ini: MES_SEL, fim: MES_SEL };
+}
+
 async function renderCompAnual() {
   const ev = await fetchJSON('/api/graficos/evolucao');
   const anosVis = [...document.querySelectorAll('.ano-ev:checked')].map(c => parseInt(c.value));
   const anos = [...new Set(ev.map(d => d.ano))].sort().filter(a => anosVis.includes(a));
+  const { ini, fim } = mesRangeAtual();
+  const mesesIdx = [];
+  for (let m = ini; m <= fim; m++) mesesIdx.push(m);
+  const labels = mesesIdx.map(m => MESES_ABR[m - 1]);
 
   const datasets = anos.map((ano, i) => {
-    const cor = PALETA[ano] || CORES[i];
+    const cor = PALETA[ano] || CORES[i % CORES.length];
     const dadosAno = ev.filter(d => d.ano === ano);
     return {
       label: String(ano),
-      data: MESES_ABR.map((_, mi) => { const d = dadosAno.find(x => x.mes === mi+1); return d ? d.total : null; }),
+      data: mesesIdx.map(mi => { const d = dadosAno.find(x => x.mes === mi); return d ? d.total : null; }),
       borderColor: cor, backgroundColor: cor + '20',
       fill: true, tension: 0.4, borderWidth: 2.5,
       pointRadius: 3, pointHoverRadius: 6, spanGaps: true,
@@ -366,7 +378,7 @@ async function renderCompAnual() {
   if (chartAnual) chartAnual.destroy();
   chartAnual = new Chart(document.getElementById('chartAnual').getContext('2d'), {
     type: 'line',
-    data: { labels: MESES_ABR, datasets },
+    data: { labels, datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
