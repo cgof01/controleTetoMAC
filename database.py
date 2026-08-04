@@ -274,7 +274,11 @@ def pesquisar_todos(filtros=None):
 
         def _fetch_pagina(offset):
             q = _aplicar_filtros_supabase(get_sb_paralelo().table('teto_mac').select('*'), filtros)
-            q = q.order('ano', desc=True).order('mes', desc=True).order('unidade')
+            # order('id') é o desempate final — sem uma ordem estável e única, cada
+            # requisição de página pode devolver os empates (ano/mes/unidade iguais)
+            # numa ordem física diferente, e a combinação das páginas perde ou
+            # duplica linhas (foi exatamente esse bug que apareceu nos testes).
+            q = q.order('ano', desc=True).order('mes', desc=True).order('unidade').order('id')
             r = q.range(offset, offset + 999).execute()
             return [_clean(row) for row in (r.data or [])]
 
@@ -308,7 +312,9 @@ def pesquisar_totais(filtros=None):
 
         def _fetch_pagina(offset):
             q = _aplicar_filtros_supabase(get_sb_paralelo().table('teto_mac').select(cols), filtros)
-            r = q.range(offset, offset + 999).execute()
+            # order('id') obrigatório: .range() sem ordem estável faz páginas
+            # buscadas em paralelo se sobreporem/deixarem buracos (linhas somem).
+            r = q.order('id').range(offset, offset + 999).execute()
             return r.data or []
 
         for row in _fetch_paginas_paralelo(_fetch_pagina, total):
@@ -697,7 +703,11 @@ def relatorio_incentivos(ano, mes, ano_fim=None, mes_fim=None):
 # ── Central de Relatórios Analíticos ─────────────────────────────────────────
 
 _DIMS_ALLOW = {'drs', 'tipo', 'hu', 'municipio', 'cnes', 'cnpj', 'unidade'}
-_METS_ALLOW = {
+# Campos que ainda não têm coluna dedicada em teto_mac (ficam dentro de
+# campos_extras — ver import_xls.py _CAMPOS_EXTRAS_IMPORT). A consulta precisa
+# buscar a coluna campos_extras inteira e resolver o valor por dentro do JSON.
+_METS_EXTRAS = {'rede_alyne', 'pncp', 'rce_rceg_custeio', 'rau_hosp_sos_custeio', 'rca_rcan_custeio'}
+_METS_NATIVAS = {
     'aih_fisico', 'aih_faec', 'sia_faec', 'equip_hemodialise', 'limite_complementacao',
     'aih_mc', 'aih_ac', 'aih_total', 'sia_mc', 'sia_ac', 'sia_total',
     'teto_global', 'teto_mc', 'teto_ac', 'teto_mac', 'total_teto_mac',
@@ -706,6 +716,14 @@ _METS_ALLOW = {
     'rau_hosp_sos', 'rca_rcan', 'iapi', 'residencia_medica', 'melhor_em_casa',
     'cer', 'doencas_raras', 'oficina_ortopedica', 'ihac', 'total_mc_ac_incentivos'
 }
+_METS_ALLOW = _METS_NATIVAS | _METS_EXTRAS
+
+def _valor_metrica(row, m):
+    """Lê o valor de uma métrica de uma linha, indo buscar dentro de
+    campos_extras quando a métrica não é uma coluna nativa."""
+    if m in _METS_EXTRAS:
+        return (row.get('campos_extras') or {}).get(m) or 0
+    return row.get(m) or 0
 _INC = ('integrasus+iac+sus_100+opo+rede_viver_sem_limite+rede_brasil_miseria+rsme+rce_rceg+'
         'rau_hosp_sos+rca_rcan+iapi+residencia_medica+melhor_em_casa+cer+doencas_raras+'
         'oficina_ortopedica+ihac')
@@ -777,9 +795,14 @@ def consulta_analitica(ano, mes, dimensoes=None, metricas=None, filtros=None, or
     ini = ano * 100 + mes
     fim = ano_fim * 100 + mes_fim
 
+    tem_extras = any(m in _METS_EXTRAS for m in metricas)
+
     if USE_SUPABASE:
         sb = get_sb()
-        col_set = list(dict.fromkeys(['ano', 'mes'] + dimensoes + metricas))
+        col_set = list(dict.fromkeys(
+            ['ano', 'mes'] + dimensoes + [m for m in metricas if m not in _METS_EXTRAS]
+            + (['campos_extras'] if tem_extras else [])
+        ))
         cols = ','.join(col_set)
 
         total = (_aplicar_filtros_analitico(
@@ -790,7 +813,9 @@ def consulta_analitica(ano, mes, dimensoes=None, metricas=None, filtros=None, or
             q = _aplicar_filtros_analitico(
                 get_sb_paralelo().table('teto_mac').select(cols).gte('ano', ano).lte('ano', ano_fim), filtros
             )
-            r = q.range(offset, offset + 999).execute()
+            # order('id') obrigatório: .range() sem ordem estável faz páginas
+            # buscadas em paralelo se sobreporem/deixarem buracos (linhas somem).
+            r = q.order('id').range(offset, offset + 999).execute()
             return r.data or []
 
         brutos = _fetch_paginas_paralelo(_fetch_pagina, total)
@@ -804,7 +829,46 @@ def consulta_analitica(ano, mes, dimensoes=None, metricas=None, filtros=None, or
                     seen[key][m] = 0.0
                 seen[key]['_count'] = 0
             for m in metricas:
-                seen[key][m] += row.get(m) or 0
+                seen[key][m] += _valor_metrica(row, m)
+            seen[key]['_count'] += 1
+        result = list(seen.values())
+    elif tem_extras:
+        # campos_extras é TEXT (JSON) no SQLite — soma em Python igual ao Supabase.
+        conn = get_db()
+        where  = ['(ano * 100 + mes) BETWEEN ? AND ?']
+        params = [ini, fim]
+        for k, v in filtros.items():
+            if k not in _DIMS_ALLOW or not v:
+                continue
+            if isinstance(v, list) and v:
+                placeholders = ','.join('?' for _ in v)
+                where.append(f'{k} IN ({placeholders})')
+                params.extend(v)
+            elif isinstance(v, str) and v:
+                try:
+                    fv = float(v); num_v = int(fv) if fv == int(fv) else fv
+                    where.append(f'CAST({k} AS REAL) = ?')
+                    params.append(num_v)
+                except (ValueError, TypeError):
+                    where.append(f'LOWER({k}) LIKE ?')
+                    params.append(f'%{v.lower()}%')
+        col_set = list(dict.fromkeys(dimensoes + [m for m in metricas if m not in _METS_EXTRAS] + ['campos_extras']))
+        sql = f"SELECT {', '.join(col_set)} FROM teto_mac WHERE {' AND '.join(where)}"
+        rows = conn.execute(sql, params).fetchall()
+        conn.close()
+        seen = {}
+        for r in rows:
+            row = dict(r)
+            ce = row.get('campos_extras')
+            row['campos_extras'] = json.loads(ce) if isinstance(ce, str) and ce else {}
+            key = tuple(str(row.get(d) or '') for d in dimensoes) if dimensoes else ('_total_',)
+            if key not in seen:
+                seen[key] = {d: row.get(d) for d in dimensoes}
+                for m in metricas:
+                    seen[key][m] = 0.0
+                seen[key]['_count'] = 0
+            for m in metricas:
+                seen[key][m] += _valor_metrica(row, m)
             seen[key]['_count'] += 1
         result = list(seen.values())
     else:
@@ -885,8 +949,12 @@ def _fetch_periodo(ano_ini, mes_ini, ano_fim, mes_fim, campos=None):
                  .gte('ano', ano_ini).lte('ano', ano_fim).limit(1).execute()).count or 0
 
         def _fetch_pagina(offset):
+            # order('id') obrigatório: .range() sem ordem estável faz páginas
+            # buscadas em paralelo se sobreporem/deixarem buracos (linhas somem —
+            # foi assim que um mês inteiro sumiu num teste desta função).
             r = (get_sb_paralelo().table('teto_mac').select(cols)
                 .gte('ano', ano_ini).lte('ano', ano_fim)
+                .order('id')
                 .range(offset, offset + 999)
                 .execute())
             return r.data or []
@@ -1157,6 +1225,7 @@ def auditoria_validacao(ano, mes):
         while True:
             r = (sb.table('teto_mac').select(cols)
                 .eq('ano', ano).eq('mes', mes)
+                .order('id')
                 .range(offset, offset + page_size - 1).execute())
             rows = r.data or []
             if not rows:
@@ -1867,6 +1936,15 @@ _SEED_CAMPOS = [
     ('incentivos', 'doencas_raras',        'Doenças Raras',          'moeda', 150, 'doencas_raras',        None),
     ('incentivos', 'oficina_ortopedica',   'Oficina Ortopédica',     'moeda', 160, 'oficina_ortopedica',   None),
     ('incentivos', 'ihac',                 'IHAC',                   'moeda', 170, 'ihac',                 None),
+    # Sem coluna dedicada em teto_mac — ficam em campos_extras (JSON), mesmo
+    # mecanismo dos campos personalizados. Já eram reconhecidos na importação
+    # (import_xls._CAMPOS_EXTRAS_IMPORT) mas não apareciam no formulário/Admin
+    # por não terem sido registrados aqui.
+    ('incentivos', 'rede_alyne',           'Rede Alyne',                                 'moeda', 180, None, None),
+    ('incentivos', 'pncp',                 'Política Nacional de Cuidados Paliativos - PNCP', 'moeda', 190, None, None),
+    ('incentivos', 'rce_rceg_custeio',     'RCE/RCEG - Custeio UTI',                    'moeda', 200, None, None),
+    ('incentivos', 'rau_hosp_sos_custeio', 'RAU/Hosp. SOS - Custeio UTI',                'moeda', 210, None, None),
+    ('incentivos', 'rca_rcan_custeio',     'RCA/RCAN - Custeio',                        'moeda', 220, None, None),
     ('incentivos', 'total_mc_ac_incentivos','TOTAL MC + AC + INCENTIVOS','calculado', 999, 'total_mc_ac_incentivos',
      'aih_mc,aih_ac,sia_mc,sia_ac,integrasus,iac,sus_100,opo,rede_viver_sem_limite,rede_brasil_miseria,'
      'rsme,rce_rceg,rau_hosp_sos,rca_rcan,iapi,residencia_medica,melhor_em_casa,cer,doencas_raras,oficina_ortopedica,ihac'),

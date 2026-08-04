@@ -98,6 +98,16 @@ INSERT INTO campo_config (secao_key, campo_key, label, tipo, ordem, coluna_db) V
   ('incentivos', 'ihac',                'IHAC',                  'moeda', 170, 'ihac')
 ON CONFLICT (campo_key) DO NOTHING;
 
+-- Campos sem coluna dedicada em teto_mac: ficam salvos em campos_extras (JSONB).
+-- coluna_db = NULL faz o formulário/Admin > Campos gravar e ler por ali.
+INSERT INTO campo_config (secao_key, campo_key, label, tipo, ordem, coluna_db) VALUES
+  ('incentivos', 'rede_alyne',           'Rede Alyne',                                        'moeda', 180, NULL),
+  ('incentivos', 'pncp',                 'Política Nacional de Cuidados Paliativos - PNCP',    'moeda', 190, NULL),
+  ('incentivos', 'rce_rceg_custeio',     'RCE/RCEG - Custeio UTI',                             'moeda', 200, NULL),
+  ('incentivos', 'rau_hosp_sos_custeio', 'RAU/Hosp. SOS - Custeio UTI',                        'moeda', 210, NULL),
+  ('incentivos', 'rca_rcan_custeio',     'RCA/RCAN - Custeio',                                 'moeda', 220, NULL)
+ON CONFLICT (campo_key) DO NOTHING;
+
 -- Campo total calculado (deve ser o último na seção incentivos)
 INSERT INTO campo_config (secao_key, campo_key, label, tipo, ordem, coluna_db, formula) VALUES
   ('incentivos', 'total_mc_ac_incentivos', 'TOTAL MC + AC + INCENTIVOS', 'calculado', 999, 'total_mc_ac_incentivos',
