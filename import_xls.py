@@ -221,10 +221,14 @@ def _montar_registro(row_vals, mapa, ano, mes, nome_arquivo):
         'limite_complementacao': val_num(get_col('limite_complementacao')),
         'aih_mc': val_num(get_col('aih_mc')),
         'aih_ac': val_num(get_col('aih_ac')),
-        'aih_total': val_num(get_col('aih_total')),
+        # aih_total/sia_total sempre calculados — a planilha fonte nunca traz uma
+        # coluna "AIH TOTAL"/"SIA TOTAL" pronta (só MC/AC/FAEC separados), então
+        # ler get_col('aih_total') sempre voltava 0. Mesma fórmula do campo
+        # 'calculado' correspondente em campo_config (aih_faec+aih_mc+aih_ac).
+        'aih_total': val_num(get_col('aih_faec')) + val_num(get_col('aih_mc')) + val_num(get_col('aih_ac')),
         'sia_mc': val_num(get_col('sia_mc')),
         'sia_ac': val_num(get_col('sia_ac')),
-        'sia_total': val_num(get_col('sia_total')),
+        'sia_total': val_num(get_col('sia_faec')) + val_num(get_col('sia_mc')) + val_num(get_col('sia_ac')),
         'teto_global': val_num(get_col('teto_global')),
         'teto_mc': val_num(get_col('teto_mc')),
         'teto_ac': val_num(get_col('teto_ac')),

@@ -58,13 +58,18 @@ INSERT INTO campo_config (secao_key, campo_key, label, tipo, ordem, coluna_db, f
 ON CONFLICT (campo_key) DO NOTHING;
 
 -- ── Seed: Campos SIA ────────────────────────────────────────────────────────────
+-- sia_total é 'calculado' (soma sia_faec+sia_mc+sia_ac) pelo mesmo motivo de
+-- aih_total: a planilha fonte nunca traz uma coluna "SIA TOTAL" pronta.
 INSERT INTO campo_config (secao_key, campo_key, label, tipo, ordem, coluna_db) VALUES
   ('sia', 'sia_faec',             'SIA FAEC',                        'moeda', 10, 'sia_faec'),
   ('sia', 'sia_mc',               'SIA MC (Média Complexidade)',      'moeda', 20, 'sia_mc'),
   ('sia', 'sia_ac',               'SIA AC (Alta Complexidade)',       'moeda', 30, 'sia_ac'),
-  ('sia', 'sia_total',            'SIA Total',                       'moeda', 40, 'sia_total'),
   ('sia', 'equip_hemodialise',    'Equip. Hemodiálise (DRC)',         'moeda', 50, 'equip_hemodialise'),
   ('sia', 'limite_complementacao','Limite Complementação Tabela SUS', 'moeda', 60, 'limite_complementacao')
+ON CONFLICT (campo_key) DO NOTHING;
+
+INSERT INTO campo_config (secao_key, campo_key, label, tipo, ordem, coluna_db, formula) VALUES
+  ('sia', 'sia_total', 'SIA Total', 'calculado', 40, 'sia_total', 'sia_faec,sia_mc,sia_ac')
 ON CONFLICT (campo_key) DO NOTHING;
 
 -- ── Seed: Campos Teto MAC ───────────────────────────────────────────────────────

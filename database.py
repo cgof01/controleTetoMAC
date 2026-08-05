@@ -2219,7 +2219,7 @@ _SEED_CAMPOS = [
     ('sia', 'sia_faec',              'SIA FAEC',                         'moeda', 10, 'sia_faec',              None),
     ('sia', 'sia_mc',                'SIA MC (Média Complexidade)',       'moeda', 20, 'sia_mc',                None),
     ('sia', 'sia_ac',                'SIA AC (Alta Complexidade)',        'moeda', 30, 'sia_ac',                None),
-    ('sia', 'sia_total',             'SIA Total',                        'moeda', 40, 'sia_total',             None),
+    ('sia', 'sia_total',             'SIA Total',                        'calculado', 40, 'sia_total',        'sia_faec,sia_mc,sia_ac'),
     ('sia', 'equip_hemodialise',     'Equip. Hemodiálise (DRC)',          'moeda', 50, 'equip_hemodialise',     None),
     ('sia', 'limite_complementacao', 'Limite Complementação Tabela SUS',  'moeda', 60, 'limite_complementacao', None),
 
