@@ -54,6 +54,14 @@
   border:1px solid #d1d5db; border-radius:6px; background:#fff;
   margin-bottom:4px;
 }
+/* Botões de ação flutuam no rodapé da sidebar (sticky dentro do próprio
+   .ca-sb, que já tem overflow-y:auto) — sempre visíveis sem precisar
+   rolar até o fim da lista de filtros pra clicar em "Gerar Relatório". */
+.sb-sec-acoes {
+  position:sticky; bottom:0; margin-top:auto;
+  background:#f8fafc; border-top:1px solid #e2e8f0;
+  padding-top:8px; z-index:2;
+}
 
 /* ── Main panel ──────────────────────────────────────────────────────── */
 .ca-main { flex:1; display:flex; flex-direction:column; overflow:hidden; }
@@ -275,7 +283,7 @@
     </div>
 
     <!-- Ações -->
-    <div class="sb-sec pb-3">
+    <div class="sb-sec sb-sec-acoes pb-3">
       <button class="btn btn-ses btn-sm sb-btn" onclick="loadData()"><i class="bi bi-play-fill me-1"></i>Gerar Relatório</button>
       <button class="btn btn-outline-secondary btn-sm sb-btn" onclick="limpar()"><i class="bi bi-x-circle me-1"></i>Limpar</button>
     </div>
