@@ -347,10 +347,11 @@
         }
       }
 
-      // Restaurar estado salvo
+      // Restaurar estado salvo — recolhida (slim) por padrão quando não há
+      // preferência salva ainda (primeira visita/navegador novo).
       const saved = localStorage.getItem('sb_slim');
       if (!isMobile()) {
-        if (saved === '1') document.body.classList.add('sb-slim');
+        if (saved === '1' || saved === null) document.body.classList.add('sb-slim');
       }
 
       btn.addEventListener('click', toggle);

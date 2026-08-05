@@ -369,7 +369,12 @@ def importar_arquivo_xls(filepath, ano=None, mes=None, nome_original=None):
         mapa = mapear_colunas(headers)
         linhas = [[ws.cell_value(r, c) for c in range(ws.ncols)] for r in range(header_row + 1, ws.nrows)]
     except Exception:
+        wb2 = None
         try:
+            # read_only=True mantém o arquivo aberto (zip mapeado em memória) até
+            # wb2.close() ser chamado — sem isso, no Windows o arquivo temporário
+            # criado pelo Flask em /importar fica travado e o os.unlink() que
+            # limpa o temp file depois da importação falha com "arquivo em uso".
             wb2 = openpyxl.load_workbook(filepath, read_only=True, data_only=True)
             ws2 = wb2.active
             rows_iter = list(ws2.iter_rows(values_only=True))
@@ -392,6 +397,9 @@ def importar_arquivo_xls(filepath, ano=None, mes=None, nome_original=None):
             resultado['mensagens'].append(f'Erro ao abrir arquivo: {e2}')
             resultado['erros'] = 1
             return resultado
+        finally:
+            if wb2 is not None:
+                wb2.close()
 
     if 'drs' not in mapa or 'unidade' not in mapa:
         resultado['mensagens'].append(f'Colunas essenciais não encontradas. Mapeadas: {list(mapa.keys())}')
