@@ -226,6 +226,9 @@ $(document).ready(function() {
     paging: true,
     fixedColumns: { left: {{ 5 if granularidade == 'detalhado' else 2 }} }
   });
+  // A área de scroll só existe depois do DataTable acima ser inicializado —
+  // é ela (não a tabela original) que precisa do clique-e-arraste.
+  enableDragScroll(document.querySelector('#tabelaPeriodo_wrapper .dataTables_scrollBody'));
 });
 </script>
 {% endblock %}

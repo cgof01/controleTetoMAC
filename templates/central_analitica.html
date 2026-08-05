@@ -324,7 +324,7 @@
       </div>
 
       <!-- Table -->
-      <div style="overflow:auto;flex:1">
+      <div style="overflow:auto;flex:1" class="drag-scroll" id="scrollTableWrap">
         <div id="tableWrap">
           <div class="ca-empty">
             <i class="bi bi-inbox" style="font-size:2rem"></i>
@@ -574,6 +574,7 @@ function toggleChart() {
 }
 document.addEventListener('DOMContentLoaded', function() {
   _aplicarVisibilidadeChart(localStorage.getItem('ca_chart_visivel') !== '0');
+  enableDragScroll(document.getElementById('scrollTableWrap'));
 });
 
 // ── KPIs ────────────────────────────────────────────────────────────────────

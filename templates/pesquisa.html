@@ -33,6 +33,12 @@
   }
   .table-teto thead th.sticky-col { background:#f1f5f9; z-index:2; }
   .table-teto tbody tr.linha-clicavel:hover td.sticky-col { background:#f8fbff; }
+
+  /* Por padrão só ficam visíveis Ano/Mês, DRS, Tipo, Município, CNES, Unidade,
+     Total MC+AC+Inc. e Ações — o resto (AIH/SIA/Teto/Incentivos, ~32 colunas)
+     fica oculto até clicar em "Mostrar todas as colunas". */
+  .table-teto .col-extra { display:none; }
+  .table-teto.mostrar-extras .col-extra { display:table-cell; }
 </style>
 {% endblock %}
 
@@ -185,12 +191,17 @@
 
 <!-- Resultados -->
 <div class="card">
-  <div class="card-header bg-white d-flex justify-content-between align-items-center">
+  <div class="card-header bg-white d-flex justify-content-between align-items-center gap-2 flex-wrap">
     <strong><i class="bi bi-table me-2 text-primary"></i>Resultados</strong>
-    <span class="badge bg-primary">{{ total }} registros encontrados</span>
+    <div class="d-flex align-items-center gap-2">
+      <button type="button" class="btn btn-outline-secondary btn-sm" id="btnToggleColunas" onclick="toggleColunasExtras()">
+        <i class="bi bi-eye me-1"></i>Mostrar todas as colunas
+      </button>
+      <span class="badge bg-primary">{{ total }} registros encontrados</span>
+    </div>
   </div>
   <div class="card-body p-0">
-    <div class="table-responsive">
+    <div class="table-responsive drag-scroll" id="scrollResultados">
       {% set _extras_keys = ['rede_alyne','pncp','rce_rceg_custeio','rau_hosp_sos_custeio','rca_rcan_custeio'] %}
       {% macro th_sort(label, chave, cls='') %}
         {% if chave in _extras_keys %}
@@ -219,18 +230,18 @@
             {{ th_sort('Município', 'municipio') }}
             {{ th_sort('CNES', 'cnes') }}
             {{ th_sort('Unidade', 'unidade', 'sticky-col') }}
-            {{ th_sort('AIH Físico', 'aih_fisico', 'text-end grp-aih') }}
-            {{ th_sort('AIH FAEC', 'aih_faec', 'text-end grp-aih') }}
-            {{ th_sort('AIH MC', 'aih_mc', 'text-end grp-aih') }}
-            {{ th_sort('AIH AC', 'aih_ac', 'text-end grp-aih') }}
-            {{ th_sort('SIA FAEC', 'sia_faec', 'text-end grp-sia') }}
-            {{ th_sort('SIA MC', 'sia_mc', 'text-end grp-sia') }}
-            {{ th_sort('SIA AC', 'sia_ac', 'text-end grp-sia') }}
-            {{ th_sort('Equip. Hemodiálise', 'equip_hemodialise', 'text-end grp-sia') }}
-            {{ th_sort('Lim. Complementação', 'limite_complementacao', 'text-end grp-sia') }}
-            {{ th_sort('Teto MAC', 'teto_mac', 'text-end grp-teto') }}
+            {{ th_sort('AIH Físico', 'aih_fisico', 'text-end grp-aih col-extra') }}
+            {{ th_sort('AIH FAEC', 'aih_faec', 'text-end grp-aih col-extra') }}
+            {{ th_sort('AIH MC', 'aih_mc', 'text-end grp-aih col-extra') }}
+            {{ th_sort('AIH AC', 'aih_ac', 'text-end grp-aih col-extra') }}
+            {{ th_sort('SIA FAEC', 'sia_faec', 'text-end grp-sia col-extra') }}
+            {{ th_sort('SIA MC', 'sia_mc', 'text-end grp-sia col-extra') }}
+            {{ th_sort('SIA AC', 'sia_ac', 'text-end grp-sia col-extra') }}
+            {{ th_sort('Equip. Hemodiálise', 'equip_hemodialise', 'text-end grp-sia col-extra') }}
+            {{ th_sort('Lim. Complementação', 'limite_complementacao', 'text-end grp-sia col-extra') }}
+            {{ th_sort('Teto MAC', 'teto_mac', 'text-end grp-teto col-extra') }}
             {% for campo, label in incentivos %}
-            {{ th_sort(label, campo, 'text-end grp-inc') }}
+            {{ th_sort(label, campo, 'text-end grp-inc col-extra') }}
             {% endfor %}
             {{ th_sort('Total MC+AC+Inc.', 'total_mc_ac_incentivos', 'text-end') }}
             <th class="text-center" style="width:56px">Ações</th>
@@ -254,18 +265,18 @@
                   {{ (r.unidade or '—')[:45] }}{% if r.unidade and r.unidade|length > 45 %}...{% endif %}
                 </span>
               </td>
-              <td class="num-moeda">{{ r.aih_fisico | numero if r.aih_fisico else '—' }}</td>
-              <td class="num-moeda">{{ r.aih_faec | moeda if r.aih_faec else '—' }}</td>
-              <td class="num-moeda">{{ r.aih_mc | moeda if r.aih_mc else '—' }}</td>
-              <td class="num-moeda">{{ r.aih_ac | moeda if r.aih_ac else '—' }}</td>
-              <td class="num-moeda">{{ r.sia_faec | moeda if r.sia_faec else '—' }}</td>
-              <td class="num-moeda">{{ r.sia_mc | moeda if r.sia_mc else '—' }}</td>
-              <td class="num-moeda">{{ r.sia_ac | moeda if r.sia_ac else '—' }}</td>
-              <td class="num-moeda">{{ r.equip_hemodialise | moeda if r.equip_hemodialise else '—' }}</td>
-              <td class="num-moeda">{{ r.limite_complementacao | moeda if r.limite_complementacao else '—' }}</td>
-              <td class="num-moeda fw-bold">{{ (r.teto_mac or r.total_teto_mac) | moeda }}</td>
+              <td class="num-moeda col-extra">{{ r.aih_fisico | numero if r.aih_fisico else '—' }}</td>
+              <td class="num-moeda col-extra">{{ r.aih_faec | moeda if r.aih_faec else '—' }}</td>
+              <td class="num-moeda col-extra">{{ r.aih_mc | moeda if r.aih_mc else '—' }}</td>
+              <td class="num-moeda col-extra">{{ r.aih_ac | moeda if r.aih_ac else '—' }}</td>
+              <td class="num-moeda col-extra">{{ r.sia_faec | moeda if r.sia_faec else '—' }}</td>
+              <td class="num-moeda col-extra">{{ r.sia_mc | moeda if r.sia_mc else '—' }}</td>
+              <td class="num-moeda col-extra">{{ r.sia_ac | moeda if r.sia_ac else '—' }}</td>
+              <td class="num-moeda col-extra">{{ r.equip_hemodialise | moeda if r.equip_hemodialise else '—' }}</td>
+              <td class="num-moeda col-extra">{{ r.limite_complementacao | moeda if r.limite_complementacao else '—' }}</td>
+              <td class="num-moeda fw-bold col-extra">{{ (r.teto_mac or r.total_teto_mac) | moeda }}</td>
               {% for campo, label in incentivos %}
-              <td class="num-moeda">{{ r.get(campo) | moeda if r.get(campo) else '—' }}</td>
+              <td class="num-moeda col-extra">{{ r.get(campo) | moeda if r.get(campo) else '—' }}</td>
               {% endfor %}
               <td class="num-moeda fw-bold text-primary">{{ r.total_mc_ac_incentivos | moeda }}</td>
               <td class="text-center" onclick="event.stopPropagation()">
@@ -382,6 +393,27 @@
 
 {% block extra_js %}
 <script>
+enableDragScroll(document.getElementById('scrollResultados'));
+
+// ── Mostrar/ocultar colunas extras (AIH/SIA/Teto/Incentivos) ───────────────────
+function _aplicarColunasExtras(mostrar) {
+  const tabela = document.querySelector('.table-teto');
+  const btn = document.getElementById('btnToggleColunas');
+  if (!tabela || !btn) return;
+  tabela.classList.toggle('mostrar-extras', mostrar);
+  btn.innerHTML = mostrar
+    ? '<i class="bi bi-eye-slash me-1"></i>Ocultar colunas extras'
+    : '<i class="bi bi-eye me-1"></i>Mostrar todas as colunas';
+}
+function toggleColunasExtras() {
+  const mostrar = !document.querySelector('.table-teto').classList.contains('mostrar-extras');
+  localStorage.setItem('pesquisa_colunas_extras', mostrar ? '1' : '0');
+  _aplicarColunasExtras(mostrar);
+}
+document.addEventListener('DOMContentLoaded', function() {
+  _aplicarColunasExtras(localStorage.getItem('pesquisa_colunas_extras') === '1');
+});
+
 function confirmarDelete(id, nome) {
   document.getElementById('deleteNome').textContent = nome;
   document.getElementById('formDelete').action = '/deletar/' + id;

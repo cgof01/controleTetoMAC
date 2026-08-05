@@ -161,6 +161,12 @@
     .page-header h4, .page-header h5 { margin: 0; font-weight: 700; }
     .page-header small { opacity: .78; }
     .page-header-controls { flex-basis: 100%; }
+
+    /* Tabelas largas com scroll horizontal por arraste do mouse (ver
+       enableDragScroll() mais abaixo) — cursor de "mão" indica que dá pra
+       clicar e arrastar. */
+    .drag-scroll { cursor: grab; }
+    .drag-scroll.arrastando-scroll { cursor: grabbing; user-select: none; }
     .breadcrumb-item.active { color: rgba(255,255,255,0.8); }
     .breadcrumb-item a { color: rgba(255,255,255,0.9); text-decoration: none; }
     .breadcrumb-item + .breadcrumb-item::before { color: rgba(255,255,255,0.6); }
@@ -330,6 +336,43 @@
     }
     function numBR(v) {
       return v ? parseInt(v).toLocaleString('pt-BR') : '0';
+    }
+
+    /* ── Arrastar com o mouse pra rolar tabelas largas na horizontal ──────
+       Usado em toda tela com tabela de muitas colunas (Pesquisa, Relatório
+       por Período/DRS/Unidade, Central de Relatórios). Ignora mousedown em
+       links/botões/inputs pra não atrapalhar cliques normais, e só suprime
+       o "click" seguinte se o mouse realmente se moveu (evita abrir/navegar
+       sem querer ao arrastar uma linha clicável). */
+    function enableDragScroll(container) {
+      if (!container || container.dataset.dragScrollAtivo) return;
+      container.dataset.dragScrollAtivo = '1';
+      let isDown = false, startX = 0, startScroll = 0, moveu = false;
+
+      container.addEventListener('mousedown', function(e) {
+        if (e.target.closest('a, button, input, select, textarea, .dropdown-menu')) return;
+        isDown = true; moveu = false;
+        startX = e.pageX;
+        startScroll = container.scrollLeft;
+        container.classList.add('arrastando-scroll');
+      });
+      document.addEventListener('mouseup', function() {
+        isDown = false;
+        container.classList.remove('arrastando-scroll');
+      });
+      container.addEventListener('mouseleave', function() {
+        isDown = false;
+        container.classList.remove('arrastando-scroll');
+      });
+      container.addEventListener('mousemove', function(e) {
+        if (!isDown) return;
+        const delta = e.pageX - startX;
+        if (Math.abs(delta) > 4) moveu = true;
+        container.scrollLeft = startScroll - delta;
+      });
+      container.addEventListener('click', function(e) {
+        if (moveu) { e.preventDefault(); e.stopPropagation(); moveu = false; }
+      }, true);
     }
 
     /* ── Sidebar toggle ─────────────────────────────────────────── */

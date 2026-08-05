@@ -41,7 +41,7 @@
     <strong><i class="bi bi-table me-2 text-primary"></i>Resumo por Departamento Regional de Saúde — {{ mes | mes_nome }}/{{ ano }}</strong>
   </div>
   <div class="card-body p-0">
-    <div class="table-responsive">
+    <div class="table-responsive drag-scroll" id="scrollDrs">
       <table class="table table-hover table-bordered mb-0">
         <thead class="table-dark">
           <tr>
@@ -130,6 +130,7 @@
 
 {% block extra_js %}
 <script>
+enableDragScroll(document.getElementById('scrollDrs'));
 const dados = {{ dados | tojson }};
 const ctx = document.getElementById('chartDRS').getContext('2d');
 new Chart(ctx, {
