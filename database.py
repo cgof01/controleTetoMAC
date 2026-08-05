@@ -1503,26 +1503,106 @@ def auditoria_deletar_ids(ids):
     if not ids:
         return 0
     if USE_SUPABASE:
+        # No Postgres, ajustes_campo tem ON DELETE CASCADE de verdade — não
+        # precisa limpar à mão.
         get_sb().table('teto_mac').delete().in_('id', ids).execute()
+        return len(ids)
     else:
         conn = get_db()
         ph = ','.join(['?' for _ in ids])
+        # SQLite só respeita ON DELETE CASCADE com PRAGMA foreign_keys=ON, que
+        # esta conexão não liga — apaga os ajustes órfãos manualmente antes.
+        conn.execute(f'DELETE FROM ajustes_campo WHERE registro_id IN ({ph})', ids)
         cur = conn.execute(f'DELETE FROM teto_mac WHERE id IN ({ph})', ids)
         conn.commit()
         conn.close()
         return cur.rowcount
-    return len(ids)
 
 def auditoria_deletar_periodo(ano, mes):
-    """Deleta todos os registros de um período."""
+    """Deleta todos os registros de uma competência (ano+mês)."""
     if USE_SUPABASE:
+        r = get_sb().table('teto_mac').select('id', count='exact').eq('ano', ano).eq('mes', mes).limit(1).execute()
+        n = r.count or 0
         get_sb().table('teto_mac').delete().eq('ano', ano).eq('mes', mes).execute()
+        return n
     else:
         conn = get_db()
+        conn.execute(
+            'DELETE FROM ajustes_campo WHERE registro_id IN '
+            '(SELECT id FROM teto_mac WHERE ano=? AND mes=?)', (ano, mes)
+        )
         cur = conn.execute('DELETE FROM teto_mac WHERE ano=? AND mes=?', (ano, mes))
         conn.commit()
         conn.close()
         return cur.rowcount
+
+def auditoria_deletar_ano(ano):
+    """Deleta todos os registros de um ano inteiro (todas as competências)."""
+    if USE_SUPABASE:
+        r = get_sb().table('teto_mac').select('id', count='exact').eq('ano', ano).limit(1).execute()
+        n = r.count or 0
+        get_sb().table('teto_mac').delete().eq('ano', ano).execute()
+        return n
+    else:
+        conn = get_db()
+        conn.execute(
+            'DELETE FROM ajustes_campo WHERE registro_id IN '
+            '(SELECT id FROM teto_mac WHERE ano=?)', (ano,)
+        )
+        cur = conn.execute('DELETE FROM teto_mac WHERE ano=?', (ano,))
+        conn.commit()
+        conn.close()
+        return cur.rowcount
+
+def auditoria_deletar_tudo():
+    """Deleta TODOS os registros de teto_mac (e os ajustes de campo
+    correspondentes) — não mexe em usuarios/config/portarias/logs_sistema."""
+    if USE_SUPABASE:
+        r = get_sb().table('teto_mac').select('id', count='exact').limit(1).execute()
+        n = r.count or 0
+        get_sb().table('teto_mac').delete().gte('id', 0).execute()
+        return n
+    else:
+        conn = get_db()
+        n = conn.execute('SELECT COUNT(*) FROM teto_mac').fetchone()[0]
+        conn.execute('DELETE FROM ajustes_campo')
+        conn.execute('DELETE FROM teto_mac')
+        conn.commit()
+        conn.close()
+        return n
+
+def registrar_log(usuario_nome, acao, detalhes, registros_afetados=0):
+    """Grava uma entrada no log de auditoria do sistema (ações administrativas
+    sensíveis, como exclusões em massa)."""
+    dados = {'usuario_nome': usuario_nome, 'acao': acao, 'detalhes': detalhes,
+             'registros_afetados': registros_afetados}
+    if USE_SUPABASE:
+        try:
+            get_sb().table('logs_sistema').insert(dados).execute()
+        except Exception:
+            pass
+    else:
+        conn = get_db()
+        conn.execute(
+            "INSERT INTO logs_sistema (usuario_nome, acao, detalhes, registros_afetados) VALUES (?,?,?,?)",
+            (usuario_nome, acao, detalhes, registros_afetados)
+        )
+        conn.commit()
+        conn.close()
+
+def listar_logs(limit=50):
+    if USE_SUPABASE:
+        try:
+            r = get_sb().table('logs_sistema').select('*').order('created_at', desc=True).limit(limit).execute()
+            return r.data or []
+        except Exception:
+            return []
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT * FROM logs_sistema ORDER BY created_at DESC LIMIT ?", (limit,)
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
 
 def auditoria_comparar(registros_xls, ano, mes):
     """Compara planilha com banco. Retorna diffs."""
@@ -1904,6 +1984,14 @@ def _init_sqlite():
             valor REAL NOT NULL,
             justificativa TEXT NOT NULL,
             usuario_nome TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS logs_sistema (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            usuario_nome TEXT,
+            acao TEXT NOT NULL,
+            detalhes TEXT,
+            registros_afetados INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         CREATE INDEX IF NOT EXISTS idx_ano_mes ON teto_mac(ano, mes);

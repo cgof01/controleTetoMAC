@@ -43,8 +43,15 @@
     </div>
   </div>
 
-  {% if session.get('usuario_perfil') == 'admin' %}
-  <!-- Excluir todos os registros de uma competência -->
+</div>
+
+{% if session.get('usuario_perfil') == 'admin' %}
+<div class="mb-2">
+  <h5 class="fw-bold text-danger"><i class="bi bi-shield-exclamation me-2"></i>Zona de Risco</h5>
+  <small class="text-muted">Toda exclusão nesta seção pede sua senha de admin e fica registrada no log do sistema.</small>
+</div>
+<div class="row g-3 mb-4">
+  <!-- Excluir uma competência -->
   <div class="col-md-8 mx-auto">
     <div class="card h-100 border-danger">
       <div class="card-header bg-danger text-white">
@@ -81,9 +88,88 @@
       </div>
     </div>
   </div>
-  {% endif %}
 
+  <!-- Excluir um ano inteiro -->
+  <div class="col-md-8 mx-auto">
+    <div class="card h-100 border-danger">
+      <div class="card-header bg-danger text-white">
+        <i class="bi bi-calendar-x me-2"></i><strong>Excluir Ano</strong>
+      </div>
+      <div class="card-body">
+        <p class="text-muted small mb-3">
+          Remove <strong>todas as competências</strong> (janeiro a dezembro) de um ano inteiro.
+        </p>
+        <div class="row g-2 align-items-end">
+          <div class="col-9">
+            <label class="form-label small fw-bold mb-1">Ano</label>
+            <select class="form-select" id="delAnoTodo">
+              {% for a in anos_disponiveis %}
+              <option value="{{ a }}">{{ a }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-3">
+            <button type="button" class="btn btn-outline-danger w-100" id="btnExcluirAno">
+              Excluir
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Excluir TUDO -->
+  <div class="col-md-8 mx-auto">
+    <div class="card h-100" style="border:2px solid #7a1a1a">
+      <div class="card-header text-white" style="background:#7a1a1a">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i><strong>Excluir Todos os Registros do Sistema</strong>
+      </div>
+      <div class="card-body">
+        <p class="text-muted small mb-3">
+          Apaga <strong>toda a base de dados</strong> do Teto MAC (todas as competências, todos os anos).
+          Use apenas para recomeçar a importação do zero.
+        </p>
+        <button type="button" class="btn w-100 text-white" style="background:#7a1a1a" id="btnExcluirTudo">
+          <i class="bi bi-radioactive me-1"></i>Excluir Tudo
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Log do sistema -->
+  <div class="col-md-8 mx-auto">
+    <div class="card h-100">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <strong><i class="bi bi-journal-text me-2 text-secondary"></i>Log do Sistema</strong>
+        <small class="text-muted">últimas {{ logs_recentes|length }} ações</small>
+      </div>
+      <div class="card-body p-0">
+        {% if logs_recentes %}
+        <div class="table-responsive" style="max-height:260px;overflow-y:auto">
+          <table class="table table-sm mb-0">
+            <thead class="table-light">
+              <tr><th>Quando</th><th>Quem</th><th>Ação</th><th class="text-end">Registros</th></tr>
+            </thead>
+            <tbody>
+              {% for l in logs_recentes %}
+              <tr>
+                <td><small class="text-muted">{{ l.created_at }}</small></td>
+                <td><small>{{ l.usuario_nome or '—' }}</small></td>
+                <td><small>{{ l.detalhes or l.acao }}</small></td>
+                <td class="text-end"><small>{{ l.registros_afetados }}</small></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <p class="text-muted text-center py-3 mb-0 small"><i class="bi bi-inbox me-1"></i>Nenhuma ação registrada ainda.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
 </div>
+{% endif %}
 
 <!-- Confirmar exclusão de competência -->
 <div class="modal fade" id="modalExcluirCompetencia" tabindex="-1">
@@ -96,11 +182,63 @@
       <div class="modal-body">
         <p>Esta ação irá excluir <strong>TODOS</strong> os registros de
            <strong id="competenciaLabel"></strong>.</p>
-        <p class="text-danger mb-0"><strong>Esta operação não pode ser desfeita.</strong></p>
+        <p class="text-danger">Esta operação não pode ser desfeita.</p>
+        <label class="form-label small fw-bold mb-1">Sua senha de admin</label>
+        <input type="password" class="form-control" id="senhaExcluirCompetencia" autocomplete="current-password">
+        <div class="invalid-feedback d-block d-none" id="erroExcluirCompetencia"></div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-        <button type="button" class="btn btn-danger" id="btnConfirmExcluirCompetencia">Excluir Tudo</button>
+        <button type="button" class="btn btn-danger" id="btnConfirmExcluirCompetencia">Excluir</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Confirmar exclusão de ano -->
+<div class="modal fade" id="modalExcluirAno" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-danger text-white">
+        <h6 class="modal-title"><i class="bi bi-exclamation-octagon me-1"></i>Excluir Ano</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p>Esta ação irá excluir <strong>TODOS</strong> os registros do ano
+           <strong id="anoTodoLabel"></strong> (janeiro a dezembro).</p>
+        <p class="text-danger">Esta operação não pode ser desfeita.</p>
+        <label class="form-label small fw-bold mb-1">Sua senha de admin</label>
+        <input type="password" class="form-control" id="senhaExcluirAno" autocomplete="current-password">
+        <div class="invalid-feedback d-block d-none" id="erroExcluirAno"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-danger" id="btnConfirmExcluirAno">Excluir</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Confirmar exclusão total -->
+<div class="modal fade" id="modalExcluirTudo" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header text-white" style="background:#7a1a1a">
+        <h6 class="modal-title"><i class="bi bi-radioactive me-1"></i>Excluir Todos os Registros</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p>Esta ação irá excluir <strong>TODOS os registros de TODAS as competências</strong> do sistema.</p>
+        <p class="text-danger"><strong>Esta operação não pode ser desfeita.</strong></p>
+        <label class="form-label small fw-bold mb-1">Digite <code>EXCLUIR TUDO</code> para confirmar</label>
+        <input type="text" class="form-control mb-2" id="confirmacaoExcluirTudo" autocomplete="off">
+        <label class="form-label small fw-bold mb-1">Sua senha de admin</label>
+        <input type="password" class="form-control" id="senhaExcluirTudo" autocomplete="current-password">
+        <div class="invalid-feedback d-block d-none" id="erroExcluirTudo"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn text-white" style="background:#7a1a1a" id="btnConfirmExcluirTudo">Excluir Tudo</button>
       </div>
     </div>
   </div>
@@ -251,6 +389,35 @@
     btnLote.disabled = true;
   });
 
+  // ── Zona de Risco: exclusões em massa (senha de admin + log do sistema) ────
+  async function _executarExclusao({url, body, btnId, erroId, modalEl, sucessoMsg}) {
+    const btn = document.getElementById(btnId);
+    const erroEl = document.getElementById(erroId);
+    erroEl.classList.add('d-none');
+    btn.disabled = true;
+    try {
+      const res = await fetch(url, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body)
+      });
+      const d = await res.json();
+      if (!d.ok) {
+        erroEl.textContent = d.msg || 'Erro ao excluir.';
+        erroEl.classList.remove('d-none');
+        return;
+      }
+      bootstrap.Modal.getInstance(modalEl)?.hide();
+      alert(sucessoMsg(d.deletados));
+      location.reload();
+    } catch (e) {
+      erroEl.textContent = 'Erro de comunicação ao excluir.';
+      erroEl.classList.remove('d-none');
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  // Excluir Competência
   const btnExcluir = document.getElementById('btnExcluirCompetencia');
   if (btnExcluir) {
     const delMes = document.getElementById('delMes');
@@ -261,25 +428,74 @@
     btnExcluir.addEventListener('click', () => {
       document.getElementById('competenciaLabel').textContent =
         `${delMes.options[delMes.selectedIndex].text}/${delAno.value}`;
+      document.getElementById('senhaExcluirCompetencia').value = '';
+      document.getElementById('erroExcluirCompetencia').classList.add('d-none');
       modal.show();
     });
 
-    document.getElementById('btnConfirmExcluirCompetencia').addEventListener('click', async () => {
-      const btn = document.getElementById('btnConfirmExcluirCompetencia');
-      btn.disabled = true;
-      try {
-        const res = await fetch('/auditoria/deletar-periodo', {
-          method: 'POST', headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ano: parseInt(delAno.value), mes: parseInt(delMes.value)})
-        });
-        const d = await res.json();
-        modal.hide();
-        alert(d.ok ? `Competência excluída: ${d.deletados} registros removidos.` : (d.msg || 'Erro ao excluir.'));
-      } catch (e) {
-        alert('Erro ao excluir competência.');
-      } finally {
-        btn.disabled = false;
-      }
+    document.getElementById('btnConfirmExcluirCompetencia').addEventListener('click', () => {
+      _executarExclusao({
+        url: '/auditoria/deletar-periodo',
+        body: {
+          ano: parseInt(delAno.value), mes: parseInt(delMes.value),
+          senha: document.getElementById('senhaExcluirCompetencia').value
+        },
+        btnId: 'btnConfirmExcluirCompetencia', erroId: 'erroExcluirCompetencia', modalEl,
+        sucessoMsg: n => `Competência excluída: ${n} registro(s) removido(s).`
+      });
+    });
+  }
+
+  // Excluir Ano
+  const btnExcluirAno = document.getElementById('btnExcluirAno');
+  if (btnExcluirAno) {
+    const delAnoTodo = document.getElementById('delAnoTodo');
+    const modalEl = document.getElementById('modalExcluirAno');
+    const modal = new bootstrap.Modal(modalEl);
+
+    btnExcluirAno.addEventListener('click', () => {
+      document.getElementById('anoTodoLabel').textContent = delAnoTodo.value;
+      document.getElementById('senhaExcluirAno').value = '';
+      document.getElementById('erroExcluirAno').classList.add('d-none');
+      modal.show();
+    });
+
+    document.getElementById('btnConfirmExcluirAno').addEventListener('click', () => {
+      _executarExclusao({
+        url: '/auditoria/deletar-ano',
+        body: {
+          ano: parseInt(delAnoTodo.value),
+          senha: document.getElementById('senhaExcluirAno').value
+        },
+        btnId: 'btnConfirmExcluirAno', erroId: 'erroExcluirAno', modalEl,
+        sucessoMsg: n => `Ano excluído: ${n} registro(s) removido(s).`
+      });
+    });
+  }
+
+  // Excluir Tudo
+  const btnExcluirTudo = document.getElementById('btnExcluirTudo');
+  if (btnExcluirTudo) {
+    const modalEl = document.getElementById('modalExcluirTudo');
+    const modal = new bootstrap.Modal(modalEl);
+
+    btnExcluirTudo.addEventListener('click', () => {
+      document.getElementById('confirmacaoExcluirTudo').value = '';
+      document.getElementById('senhaExcluirTudo').value = '';
+      document.getElementById('erroExcluirTudo').classList.add('d-none');
+      modal.show();
+    });
+
+    document.getElementById('btnConfirmExcluirTudo').addEventListener('click', () => {
+      _executarExclusao({
+        url: '/auditoria/deletar-tudo',
+        body: {
+          confirmacao: document.getElementById('confirmacaoExcluirTudo').value,
+          senha: document.getElementById('senhaExcluirTudo').value
+        },
+        btnId: 'btnConfirmExcluirTudo', erroId: 'erroExcluirTudo', modalEl,
+        sucessoMsg: n => `Base zerada: ${n} registro(s) removido(s).`
+      });
     });
   }
 })();

@@ -942,7 +942,8 @@ def importar():
                     resultados=resultados,
                     anos_disponiveis=list(range(2021, 2028)),
                     meses=MESES,
-                    historico_imp=_obter_historico_importacoes()
+                    historico_imp=_obter_historico_importacoes(),
+                    logs_recentes=_obter_logs_recentes()
                 )
 
         elif acao == 'importar_arquivo':
@@ -963,7 +964,9 @@ def importar():
                     return render_template('importar.html',
                         resultados=[res],
                         anos_disponiveis=list(range(2022, 2027)),
-                        meses=MESES
+                        meses=MESES,
+                        historico_imp=_obter_historico_importacoes(),
+                        logs_recentes=_obter_logs_recentes()
                     )
                 finally:
                     os.unlink(tmp.name)
@@ -973,7 +976,8 @@ def importar():
         resultados=None,
         anos_disponiveis=list(range(2022, 2027)),
         meses=MESES,
-        historico_imp=historico_imp
+        historico_imp=historico_imp,
+        logs_recentes=_obter_logs_recentes()
     )
 
 def _obter_historico_importacoes():
@@ -989,6 +993,13 @@ def _obter_historico_importacoes():
         ).fetchall()
         conn.close()
         return [dict(r) for r in rows]
+
+def _obter_logs_recentes():
+    """Últimos logs do sistema (exclusões em massa etc.) — só busca para admin,
+    que é quem vê o painel na tela de Importar."""
+    if session.get('usuario_perfil') != 'admin':
+        return []
+    return db.listar_logs(20)
 
 # ── Auditoria ─────────────────────────────────────────────────────────────────
 
@@ -1030,6 +1041,15 @@ def api_auditoria_registros():
     regs, total = db.auditoria_registros(ano, mes, drs or None, busca or None, page, per_page)
     return jsonify({'registros': regs, 'total': total, 'page': page, 'per_page': per_page})
 
+def _senha_admin_valida(senha):
+    """Reconfirma a senha do admin logado — usado como segundo fator antes de
+    qualquer exclusão em massa (competência/ano/tudo), além do @admin_required
+    que já exige estar logado como admin."""
+    if not senha:
+        return False
+    usuario = db.buscar_usuario_por_id(session.get('usuario_id'))
+    return bool(usuario) and check_password_hash(usuario['senha_hash'], senha)
+
 @app.route('/auditoria/deletar-registros', methods=['POST'])
 @admin_required
 def auditoria_deletar_registros():
@@ -1046,12 +1066,50 @@ def auditoria_deletar_registros():
 @app.route('/auditoria/deletar-periodo', methods=['POST'])
 @admin_required
 def auditoria_deletar_periodo():
-    data = request.get_json()
+    data = request.get_json() or {}
     ano, mes = data.get('ano'), data.get('mes')
     if not ano or not mes:
         return jsonify({'ok': False, 'msg': 'ano e mes obrigatorios'}), 400
+    if not _senha_admin_valida(data.get('senha', '')):
+        return jsonify({'ok': False, 'msg': 'Senha de admin incorreta.'}), 403
     try:
         n = db.auditoria_deletar_periodo(ano, mes)
+        db.registrar_log(session.get('usuario_nome'), 'exclusao_competencia',
+                          f'Excluiu a competência {MESES.get(mes, mes)}/{ano}', n)
+        return jsonify({'ok': True, 'deletados': n})
+    except Exception as e:
+        return jsonify({'ok': False, 'msg': str(e)}), 500
+
+@app.route('/auditoria/deletar-ano', methods=['POST'])
+@admin_required
+def auditoria_deletar_ano():
+    data = request.get_json() or {}
+    ano = data.get('ano')
+    if not ano:
+        return jsonify({'ok': False, 'msg': 'ano obrigatorio'}), 400
+    if not _senha_admin_valida(data.get('senha', '')):
+        return jsonify({'ok': False, 'msg': 'Senha de admin incorreta.'}), 403
+    try:
+        n = db.auditoria_deletar_ano(ano)
+        db.registrar_log(session.get('usuario_nome'), 'exclusao_ano',
+                          f'Excluiu o ano {ano} inteiro (todas as competências)', n)
+        return jsonify({'ok': True, 'deletados': n})
+    except Exception as e:
+        return jsonify({'ok': False, 'msg': str(e)}), 500
+
+@app.route('/auditoria/deletar-tudo', methods=['POST'])
+@admin_required
+def auditoria_deletar_tudo():
+    data = request.get_json() or {}
+    confirmacao = (data.get('confirmacao') or '').strip().upper()
+    if confirmacao != 'EXCLUIR TUDO':
+        return jsonify({'ok': False, 'msg': 'Digite exatamente "EXCLUIR TUDO" para confirmar.'}), 400
+    if not _senha_admin_valida(data.get('senha', '')):
+        return jsonify({'ok': False, 'msg': 'Senha de admin incorreta.'}), 403
+    try:
+        n = db.auditoria_deletar_tudo()
+        db.registrar_log(session.get('usuario_nome'), 'exclusao_total',
+                          'Excluiu TODOS os registros do sistema', n)
         return jsonify({'ok': True, 'deletados': n})
     except Exception as e:
         return jsonify({'ok': False, 'msg': str(e)}), 500
