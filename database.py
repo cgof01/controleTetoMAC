@@ -173,8 +173,11 @@ _ORDENAR_COLS = {
     'competencia': ['ano', 'mes'],
     'drs': ['drs'], 'tipo': ['tipo'], 'municipio': ['municipio'],
     'cnes': ['cnes'], 'unidade': ['unidade'],
-    'aih_fisico': ['aih_fisico'], 'aih_mc': ['aih_mc'], 'aih_ac': ['aih_ac'],
-    'sia_mc': ['sia_mc'], 'sia_ac': ['sia_ac'], 'teto_mac': ['teto_mac'],
+    'aih_fisico': ['aih_fisico'], 'aih_faec': ['aih_faec'],
+    'aih_mc': ['aih_mc'], 'aih_ac': ['aih_ac'],
+    'sia_faec': ['sia_faec'], 'sia_mc': ['sia_mc'], 'sia_ac': ['sia_ac'],
+    'equip_hemodialise': ['equip_hemodialise'], 'limite_complementacao': ['limite_complementacao'],
+    'teto_mac': ['teto_mac'],
     'total_mc_ac_incentivos': ['total_mc_ac_incentivos'],
 }
 
@@ -825,6 +828,13 @@ INCENTIVOS_EXTRAS = [
     ('rca_rcan_custeio', 'RCA/RCAN - Custeio'),
 ]
 INCENTIVOS_TODOS = INCENTIVOS_NATIVOS + INCENTIVOS_EXTRAS
+
+# Os 17 incentivos nativos (colunas reais) também entram na allowlist de
+# ordenação da Pesquisa (_ORDENAR_COLS, definida mais acima) — os 5 que vivem
+# em campos_extras (rede_alyne, pncp, custeio...) não têm coluna própria pra
+# usar num ORDER BY, então ficam de fora e a coluna aparece sem link de
+# ordenação na tela (mesmo padrão de "sortable só quando é coluna real").
+_ORDENAR_COLS.update({k: [k] for k, _ in INCENTIVOS_NATIVOS})
 
 def _extras_dict(row):
     """Desserializa campos_extras de uma linha crua (TEXT no SQLite, dict/JSONB no Supabase)."""

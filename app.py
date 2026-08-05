@@ -309,6 +309,7 @@ def pesquisa():
         meses=MESES,
         drs_lista=drs_lista,
         anos_disponiveis=anos_disponiveis,
+        incentivos=db.INCENTIVOS_TODOS,
     )
 
 @app.route('/api/autocomplete')
