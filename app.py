@@ -278,8 +278,10 @@ def pesquisa():
     filtros = {k: v for k, v in request.args.items() if v and k != 'page'}
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 50, type=int)
+    ordenar_por = request.args.get('sort') if request.args.get('sort') in db._ORDENAR_COLS else None
+    ordenar_dir = request.args.get('dir', 'desc')
 
-    registros, total = db.pesquisar(filtros, page, per_page)
+    registros, total = db.pesquisar(filtros, page, per_page, ordenar_por, ordenar_dir)
     total_pages = (total + per_page - 1) // per_page
     totais = db.pesquisar_totais(filtros)
 
@@ -301,6 +303,9 @@ def pesquisa():
         total_pages=total_pages,
         totais=totais,
         filtros=filtros,
+        filtros_sort={k: v for k, v in filtros.items() if k not in ('sort', 'dir')},
+        ordenar_por=ordenar_por,
+        ordenar_dir=ordenar_dir if ordenar_por else None,
         meses=MESES,
         drs_lista=drs_lista,
         anos_disponiveis=anos_disponiveis,

@@ -3,13 +3,24 @@
 
 {% block extra_css %}
 <style>
-  .table-teto th { font-size: 0.75rem; white-space: nowrap; }
-  .table-teto td { font-size: 0.82rem; }
   .filtro-card { border-left: 4px solid var(--ses-azul); }
   .consolidado-card { border:1px solid #e2e8f0; border-radius:10px; padding:.6rem .9rem; background:#fff; }
   .consolidado-card .lbl { font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:#64748b; }
   .consolidado-card .val { font-size:1.05rem; font-weight:700; color:#1e3a5f; }
   .consolidado-card.dest .val { color:#1e7a4a; }
+
+  .table-teto { font-size:.82rem; }
+  .table-teto thead th {
+    background:#f1f5f9; color:#334155; font-size:.7rem; font-weight:700;
+    text-transform:uppercase; letter-spacing:.04em; white-space:nowrap;
+    border-bottom:2px solid #e2e8f0; padding:.6rem .75rem; vertical-align:middle;
+  }
+  .table-teto tbody td { padding:.5rem .75rem; vertical-align:middle; border-bottom:1px solid #f1f5f9; }
+  .table-teto tbody tr.linha-clicavel { cursor:pointer; }
+  .table-teto tbody tr.linha-clicavel:hover td { background:#f8fbff; }
+  .th-sort-lnk { color:inherit; text-decoration:none; display:inline-flex; align-items:center; gap:4px; }
+  .th-sort-lnk:hover { color:#1e3a5f; }
+  .th-sort-lnk i { font-size:.7rem; }
 </style>
 {% endblock %}
 
@@ -168,29 +179,44 @@
   </div>
   <div class="card-body p-0">
     <div class="table-responsive">
+      {% macro th_sort(label, chave, cls='') %}
+        {% set dir_padrao = 'asc' if chave in ('drs','tipo','municipio','cnes','unidade') else 'desc' %}
+        {% set nova_dir = ('asc' if ordenar_dir == 'desc' else 'desc') if ordenar_por == chave else dir_padrao %}
+        <th class="{{ cls }}">
+          <a href="{{ url_for('pesquisa', sort=chave, dir=nova_dir, page=1, **filtros_sort) }}" class="th-sort-lnk">
+            {{ label }}
+            {% if ordenar_por == chave %}
+              <i class="bi bi-caret-{{ 'up' if ordenar_dir == 'asc' else 'down' }}-fill text-primary"></i>
+            {% else %}
+              <i class="bi bi-caret-down opacity-25"></i>
+            {% endif %}
+          </a>
+        </th>
+      {% endmacro %}
       <table class="table table-hover table-teto mb-0">
-        <thead class="table-dark">
+        <thead>
           <tr>
-            <th>Ano/Mês</th>
-            <th>DRS</th>
-            <th>Tipo</th>
-            <th>Município</th>
-            <th>CNES</th>
-            <th>Unidade</th>
-            <th class="text-end">AIH Físico</th>
-            <th class="text-end">AIH MC</th>
-            <th class="text-end">AIH AC</th>
-            <th class="text-end">SIA MC</th>
-            <th class="text-end">SIA AC</th>
-            <th class="text-end">Teto MAC</th>
-            <th class="text-end">Total MC+AC+Inc.</th>
-            <th>Ações</th>
+            {{ th_sort('Ano/Mês', 'competencia') }}
+            {{ th_sort('DRS', 'drs') }}
+            {{ th_sort('Tipo', 'tipo') }}
+            {{ th_sort('Município', 'municipio') }}
+            {{ th_sort('CNES', 'cnes') }}
+            {{ th_sort('Unidade', 'unidade') }}
+            {{ th_sort('AIH Físico', 'aih_fisico', 'text-end') }}
+            {{ th_sort('AIH MC', 'aih_mc', 'text-end') }}
+            {{ th_sort('AIH AC', 'aih_ac', 'text-end') }}
+            {{ th_sort('SIA MC', 'sia_mc', 'text-end') }}
+            {{ th_sort('SIA AC', 'sia_ac', 'text-end') }}
+            {{ th_sort('Teto MAC', 'teto_mac', 'text-end') }}
+            {{ th_sort('Total MC+AC+Inc.', 'total_mc_ac_incentivos', 'text-end') }}
+            <th class="text-center" style="width:56px">Ações</th>
           </tr>
         </thead>
         <tbody>
           {% if registros %}
             {% for r in registros %}
-            <tr class="{{ 'table-danger' if r._alterado else '' }}">
+            <tr class="linha-clicavel {{ 'table-danger' if r._alterado else '' }}"
+                onclick="window.location.href='{{ url_for('detalhe', id=r.id) }}'">
               <td><span class="badge badge-drs">{{ (r.mes | mes_nome)[:3] }}/{{ r.ano }}</span></td>
               <td><span class="badge bg-secondary">{{ r.drs | int if r.drs else '—' }}</span></td>
               <td><small class="text-muted">{{ r.tipo[:20] if r.tipo else '—' }}</small></td>
@@ -200,9 +226,9 @@
                 {% if r._alterado %}
                   <i class="bi bi-exclamation-circle-fill text-danger me-1" title="Alterado depois de replicar a competência — veja o detalhe para saber o que mudou"></i>
                 {% endif %}
-                <a href="{{ url_for('detalhe', id=r.id) }}" class="text-decoration-none fw-bold {{ 'text-danger' if r._alterado else 'text-dark' }}">
+                <span class="fw-bold {{ 'text-danger' if r._alterado else 'text-dark' }}">
                   {{ (r.unidade or '—')[:45] }}{% if r.unidade and r.unidade|length > 45 %}...{% endif %}
-                </a>
+                </span>
               </td>
               <td class="num-moeda">{{ r.aih_fisico | numero if r.aih_fisico else '—' }}</td>
               <td class="num-moeda">{{ r.aih_mc | moeda if r.aih_mc else '—' }}</td>
@@ -211,20 +237,30 @@
               <td class="num-moeda">{{ r.sia_ac | moeda if r.sia_ac else '—' }}</td>
               <td class="num-moeda fw-bold">{{ (r.teto_mac or r.total_teto_mac) | moeda }}</td>
               <td class="num-moeda fw-bold text-primary">{{ r.total_mc_ac_incentivos | moeda }}</td>
-              <td>
-                <div class="btn-group btn-group-sm">
-                  <a href="{{ url_for('detalhe', id=r.id) }}" class="btn btn-outline-primary" title="Ver detalhes"><i class="bi bi-eye"></i></a>
-                  <a href="{{ url_for('editar', id=r.id) }}" class="btn btn-outline-warning" title="Editar"><i class="bi bi-pencil"></i></a>
-                  {% if r.cnes %}
-                  <button type="button" class="btn btn-outline-secondary" title="Ver Portarias"
-                    onclick="verPortarias('{{ r.cnes }}','{{ (r.unidade or r.cnes) | replace("'","") | truncate(40,true,"") }}')">
-                    <i class="bi bi-file-earmark-pdf"></i>
+              <td class="text-center" onclick="event.stopPropagation()">
+                <div class="dropdown">
+                  <button class="btn btn-sm btn-light border" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Ações">
+                    <i class="bi bi-three-dots-vertical"></i>
                   </button>
-                  {% endif %}
-                  <button type="button" class="btn btn-outline-danger" title="Deletar"
-                    onclick="confirmarDelete({{ r.id }}, '{{ (r.unidade or '') | replace("'","") }}')">
-                    <i class="bi bi-trash"></i>
-                  </button>
+                  <ul class="dropdown-menu dropdown-menu-end">
+                    <li><a class="dropdown-item" href="{{ url_for('detalhe', id=r.id) }}"><i class="bi bi-eye me-2 text-primary"></i>Ver detalhes</a></li>
+                    <li><a class="dropdown-item" href="{{ url_for('editar', id=r.id) }}"><i class="bi bi-pencil me-2 text-warning"></i>Editar</a></li>
+                    {% if r.cnes %}
+                    <li>
+                      <button type="button" class="dropdown-item"
+                        onclick="verPortarias('{{ r.cnes }}','{{ (r.unidade or r.cnes) | replace("'","") | truncate(40,true,"") }}')">
+                        <i class="bi bi-file-earmark-pdf me-2 text-secondary"></i>Ver Portarias
+                      </button>
+                    </li>
+                    {% endif %}
+                    <li><hr class="dropdown-divider"></li>
+                    <li>
+                      <button type="button" class="dropdown-item text-danger"
+                        onclick="confirmarDelete({{ r.id }}, '{{ (r.unidade or '') | replace("'","") }}')">
+                        <i class="bi bi-trash me-2"></i>Deletar
+                      </button>
+                    </li>
+                  </ul>
                 </div>
               </td>
             </tr>

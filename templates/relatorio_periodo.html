@@ -1,61 +1,132 @@
 {% extends "base.html" %}
 {% block title %}Relatório por Período — Teto MAC{% endblock %}
 
+{% block extra_css %}
+<style>
+  .rp-header {
+    background: linear-gradient(135deg,#1e3a5f 0%,#2a5298 100%);
+    color:#fff; border-radius:14px; padding:1.1rem 1.4rem; margin-bottom:1rem;
+    display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1rem;
+  }
+  .rp-header h4 { margin:0; font-weight:700; }
+  .rp-header small { opacity:.78; }
+
+  .rp-kpi-row { display:flex; gap:.6rem; flex-wrap:wrap; margin-bottom:1rem; }
+  .rp-kpi {
+    background:#fff; border:1px solid #e2e8f0; border-radius:10px;
+    padding:.65rem 1rem; flex:1; min-width:140px; border-top:3px solid var(--c,#1e3a5f);
+    box-shadow:0 1px 3px rgba(0,0,0,.04);
+  }
+  .rp-kpi .lbl { font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:#64748b; }
+  .rp-kpi .val { font-size:1.15rem; font-weight:700; color:#1e3a5f; }
+
+  .rp-card { border:none; border-radius:14px; overflow:hidden; box-shadow:0 4px 18px rgba(0,0,0,.07); }
+  .rp-card .card-header {
+    background:#fff; border-bottom:1px solid #eef1f5; padding:.9rem 1.2rem;
+  }
+
+  .rp-modos .btn { font-weight:600; }
+
+  /* ── Tabela ──────────────────────────────────────────────────────────── */
+  #tabelaPeriodo { font-size:.82rem; }
+  #tabelaPeriodo thead th {
+    background:#f1f5f9 !important; color:#334155; font-weight:700;
+    font-size:.7rem; text-transform:uppercase; letter-spacing:.04em;
+    white-space:nowrap; border-bottom:2px solid #e2e8f0 !important;
+    padding:.65rem .8rem;
+  }
+  #tabelaPeriodo thead th.grp-aih  { background:#e8f5ee !important; color:#146c43; }
+  #tabelaPeriodo thead th.grp-sia  { background:#e6f7fb !important; color:#087990; }
+  #tabelaPeriodo thead th.grp-teto { background:#eef1f4 !important; color:#495057; }
+  #tabelaPeriodo thead th.grp-inc  { background:#fff8e6 !important; color:#92670a; }
+  #tabelaPeriodo thead th.grp-tot  { background:#e7f0fe !important; color:#1e3a5f; }
+  #tabelaPeriodo tbody td { padding:.5rem .8rem; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
+  #tabelaPeriodo tbody tr:hover td { background:#f8fbff; }
+  #tabelaPeriodo td.num, #tabelaPeriodo th.num { text-align:right; font-variant-numeric:tabular-nums; }
+  #tabelaPeriodo td.fw-bold { color:#1e3a5f; }
+  .rp-var-up   { color:#1a7a4a; font-weight:700; }
+  .rp-var-down { color:#c0392b; font-weight:700; }
+  .rp-competencia { font-weight:700; background:#1e3a5f; color:#fff; border:none; padding:.3rem .65rem; }
+
+  /* Botões nativos do DataTables (busca/paginação) com a mesma linguagem visual */
+  div.dataTables_wrapper .dataTables_filter input {
+    border-radius:8px; border:1px solid #d1d5db; padding:.3rem .6rem; font-size:.82rem;
+  }
+  div.dataTables_wrapper .dataTables_paginate .page-link { border-radius:6px !important; margin:0 2px; }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="page-header d-flex justify-content-between align-items-center no-print flex-wrap gap-2">
+<div class="rp-header no-print">
   <div>
-    <h4 class="mb-0 fw-bold"><i class="bi bi-calendar-range me-2"></i>Relatório por Período</h4>
-    <small class="opacity-75">{{ mes_ini | mes_nome }}/{{ ano_ini }} a {{ mes_fim | mes_nome }}/{{ ano_fim }} — {{ dados|length }} {{ 'registros' if granularidade == 'detalhado' else ('competências' if granularidade == 'mensal' else 'anos') }}</small>
+    <h4><i class="bi bi-calendar-range me-2"></i>Relatório por Período</h4>
+    <small>{{ mes_ini | mes_nome }}/{{ ano_ini }} a {{ mes_fim | mes_nome }}/{{ ano_fim }} — {{ dados|length }} {{ 'registros' if granularidade == 'detalhado' else ('competências' if granularidade == 'mensal' else 'anos') }}</small>
   </div>
   <div class="d-flex gap-2">
     <a href="{{ url_for('exportar_excel', ano_ini=ano_ini, mes_ini=mes_ini, ano_fim=ano_fim, mes_fim=mes_fim) }}"
-       class="btn btn-success btn-sm"><i class="bi bi-file-excel me-1"></i>Excel</a>
-    <button onclick="window.print()" class="btn btn-outline-secondary btn-sm"><i class="bi bi-printer me-1"></i>Imprimir</button>
+       class="btn btn-light btn-sm"><i class="bi bi-file-excel me-1 text-success"></i>Excel</a>
+    <button onclick="window.print()" class="btn btn-light btn-sm"><i class="bi bi-printer me-1"></i>Imprimir</button>
     <a href="{{ url_for('central_analitica') }}" class="btn btn-outline-light btn-sm"><i class="bi bi-arrow-left me-1"></i>Voltar</a>
   </div>
 </div>
 
-<div class="btn-group btn-group-sm mb-3 no-print" role="group">
-  {% for modo, label, icone in [('detalhado','Detalhado','list-ul'), ('mensal','Total por Mês','calendar3'), ('anual','Total por Ano','calendar-range')] %}
-    <a href="{{ url_for('relatorio_periodo', ano_ini=ano_ini, mes_ini=mes_ini, ano_fim=ano_fim, mes_fim=mes_fim, granularidade=modo) }}"
-       class="btn {{ 'btn-primary' if granularidade == modo else 'btn-outline-primary' }}">
-      <i class="bi bi-{{ icone }} me-1"></i>{{ label }}
-    </a>
-  {% endfor %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3 no-print">
+  <div class="btn-group btn-group-sm rp-modos" role="group">
+    {% for modo, label, icone in [('detalhado','Detalhado','list-ul'), ('mensal','Total por Mês','calendar3'), ('anual','Total por Ano','calendar-range')] %}
+      <a href="{{ url_for('relatorio_periodo', ano_ini=ano_ini, mes_ini=mes_ini, ano_fim=ano_fim, mes_fim=mes_fim, granularidade=modo) }}"
+         class="btn {{ 'btn-primary' if granularidade == modo else 'btn-outline-primary' }}">
+        <i class="bi bi-{{ icone }} me-1"></i>{{ label }}
+      </a>
+    {% endfor %}
+  </div>
 </div>
 
-<div class="card">
-  <div class="card-header bg-white d-flex justify-content-between align-items-center">
+<!-- KPIs -->
+{% set total_geral = dados | sum(attribute='total_mc_ac_incentivos') %}
+{% set total_teto  = (dados | sum(attribute='teto_mac')) + (dados | sum(attribute='total_teto_mac')) %}
+{% set total_aih   = (dados | sum(attribute='aih_mc')) + (dados | sum(attribute='aih_ac')) %}
+{% set total_sia   = (dados | sum(attribute='sia_mc')) + (dados | sum(attribute='sia_ac')) %}
+{% set total_inc   = total_geral - total_aih - total_sia %}
+<div class="rp-kpi-row no-print">
+  <div class="rp-kpi" style="--c:#1e3a5f"><div class="lbl">Teto MAC</div><div class="val">{{ total_teto | moeda }}</div></div>
+  <div class="rp-kpi" style="--c:#1a7a4a"><div class="lbl">AIH (MC+AC)</div><div class="val">{{ total_aih | moeda }}</div></div>
+  <div class="rp-kpi" style="--c:#0f6674"><div class="lbl">SIA (MC+AC)</div><div class="val">{{ total_sia | moeda }}</div></div>
+  <div class="rp-kpi" style="--c:#92670a"><div class="lbl">Incentivos</div><div class="val">{{ total_inc | moeda }}</div></div>
+  <div class="rp-kpi" style="--c:#2a7dd8"><div class="lbl">Total Geral</div><div class="val">{{ total_geral | moeda }}</div></div>
+</div>
+
+<div class="card rp-card">
+  <div class="card-header d-flex justify-content-between align-items-center">
     <strong><i class="bi bi-table me-2 text-primary"></i>Dados do Período</strong>
-    <span class="badge bg-secondary">{{ dados|length }} {{ 'registros' if granularidade == 'detalhado' else ('competências' if granularidade == 'mensal' else 'anos') }}</span>
+    <span class="badge bg-primary">{{ dados|length }} {{ 'registros' if granularidade == 'detalhado' else ('competências' if granularidade == 'mensal' else 'anos') }}</span>
   </div>
   <div class="card-body p-0">
     <div>
 
       {% if granularidade == 'detalhado' %}
-      <table class="table table-sm table-hover table-bordered mb-0" id="tabelaPeriodo">
-        <thead class="table-dark">
+      <table class="table table-sm table-hover mb-0" id="tabelaPeriodo">
+        <thead>
           <tr>
             <th>Ano/Mês</th>
             <th>DRS</th>
             <th>Município</th>
             <th>CNES</th>
             <th>Unidade</th>
-            <th class="text-end">AIH MC</th>
-            <th class="text-end">AIH AC</th>
-            <th class="text-end">SIA MC</th>
-            <th class="text-end">SIA AC</th>
-            <th class="text-end">Teto MAC</th>
+            <th class="num grp-aih">AIH MC</th>
+            <th class="num grp-aih">AIH AC</th>
+            <th class="num grp-sia">SIA MC</th>
+            <th class="num grp-sia">SIA AC</th>
+            <th class="num grp-teto">Teto MAC</th>
             {% for campo, label in incentivos %}
-            <th class="text-end">{{ label }}</th>
+            <th class="num grp-inc">{{ label }}</th>
             {% endfor %}
-            <th class="text-end">Total MC+AC+Inc.</th>
+            <th class="num grp-tot">Total MC+AC+Inc.</th>
           </tr>
         </thead>
         <tbody>
           {% for r in dados %}
           <tr>
-            <td><span class="badge badge-drs">{{ (r.mes | mes_nome)[:3] }}/{{ r.ano }}</span></td>
+            <td><span class="badge rp-competencia">{{ (r.mes | mes_nome)[:3] }}/{{ r.ano }}</span></td>
             <td>{{ r.drs | int if r.drs else '—' }}</td>
             <td><small>{{ r.municipio or '—' }}</small></td>
             <td><code class="small">{{ r.cnes or '—' }}</code></td>
@@ -64,58 +135,72 @@
                 <small>{{ (r.unidade or '—')[:40] }}</small>
               </a>
             </td>
-            <td class="num-moeda small">{{ r.aih_mc | moeda }}</td>
-            <td class="num-moeda small">{{ r.aih_ac | moeda }}</td>
-            <td class="num-moeda small">{{ r.sia_mc | moeda }}</td>
-            <td class="num-moeda small">{{ r.sia_ac | moeda }}</td>
-            <td class="num-moeda small fw-bold">{{ (r.teto_mac or r.total_teto_mac) | moeda }}</td>
+            <td class="num-moeda num small">{{ r.aih_mc | moeda }}</td>
+            <td class="num-moeda num small">{{ r.aih_ac | moeda }}</td>
+            <td class="num-moeda num small">{{ r.sia_mc | moeda }}</td>
+            <td class="num-moeda num small">{{ r.sia_ac | moeda }}</td>
+            <td class="num-moeda num small fw-bold">{{ (r.teto_mac or r.total_teto_mac) | moeda }}</td>
             {% for campo, label in incentivos %}
-            <td class="num-moeda small">{{ r.get(campo) | moeda }}</td>
+            <td class="num-moeda num small">{{ r.get(campo) | moeda }}</td>
             {% endfor %}
-            <td class="num-moeda small fw-bold text-primary">{{ r.total_mc_ac_incentivos | moeda }}</td>
+            <td class="num-moeda num small fw-bold text-primary">{{ r.total_mc_ac_incentivos | moeda }}</td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
 
       {% else %}
-      <table class="table table-sm table-hover table-bordered mb-0" id="tabelaPeriodo">
-        <thead class="table-dark">
+      <table class="table table-sm table-hover mb-0" id="tabelaPeriodo">
+        <thead>
           <tr>
             <th>{{ 'Competência' if granularidade == 'mensal' else 'Ano' }}</th>
-            <th class="text-end">Unidades</th>
-            <th class="text-end">AIH MC</th>
-            <th class="text-end">AIH AC</th>
-            <th class="text-end">SIA MC</th>
-            <th class="text-end">SIA AC</th>
-            <th class="text-end">Teto MAC</th>
+            <th class="num">Unidades</th>
+            <th class="num grp-aih">AIH MC</th>
+            <th class="num grp-aih">AIH AC</th>
+            <th class="num grp-sia">SIA MC</th>
+            <th class="num grp-sia">SIA AC</th>
+            <th class="num grp-teto">Teto MAC</th>
             {% for campo, label in incentivos %}
-            <th class="text-end">{{ label }}</th>
+            <th class="num grp-inc">{{ label }}</th>
             {% endfor %}
-            <th class="text-end">Total MC+AC+Inc.</th>
+            <th class="num grp-tot">Total MC+AC+Inc.</th>
+            <th class="num">Var. %</th>
           </tr>
         </thead>
         <tbody>
+          {% set ns = namespace(prev=0) %}
           {% for r in dados %}
+          {% set total = r.total_mc_ac_incentivos or 0 %}
+          {% set var = total | percent_var(ns.prev) if ns.prev > 0 else 0 %}
           <tr>
             <td>
               {% if granularidade == 'mensal' %}
-                <span class="badge badge-drs">{{ r.mes | mes_nome }}/{{ r.ano }}</span>
+                <span class="badge rp-competencia">{{ r.mes | mes_nome }}/{{ r.ano }}</span>
               {% else %}
-                <span class="badge badge-drs">{{ r.ano }}</span>
+                <span class="badge rp-competencia">{{ r.ano }}</span>
               {% endif %}
             </td>
-            <td class="text-end">{{ r.unidades }}</td>
-            <td class="num-moeda small">{{ r.aih_mc | moeda }}</td>
-            <td class="num-moeda small">{{ r.aih_ac | moeda }}</td>
-            <td class="num-moeda small">{{ r.sia_mc | moeda }}</td>
-            <td class="num-moeda small">{{ r.sia_ac | moeda }}</td>
-            <td class="num-moeda small fw-bold">{{ (r.teto_mac or r.total_teto_mac) | moeda }}</td>
+            <td class="num">{{ r.unidades }}</td>
+            <td class="num-moeda num small">{{ r.aih_mc | moeda }}</td>
+            <td class="num-moeda num small">{{ r.aih_ac | moeda }}</td>
+            <td class="num-moeda num small">{{ r.sia_mc | moeda }}</td>
+            <td class="num-moeda num small">{{ r.sia_ac | moeda }}</td>
+            <td class="num-moeda num small fw-bold">{{ (r.teto_mac or r.total_teto_mac) | moeda }}</td>
             {% for campo, label in incentivos %}
-            <td class="num-moeda small">{{ r.get(campo) | moeda }}</td>
+            <td class="num-moeda num small">{{ r.get(campo) | moeda }}</td>
             {% endfor %}
-            <td class="num-moeda small fw-bold text-primary">{{ r.total_mc_ac_incentivos | moeda }}</td>
+            <td class="num-moeda num small fw-bold text-primary">{{ total | moeda }}</td>
+            <td class="num">
+              {% if ns.prev > 0 and var != 0 %}
+                <span class="{{ 'rp-var-up' if var >= 0 else 'rp-var-down' }}">
+                  <i class="bi bi-arrow-{{ 'up' if var >= 0 else 'down' }}-short"></i>{{ '%.1f'|format(var|abs) }}%
+                </span>
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
           </tr>
+          {% set ns.prev = total %}
           {% endfor %}
         </tbody>
       </table>
@@ -134,7 +219,7 @@ $(document).ready(function() {
     language: {
       url: 'https://cdn.datatables.net/plug-ins/1.13.6/i18n/pt-BR.json'
     },
-    dom: 'Bfrtip',
+    dom: 'frtip',
     order: [[0,'desc']],
     scrollX: true,
     scrollY: '60vh',

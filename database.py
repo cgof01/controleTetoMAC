@@ -166,11 +166,23 @@ def buscar_registro(id):
 
 # ── Pesquisa ───────────────────────────────────────────────────────────────────
 
-def pesquisar(filtros=None, page=1, per_page=50):
+
+# Colunas que a tela de Pesquisa deixa ordenar clicando no cabeçalho — cada uma
+# vira 1+ colunas físicas de ORDER BY (competência ordena por ano+mes juntos).
+_ORDENAR_COLS = {
+    'competencia': ['ano', 'mes'],
+    'drs': ['drs'], 'tipo': ['tipo'], 'municipio': ['municipio'],
+    'cnes': ['cnes'], 'unidade': ['unidade'],
+    'aih_fisico': ['aih_fisico'], 'aih_mc': ['aih_mc'], 'aih_ac': ['aih_ac'],
+    'sia_mc': ['sia_mc'], 'sia_ac': ['sia_ac'], 'teto_mac': ['teto_mac'],
+    'total_mc_ac_incentivos': ['total_mc_ac_incentivos'],
+}
+
+def pesquisar(filtros=None, page=1, per_page=50, ordenar_por=None, ordenar_dir='desc'):
     if USE_SUPABASE:
-        return _pesquisar_supabase(filtros, page, per_page)
+        return _pesquisar_supabase(filtros, page, per_page, ordenar_por, ordenar_dir)
     else:
-        return _pesquisar_sqlite(filtros, page, per_page)
+        return _pesquisar_sqlite(filtros, page, per_page, ordenar_por, ordenar_dir)
 
 def _aplicar_filtros_supabase(q, filtros):
     if filtros:
@@ -223,25 +235,35 @@ def _where_sqlite(filtros):
     where = f"WHERE {' AND '.join(where_parts)}" if where_parts else ""
     return where, params
 
-def _pesquisar_supabase(filtros, page, per_page):
+def _pesquisar_supabase(filtros, page, per_page, ordenar_por=None, ordenar_dir='desc'):
     sb = get_sb()
     q = _aplicar_filtros_supabase(sb.table('teto_mac').select('*', count='exact'), filtros)
 
     offset = (page - 1) * per_page
-    q = q.order('ano', desc=True).order('mes', desc=True).order('unidade')
+    desc = (ordenar_dir or 'desc').lower() != 'asc'
+    cols = _ORDENAR_COLS.get(ordenar_por)
+    if cols:
+        for c in cols:
+            q = q.order(c, desc=desc)
+    else:
+        q = q.order('ano', desc=True).order('mes', desc=True).order('unidade')
     q = q.range(offset, offset + per_page - 1)
 
     r = q.execute()
     total = r.count if r.count is not None else len(r.data)
     return [_clean(row) for row in r.data], total
 
-def _pesquisar_sqlite(filtros, page, per_page):
+def _pesquisar_sqlite(filtros, page, per_page, ordenar_por=None, ordenar_dir='desc'):
     conn = get_db()
     where, params = _where_sqlite(filtros)
     total = conn.execute(f"SELECT COUNT(*) FROM teto_mac {where}", params).fetchone()[0]
     offset = (page - 1) * per_page
+    dir_sql = 'ASC' if (ordenar_dir or 'desc').lower() == 'asc' else 'DESC'
+    cols = _ORDENAR_COLS.get(ordenar_por)
+    order_by = (', '.join(f'{c} {dir_sql}' for c in cols) if cols
+                else 'ano DESC, mes DESC, unidade')
     rows = conn.execute(
-        f"SELECT * FROM teto_mac {where} ORDER BY ano DESC, mes DESC, unidade LIMIT ? OFFSET ?",
+        f"SELECT * FROM teto_mac {where} ORDER BY {order_by} LIMIT ? OFFSET ?",
         params + [per_page, offset]
     ).fetchall()
     conn.close()
