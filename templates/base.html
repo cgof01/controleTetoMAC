@@ -149,7 +149,18 @@
     .table-hover tbody tr:hover { background-color: #e8f0fe; }
     .btn-ses       { background: var(--ses-azul); border-color: var(--ses-azul); color: white; }
     .btn-ses:hover { background: var(--ses-azul-claro); color: white; }
-    .page-header { background: linear-gradient(135deg, var(--ses-azul) 0%, var(--ses-azul-claro) 100%); color: white; padding: 1.5rem; border-radius: 12px; margin-bottom: 1.5rem; }
+    /* Padrão único de cabeçalho de página — usado por toda tela do sistema
+       (dashboard, relatórios, pesquisa, formulários etc.), pra manter o mesmo
+       layout em todo lugar: título+subtítulo à esquerda, controles (toggle de
+       modo, botões de ação) sempre numa linha própria à direita/abaixo. */
+    .page-header {
+      background: linear-gradient(135deg, var(--ses-azul) 0%, var(--ses-azul-claro) 100%);
+      color: white; padding: .85rem 1.2rem; border-radius: 12px; margin-bottom: .8rem;
+      display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+    }
+    .page-header h4, .page-header h5 { margin: 0; font-weight: 700; }
+    .page-header small { opacity: .78; }
+    .page-header-controls { flex-basis: 100%; }
     .breadcrumb-item.active { color: rgba(255,255,255,0.8); }
     .breadcrumb-item a { color: rgba(255,255,255,0.9); text-decoration: none; }
     .breadcrumb-item + .breadcrumb-item::before { color: rgba(255,255,255,0.6); }
