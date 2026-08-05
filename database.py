@@ -847,7 +847,7 @@ def relatorio_incentivos(ano, mes, ano_fim=None, mes_fim=None):
 
 # ── Central de Relatórios Analíticos ─────────────────────────────────────────
 
-_DIMS_ALLOW = {'drs', 'tipo', 'hu', 'municipio', 'cnes', 'cnpj', 'unidade'}
+_DIMS_ALLOW = {'drs', 'tipo', 'hu', 'municipio', 'cnes', 'cnpj', 'unidade', 'ano', 'mes'}
 # Campos que ainda não têm coluna dedicada em teto_mac (ficam dentro de
 # campos_extras — ver import_xls.py _CAMPOS_EXTRAS_IMPORT). A consulta precisa
 # buscar a coluna campos_extras inteira e resolver o valor por dentro do JSON.

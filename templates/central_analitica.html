@@ -7,10 +7,15 @@
 .ca-header {
   background: linear-gradient(135deg,#1e3a5f 0%,#2a5298 100%);
   color:#fff; padding:.85rem 1.2rem; border-radius:12px; margin-bottom:.8rem;
-  display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap;
+  display:flex; align-items:center; gap:1rem; flex-wrap:wrap;
 }
 .ca-header h5 { margin:0; font-weight:700; font-size:1rem; }
 .ca-header small { opacity:.75; font-size:.78rem; }
+/* Grupo de controles (modo/período/exportar) sempre na sua própria linha, cheia,
+   abaixo do título — sem isso o cabeçalho tinha uma altura no modo Mês/Ano e outra
+   no modo Período (os 2 selects extras faziam o grupo não caber ao lado do título
+   só nesse modo, empurrando tudo e mudando o layout de forma inconsistente). */
+.ca-header-controls { flex-basis:100%; }
 
 .ca-kpi-row { display:flex; gap:.5rem; flex-wrap:wrap; margin-bottom:.8rem; }
 .ca-kpi {
@@ -145,9 +150,9 @@
 <div class="ca-header no-print">
   <div>
     <h5><i class="bi bi-graph-up-arrow me-2"></i>Central de Relatórios</h5>
-    <small>CGOF/SES-SP — Construa, explore e exporte relatórios do Teto MAC (para visões prontas e rápidas, use Relatórios Rápidos)</small>
+    <small>CGOF/SES-SP — Construa, explore e exporte relatórios do Teto MAC</small>
   </div>
-  <div class="d-flex gap-2 align-items-center flex-wrap">
+  <div class="d-flex gap-2 align-items-center flex-wrap ca-header-controls">
     <div class="btn-group btn-group-sm" role="group">
       <button type="button" class="btn btn-light active" data-modo="mes">Mês</button>
       <button type="button" class="btn btn-light" data-modo="ano">Ano</button>
@@ -286,6 +291,20 @@
         <button class="ca-tab" data-tab="templates"  onclick="switchTab('templates',this)"><i class="bi bi-grid me-1"></i>Templates</button>
         <button class="ca-tab" data-tab="drilldown"  onclick="switchTab('drilldown',this)"><i class="bi bi-diagram-2 me-1"></i>Drill-Down</button>
       </div>
+      <button class="btn btn-sm btn-light border" id="btnToggleChart" onclick="toggleChart()" title="Mostrar/ocultar gráfico">
+        <i class="bi bi-eye-slash me-1"></i>Gráfico
+      </button>
+      <div class="dropdown">
+        <button class="btn btn-sm btn-light border dropdown-toggle" type="button" data-bs-toggle="dropdown">
+          <i class="bi bi-collection me-1"></i>Mais relatórios
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end" style="font-size:.85rem">
+          <li><a class="dropdown-item" href="{{ url_for('relatorio_comparativo_unidade') }}"><i class="bi bi-upc me-2"></i>Evolução por CNES</a></li>
+          <li><a class="dropdown-item" href="{{ url_for('relatorio_periodo') }}"><i class="bi bi-calendar-range me-2"></i>Período Detalhado</a></li>
+          <li><hr class="dropdown-divider"></li>
+          <li><a class="dropdown-item" href="{{ url_for('pesquisa') }}"><i class="bi bi-search me-2"></i>Pesquisa Avançada</a></li>
+        </ul>
+      </div>
       <div class="ms-auto d-flex gap-1 align-items-center" id="toolbarMeta" style="font-size:.77rem;color:#64748b"></div>
     </div>
 
@@ -295,7 +314,7 @@
       <div class="drill-crumb" id="drillBar" style="display:none!important"></div>
 
       <!-- Chart -->
-      <div class="chart-box">
+      <div class="chart-box" id="chartBox">
         <div class="chart-placeholder" id="chartPlaceholder">
           <i class="bi bi-bar-chart-line"></i>
           <small>Selecione dimensões e métricas, depois clique em <strong>Gerar Relatório</strong></small>
@@ -340,9 +359,12 @@
 const ANO_INIT = {{ ultimo.ano }};
 const MES_INIT = {{ ultimo.mes }};
 
+const MES_NOMES = {1:'Janeiro',2:'Fevereiro',3:'Março',4:'Abril',5:'Maio',6:'Junho',
+  7:'Julho',8:'Agosto',9:'Setembro',10:'Outubro',11:'Novembro',12:'Dezembro'};
+
 const FIELD_LABELS = {
   drs:'DRS', municipio:'Município', unidade:'Unidade', cnes:'CNES',
-  cnpj:'CNPJ', tipo:'Tipo', hu:'HU',
+  cnpj:'CNPJ', tipo:'Tipo', hu:'HU', ano:'Ano', mes:'Mês',
   aih_fisico:'AIH Físico', aih_faec:'AIH FAEC', sia_faec:'SIA FAEC',
   equip_hemodialise:'Equip. Hemodiálise', limite_complementacao:'Lim. Complementação',
   aih_mc:'AIH MC', aih_ac:'AIH AC', aih_total:'AIH Total',
@@ -363,7 +385,7 @@ const FIELD_LABELS = {
   _count:'Registros'
 };
 
-const DIMS = ['drs','municipio','unidade','cnes','cnpj','tipo','hu'];
+const DIMS = ['drs','municipio','unidade','cnes','cnpj','tipo','hu','ano','mes'];
 const METS_FAEC = ['aih_fisico','aih_faec','sia_faec','equip_hemodialise','limite_complementacao'];
 const METS_MAC  = ['aih_mc','aih_ac','aih_total','sia_mc','sia_ac','sia_total'];
 const METS_INC  = ['integrasus','iac','sus_100','opo','rede_viver_sem_limite','rede_brasil_miseria',
@@ -408,6 +430,11 @@ const QTY_FIELDS = ['aih_fisico'];
 function fmtMetric(field, v) {
   if (QTY_FIELDS.includes(field)) return numBR(v);
   return isNumericField(field) ? moedaFull(v) : numBR(v);
+}
+function fmtDim(field, v) {
+  if (v == null || v === '') return '—';
+  if (field === 'mes') return MES_NOMES[+v] || String(v);
+  return String(v);
 }
 
 let _debT;
@@ -496,6 +523,26 @@ function onMetChange() {
 function toggleSb() {
   document.getElementById('caSb').classList.toggle('collapsed');
 }
+
+// ── Mostrar/ocultar gráfico — os gráficos ocupam bastante espaço fixo, então
+// quem só quer ver a tabela pode esconder; a preferência fica salva entre visitas.
+function _aplicarVisibilidadeChart(mostrar) {
+  document.getElementById('chartBox').style.display = mostrar ? '' : 'none';
+  const btn = document.getElementById('btnToggleChart');
+  btn.innerHTML = mostrar
+    ? '<i class="bi bi-eye-slash me-1"></i>Gráfico'
+    : '<i class="bi bi-eye me-1"></i>Gráfico';
+  btn.classList.toggle('btn-light', mostrar);
+  btn.classList.toggle('btn-secondary', !mostrar);
+}
+function toggleChart() {
+  const mostrar = document.getElementById('chartBox').style.display === 'none';
+  localStorage.setItem('ca_chart_visivel', mostrar ? '1' : '0');
+  _aplicarVisibilidadeChart(mostrar);
+}
+document.addEventListener('DOMContentLoaded', function() {
+  _aplicarVisibilidadeChart(localStorage.getItem('ca_chart_visivel') !== '0');
+});
 
 // ── KPIs ────────────────────────────────────────────────────────────────────
 async function loadKPIs() {
@@ -620,7 +667,7 @@ function renderTable(data, dims, mets) {
       <td style="text-align:center">${rank}</td>
       ${allCols.map(c => {
         if(isDim(c)) {
-          const val = row[c]!=null?String(row[c]):'—';
+          const val = fmtDim(c, row[c]);
           const canDrill = drillable(c);
           return `<td>${canDrill
             ? `<span class="drill-lnk" onclick="drillInto('${c}','${String(row[c]||'').replace(/'/g,"\\'")}',${i})">${val}</span>`
@@ -694,10 +741,7 @@ function renderChart(data, dims) {
     chartType = 'bar-h';
   } else {
     labels = dataSlice.map(row => {
-      const parts = dims.map(d=>{
-        const v = row[d];
-        return v!=null?String(v):'—';
-      });
+      const parts = dims.map(d => fmtDim(d, row[d]));
       return parts.join(' / ').substring(0,30);
     });
 
@@ -895,6 +939,8 @@ function ddDrill(dim, val) {
 
 // ── Templates ───────────────────────────────────────────────────────────────
 const TEMPLATES = [
+  {icon:'bi-calendar3-range',   nome:'Evolução Mensal',        desc:'Total mês a mês dentro do período selecionado (use o modo Ano ou Período no topo)', tags:['Mês','Ano'],
+   dims:['ano','mes'], mets:['total_mc_ac_incentivos'], chart:'line'},
   {icon:'bi-bar-chart',         nome:'Ranking por DRS',        desc:'Total de recursos por Departamento Regional de Saúde', tags:['DRS','MAC'],
    dims:['drs'], mets:['total_mc_ac_incentivos','aih_mc','aih_ac','sia_mc','sia_ac'], chart:'bar-h'},
   {icon:'bi-geo-alt-fill',      nome:'Top Municípios',         desc:'20 municípios com maior recurso total', tags:['Município'],

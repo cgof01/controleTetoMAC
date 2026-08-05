@@ -527,14 +527,10 @@ def _form_para_dict(form):
 @app.route('/relatorios')
 @login_required
 def relatorios():
-    anos_meses = db.obter_anos_meses()
-    anos_disponiveis = sorted(set(am['ano'] for am in anos_meses), reverse=True)
-    ultimo = anos_meses[0] if anos_meses else {'ano': 2026, 'mes': 1}
-    return render_template('relatorios.html',
-        meses=MESES,
-        anos_disponiveis=anos_disponiveis,
-        ultimo=ultimo
-    )
+    # A Central de Relatórios (Construtor + aba Templates) passou a cobrir tudo que
+    # esta tela fazia (Por DRS/Tipo/Unidade/Município/FAEC/MAC/Incentivos) — mantém
+    # a rota só como redirect pra não quebrar favoritos/links antigos.
+    return redirect(url_for('central_analitica'))
 
 @app.route('/relatorio/resumo-drs')
 @login_required
