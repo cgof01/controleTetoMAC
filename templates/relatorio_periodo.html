@@ -20,22 +20,27 @@
   .rp-modos .btn { font-weight:600; }
 
   /* ── Tabela ──────────────────────────────────────────────────────────── */
-  #tabelaPeriodo { font-size:.82rem; }
-  #tabelaPeriodo thead th {
+  /* Seletores por CLASSE, não por #tabelaPeriodo: com scrollX o DataTables
+     clona o <thead> pra sincronizar o scroll horizontal, e esse clone NÃO
+     carrega o id da tabela original (evita id duplicado no DOM) — só as
+     classes. Um CSS baseado em #tabelaPeriodo nunca alcançava o cabeçalho
+     realmente exibido na tela, por isso as cores do cabeçalho não apareciam. */
+  .rp-tabela { font-size:.82rem; }
+  .rp-tabela thead th {
     background:#f1f5f9 !important; color:#334155; font-weight:700;
     font-size:.7rem; text-transform:uppercase; letter-spacing:.04em;
     white-space:nowrap; border-bottom:2px solid #e2e8f0 !important;
     padding:.65rem .8rem;
   }
-  #tabelaPeriodo thead th.grp-aih  { background:#e8f5ee !important; color:#146c43; }
-  #tabelaPeriodo thead th.grp-sia  { background:#e6f7fb !important; color:#087990; }
-  #tabelaPeriodo thead th.grp-teto { background:#eef1f4 !important; color:#495057; }
-  #tabelaPeriodo thead th.grp-inc  { background:#fff8e6 !important; color:#92670a; }
-  #tabelaPeriodo thead th.grp-tot  { background:#e7f0fe !important; color:#1e3a5f; }
-  #tabelaPeriodo tbody td { padding:.5rem .8rem; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
-  #tabelaPeriodo tbody tr:hover td { background:#f8fbff; }
-  #tabelaPeriodo td.num, #tabelaPeriodo th.num { text-align:right; font-variant-numeric:tabular-nums; }
-  #tabelaPeriodo td.fw-bold { color:#1e3a5f; }
+  .rp-tabela thead th.grp-aih  { background:#e8f5ee !important; color:#146c43; }
+  .rp-tabela thead th.grp-sia  { background:#e6f7fb !important; color:#087990; }
+  .rp-tabela thead th.grp-teto { background:#eef1f4 !important; color:#495057; }
+  .rp-tabela thead th.grp-inc  { background:#fff8e6 !important; color:#92670a; }
+  .rp-tabela thead th.grp-tot  { background:#e7f0fe !important; color:#1e3a5f; }
+  .rp-tabela tbody td { padding:.5rem .8rem; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
+  .rp-tabela tbody tr:hover td { background:#f8fbff; }
+  .rp-tabela td.num, .rp-tabela th.num { text-align:right; font-variant-numeric:tabular-nums; }
+  .rp-tabela td.fw-bold { color:#1e3a5f; }
   .rp-var-up   { color:#1a7a4a; font-weight:700; }
   .rp-var-down { color:#c0392b; font-weight:700; }
   .rp-competencia { font-weight:700; background:#1e3a5f; color:#fff; border:none; padding:.3rem .65rem; }
@@ -93,7 +98,7 @@
     <div>
 
       {% if granularidade == 'detalhado' %}
-      <table class="table table-sm table-hover mb-0" id="tabelaPeriodo">
+      <table class="table table-sm table-hover mb-0 rp-tabela" id="tabelaPeriodo">
         <thead>
           <tr>
             <th>Ano/Mês</th>
@@ -139,7 +144,7 @@
       </table>
 
       {% else %}
-      <table class="table table-sm table-hover mb-0" id="tabelaPeriodo">
+      <table class="table table-sm table-hover mb-0 rp-tabela" id="tabelaPeriodo">
         <thead>
           <tr>
             <th>{{ 'Competência' if granularidade == 'mensal' else 'Ano' }}</th>
