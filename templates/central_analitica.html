@@ -297,17 +297,15 @@
       <button class="btn btn-sm btn-light border" id="btnToggleChart" onclick="toggleChart()" title="Mostrar/ocultar gráfico">
         <i class="bi bi-eye-slash me-1"></i>Gráfico
       </button>
-      <div class="dropdown">
-        <button class="btn btn-sm btn-light border dropdown-toggle" type="button" data-bs-toggle="dropdown">
-          <i class="bi bi-collection me-1"></i>Mais relatórios
-        </button>
-        <ul class="dropdown-menu dropdown-menu-end" style="font-size:.85rem">
-          <li><a class="dropdown-item" href="{{ url_for('relatorio_comparativo_unidade') }}"><i class="bi bi-upc me-2"></i>Evolução por CNES</a></li>
-          <li><a class="dropdown-item" href="{{ url_for('relatorio_periodo') }}"><i class="bi bi-calendar-range me-2"></i>Período Detalhado</a></li>
-          <li><hr class="dropdown-divider"></li>
-          <li><a class="dropdown-item" href="{{ url_for('pesquisa') }}"><i class="bi bi-search me-2"></i>Pesquisa Avançada</a></li>
-        </ul>
-      </div>
+      <a href="{{ url_for('relatorio_comparativo_unidade') }}" class="btn btn-sm btn-light border">
+        <i class="bi bi-upc me-1"></i>Evolução por CNES
+      </a>
+      <a href="{{ url_for('relatorio_periodo') }}" class="btn btn-sm btn-light border">
+        <i class="bi bi-calendar-range me-1"></i>Período Detalhado
+      </a>
+      <a href="{{ url_for('pesquisa') }}" class="btn btn-sm btn-light border">
+        <i class="bi bi-search me-1"></i>Pesquisa Avançada
+      </a>
       <div class="ms-auto d-flex gap-1 align-items-center" id="toolbarMeta" style="font-size:.77rem;color:#64748b"></div>
     </div>
 
