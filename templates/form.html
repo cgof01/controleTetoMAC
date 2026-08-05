@@ -11,8 +11,17 @@
 {% block content %}
 <div class="page-header">
   <h4 class="mb-0 fw-bold">
-    <i class="bi bi-{{ 'pencil-square' if registro else 'plus-circle' }} me-2"></i>{{ titulo }}
+    <i class="bi bi-{{ 'pencil-square' if registro else 'plus-circle' }} me-2"></i>
+    {{ registro.unidade if registro and registro.unidade else titulo }}
   </h4>
+  {% if registro %}
+    <small class="opacity-75">
+      {{ registro.mes | mes_nome }} / {{ registro.ano }} &nbsp;·&nbsp;
+      DRS {{ registro.drs | int if registro.drs else '—' }} &nbsp;·&nbsp;
+      {{ registro.municipio or '—' }} &nbsp;·&nbsp;
+      CNES: {{ registro.cnes or '—' }}
+    </small>
+  {% endif %}
 </div>
 
 {% set r = registro or {} %}
@@ -365,10 +374,10 @@
         <div class="table-responsive mb-3" style="max-height:220px;overflow-y:auto">
           <table class="table table-sm table-hover mb-0">
             <thead class="table-light">
-              <tr><th>Data</th><th>Tipo</th><th class="text-end">Valor</th><th>Justificativa</th><th>Usuário</th></tr>
+              <tr><th>Data</th><th>Tipo</th><th class="text-end">Valor</th><th>Justificativa</th><th>Usuário</th><th class="text-center">Ações</th></tr>
             </thead>
             <tbody id="ajusteHistoricoBody">
-              <tr><td colspan="5" class="text-center text-muted small py-2">Nenhum ajuste lançado ainda.</td></tr>
+              <tr><td colspan="6" class="text-center text-muted small py-2">Nenhum ajuste lançado ainda.</td></tr>
             </tbody>
           </table>
         </div>
@@ -394,7 +403,10 @@
           </div>
           <div class="d-flex justify-content-between align-items-center mt-2">
             <span id="ajusteErro" class="text-danger small"></span>
-            <button type="submit" class="btn btn-sm btn-ses"><i class="bi bi-plus-circle me-1"></i>Lançar Ajuste</button>
+            <div class="d-flex gap-2">
+              <button type="button" class="btn btn-sm btn-outline-secondary d-none" id="btnCancelarEdicaoAjuste" onclick="cancelarEdicaoAjuste()">Cancelar</button>
+              <button type="submit" class="btn btn-sm btn-ses" id="btnSubmitAjuste"><i class="bi bi-plus-circle me-1"></i>Lançar Ajuste</button>
+            </div>
           </div>
         </form>
       </div>
@@ -460,6 +472,7 @@ const CAMPOS_CALC = [
 const REGISTRO_ID = {{ registro.id if registro else 'null' }};
 const AJUSTES_POR_CAMPO = {{ ajustes_por_campo | tojson }};
 let campoAtualAjuste = null;
+let editandoAjusteId = null;
 
 function _fmtValorAjuste(v, tipo) {
   return tipo === 'numero' ? numBR(v) : moeda(v);
@@ -505,6 +518,7 @@ function abrirModalAjuste(btn) {
   document.getElementById('ajusteCampoLabel').textContent = btn.dataset.campoLabel;
   document.getElementById('ajusteErro').textContent = '';
   document.getElementById('formNovoAjuste').reset();
+  cancelarEdicaoAjuste();
   _renderHistoricoAjuste();
   const modalEl = document.getElementById('modalAjuste');
   // Garante que o modal seja filho direto do <body> — se ficar dentro de algum
@@ -525,7 +539,7 @@ function _renderHistoricoAjuste() {
 
   const body = document.getElementById('ajusteHistoricoBody');
   if (!lista.length) {
-    body.innerHTML = '<tr><td colspan="5" class="text-center text-muted small py-2">Nenhum ajuste lançado ainda.</td></tr>';
+    body.innerHTML = '<tr><td colspan="6" class="text-center text-muted small py-2">Nenhum ajuste lançado ainda.</td></tr>';
     return;
   }
   body.innerHTML = lista.map(function(a) {
@@ -537,8 +551,75 @@ function _renderHistoricoAjuste() {
       '<td class="text-end small">' + _fmtValorAjuste(a.valor, campoAtualAjuste.tipo) + '</td>' +
       '<td class="small">' + (a.justificativa || '') + '</td>' +
       '<td class="small">' + (a.usuario_nome || '') + '</td>' +
+      '<td class="text-center text-nowrap">' +
+        '<button type="button" class="btn btn-sm btn-link p-0 me-2" title="Editar" onclick="iniciarEdicaoAjuste(' + a.id + ')"><i class="bi bi-pencil"></i></button>' +
+        '<button type="button" class="btn btn-sm btn-link text-danger p-0" title="Remover" onclick="removerAjusteClick(' + a.id + ')"><i class="bi bi-trash"></i></button>' +
+      '</td>' +
     '</tr>';
   }).join('');
+}
+
+function iniciarEdicaoAjuste(ajusteId) {
+  const lista = AJUSTES_POR_CAMPO[campoAtualAjuste.key] || [];
+  const a = lista.find(function(x) { return x.id === ajusteId; });
+  if (!a) return;
+  editandoAjusteId = ajusteId;
+  document.getElementById('ajusteTipo').value = a.tipo;
+  document.getElementById('ajusteValor').value = a.valor;
+  document.getElementById('ajusteJustificativa').value = a.justificativa || '';
+  document.getElementById('ajusteErro').textContent = '';
+  document.getElementById('btnSubmitAjuste').innerHTML = '<i class="bi bi-check-circle me-1"></i>Salvar Edição';
+  document.getElementById('btnCancelarEdicaoAjuste').classList.remove('d-none');
+}
+
+function cancelarEdicaoAjuste() {
+  editandoAjusteId = null;
+  document.getElementById('formNovoAjuste').reset();
+  document.getElementById('ajusteErro').textContent = '';
+  document.getElementById('btnSubmitAjuste').innerHTML = '<i class="bi bi-plus-circle me-1"></i>Lançar Ajuste';
+  document.getElementById('btnCancelarEdicaoAjuste').classList.add('d-none');
+}
+
+function _aplicarResultadoAjuste(campoKey, novoValor, calculados) {
+  const atualEl = document.getElementById('campo_' + campoKey);
+  if (atualEl) {
+    atualEl.dataset.valor = novoValor;
+    atualEl.textContent = _fmtValorAjuste(novoValor, campoAtualAjuste.tipo);
+  }
+  const lista = AJUSTES_POR_CAMPO[campoKey] || [];
+  const badge = document.getElementById('badge_' + campoKey);
+  if (badge) {
+    const n = lista.length;
+    badge.textContent = n + (n === 1 ? ' ajuste' : ' ajustes');
+    badge.classList.toggle('bg-info', n > 0);
+    badge.classList.toggle('bg-secondary', n === 0);
+  }
+  Object.entries(calculados || {}).forEach(function([key, val]) {
+    const el = document.getElementById('campo_' + key);
+    if (el && 'value' in el) el.value = (parseFloat(val) || 0).toFixed(2);
+  });
+}
+
+async function removerAjusteClick(ajusteId) {
+  if (!confirm('Remover este ajuste? O valor do campo volta ao que era antes dele.')) return;
+  const erroEl = document.getElementById('ajusteErro');
+  try {
+    const res = await fetch('/ajuste/remover', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ajuste_id: ajusteId })
+    });
+    const data = await res.json();
+    if (!data.ok) { erroEl.textContent = data.msg || 'Erro ao remover ajuste.'; return; }
+
+    const campoKey = campoAtualAjuste.key;
+    AJUSTES_POR_CAMPO[campoKey] = (AJUSTES_POR_CAMPO[campoKey] || []).filter(function(a) { return a.id !== ajusteId; });
+    if (editandoAjusteId === ajusteId) cancelarEdicaoAjuste();
+    _aplicarResultadoAjuste(campoKey, data.novo_valor, data.calculados);
+    _renderHistoricoAjuste();
+  } catch (e) {
+    erroEl.textContent = 'Erro de comunicação ao remover ajuste.';
+  }
 }
 
 async function enviarAjuste(ev) {
@@ -551,42 +632,32 @@ async function enviarAjuste(ev) {
   if (!valor || valor <= 0) { erroEl.textContent = 'Informe um valor maior que zero.'; return false; }
   if (!justificativa) { erroEl.textContent = 'Justificativa é obrigatória.'; return false; }
 
+  const editando = editandoAjusteId;
   try {
-    const res = await fetch('/ajuste/registrar', {
+    const res = await fetch(editando ? '/ajuste/editar' : '/ajuste/registrar', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        registro_id: REGISTRO_ID, campo_key: campoAtualAjuste.key,
-        tipo: tipo, valor: valor, justificativa: justificativa
-      })
+      body: JSON.stringify(editando
+        ? { ajuste_id: editando, tipo: tipo, valor: valor, justificativa: justificativa }
+        : { registro_id: REGISTRO_ID, campo_key: campoAtualAjuste.key, tipo: tipo, valor: valor, justificativa: justificativa })
     });
     const data = await res.json();
-    if (!data.ok) { erroEl.textContent = data.msg || 'Erro ao lançar ajuste.'; return false; }
+    if (!data.ok) { erroEl.textContent = data.msg || 'Erro ao salvar ajuste.'; return false; }
 
-    if (!AJUSTES_POR_CAMPO[campoAtualAjuste.key]) AJUSTES_POR_CAMPO[campoAtualAjuste.key] = [];
-    AJUSTES_POR_CAMPO[campoAtualAjuste.key].unshift(data.ajuste);
-
-    const atualEl = document.getElementById('campo_' + campoAtualAjuste.key);
-    if (atualEl) {
-      atualEl.dataset.valor = data.novo_valor;
-      atualEl.textContent = _fmtValorAjuste(data.novo_valor, campoAtualAjuste.tipo);
+    const campoKey = campoAtualAjuste.key;
+    if (!AJUSTES_POR_CAMPO[campoKey]) AJUSTES_POR_CAMPO[campoKey] = [];
+    if (editando) {
+      const idx = AJUSTES_POR_CAMPO[campoKey].findIndex(function(a) { return a.id === editando; });
+      if (idx >= 0) AJUSTES_POR_CAMPO[campoKey][idx] = data.ajuste;
+    } else {
+      AJUSTES_POR_CAMPO[campoKey].unshift(data.ajuste);
     }
-    const badge = document.getElementById('badge_' + campoAtualAjuste.key);
-    if (badge) {
-      const n = AJUSTES_POR_CAMPO[campoAtualAjuste.key].length;
-      badge.textContent = n + (n === 1 ? ' ajuste' : ' ajustes');
-      badge.classList.remove('bg-secondary');
-      badge.classList.add('bg-info');
-    }
-    Object.entries(data.calculados || {}).forEach(function([key, val]) {
-      const el = document.getElementById('campo_' + key);
-      if (el && 'value' in el) el.value = (parseFloat(val) || 0).toFixed(2);
-    });
 
-    document.getElementById('formNovoAjuste').reset();
+    _aplicarResultadoAjuste(campoKey, data.novo_valor, data.calculados);
+    cancelarEdicaoAjuste();
     _renderHistoricoAjuste();
   } catch (e) {
-    erroEl.textContent = 'Erro de comunicação ao lançar ajuste.';
+    erroEl.textContent = 'Erro de comunicação ao salvar ajuste.';
   }
   return false;
 }

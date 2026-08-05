@@ -647,6 +647,39 @@ def _recalcular_calculados(valores, campos_cfg):
         recalculados[destino] = total
     return recalculados
 
+def _ajustar_valor_campo(registro, campo_key, delta, meta, campos_cfg):
+    """Soma `delta` ao valor atual de um campo ajustável do registro, recalcula
+    os campos 'calculado' dependentes e persiste tudo num único UPDATE — núcleo
+    compartilhado por registrar_ajuste/editar_ajuste/remover_ajuste. Devolve o
+    novo valor do campo."""
+    coluna_db = meta.get('coluna_db') if meta else campo_key
+    atual = float(registro.get(campo_key) or 0)
+    novo_valor = atual + delta
+
+    dados_update = {}
+    valores_para_formula = dict(registro)
+    valores_para_formula[campo_key] = novo_valor
+    if coluna_db:
+        dados_update[coluna_db] = novo_valor
+        valores_para_formula[coluna_db] = novo_valor
+    else:
+        extras = dict(registro.get('campos_extras') or {})
+        extras[campo_key] = novo_valor
+        dados_update['campos_extras'] = extras
+
+    dados_update.update(_recalcular_calculados(valores_para_formula, campos_cfg))
+    atualizar_registro(registro['id'], dados_update)
+    return novo_valor
+
+def _buscar_ajuste(ajuste_id):
+    if USE_SUPABASE:
+        r = get_sb().table('ajustes_campo').select('*').eq('id', int(ajuste_id)).execute()
+        return r.data[0] if r.data else None
+    conn = get_db()
+    row = conn.execute("SELECT * FROM ajustes_campo WHERE id=?", (int(ajuste_id),)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
 def registrar_ajuste(registro_id, campo_key, tipo, valor, justificativa, usuario_nome):
     """Lança um ajuste (adição/subtração) sobre um campo travado: soma/subtrai
     `valor` do valor atual, recalcula os campos 'calculado', persiste tudo num
@@ -672,24 +705,8 @@ def registrar_ajuste(registro_id, campo_key, tipo, valor, justificativa, usuario
     if not registro:
         raise ValueError('Registro não encontrado.')
 
-    coluna_db = meta.get('coluna_db')
     delta = valor if tipo == 'adicao' else -valor
-    atual = float(registro.get(campo_key) or 0)
-    novo_valor = atual + delta
-
-    dados_update = {}
-    valores_para_formula = dict(registro)
-    valores_para_formula[campo_key] = novo_valor
-    if coluna_db:
-        dados_update[coluna_db] = novo_valor
-        valores_para_formula[coluna_db] = novo_valor
-    else:
-        extras = dict(registro.get('campos_extras') or {})
-        extras[campo_key] = novo_valor
-        dados_update['campos_extras'] = extras
-
-    dados_update.update(_recalcular_calculados(valores_para_formula, campos_cfg))
-    atualizar_registro(registro_id, dados_update)
+    novo_valor = _ajustar_valor_campo(registro, campo_key, delta, meta, campos_cfg)
 
     ajuste = {
         'registro_id': int(registro_id), 'campo_key': campo_key, 'tipo': tipo,
@@ -712,6 +729,82 @@ def registrar_ajuste(registro_id, campo_key, tipo, valor, justificativa, usuario
         conn.close()
 
     return {'novo_valor': novo_valor, 'ajuste': ajuste}
+
+def remover_ajuste(ajuste_id):
+    """Remove um ajuste já lançado, revertendo seu efeito no valor atual do campo
+    (desfaz exatamente o delta que ele havia aplicado) e recalculando os campos
+    'calculado' — o valor do campo volta a ser o que seria se esse ajuste nunca
+    tivesse sido lançado, não importa a ordem em que os ajustes foram feitos
+    (é só uma soma, então é comutativo)."""
+    ajuste = _buscar_ajuste(ajuste_id)
+    if not ajuste:
+        raise ValueError('Ajuste não encontrado.')
+    registro = buscar_registro(ajuste['registro_id'])
+    if not registro:
+        raise ValueError('Registro não encontrado.')
+    campos_cfg = listar_campos_config(incluir_inativos=True)
+    meta = next((c for c in campos_cfg if c['campo_key'] == ajuste['campo_key']), None)
+
+    delta_reverso = -float(ajuste['valor']) if ajuste['tipo'] == 'adicao' else float(ajuste['valor'])
+    novo_valor = _ajustar_valor_campo(registro, ajuste['campo_key'], delta_reverso, meta, campos_cfg)
+
+    if USE_SUPABASE:
+        get_sb().table('ajustes_campo').delete().eq('id', int(ajuste_id)).execute()
+    else:
+        conn = get_db()
+        conn.execute("DELETE FROM ajustes_campo WHERE id=?", (int(ajuste_id),))
+        conn.commit()
+        conn.close()
+    return {'novo_valor': novo_valor, 'campo_key': ajuste['campo_key'], 'registro_id': ajuste['registro_id']}
+
+def editar_ajuste(ajuste_id, tipo, valor, justificativa):
+    """Edita tipo/valor/justificativa de um ajuste já lançado. Matematicamente
+    equivale a remover o ajuste antigo e lançar um novo (aplica só a diferença
+    entre o delta antigo e o novo no valor atual do campo), mas preserva o mesmo
+    registro no histórico — id e usuário original não mudam."""
+    if tipo not in ('adicao', 'subtracao'):
+        raise ValueError('Tipo de ajuste inválido.')
+    try:
+        valor = float(valor)
+    except (TypeError, ValueError):
+        raise ValueError('Valor do ajuste inválido.')
+    if valor <= 0:
+        raise ValueError('Valor do ajuste deve ser maior que zero.')
+    justificativa = (justificativa or '').strip()
+    if not justificativa:
+        raise ValueError('Justificativa é obrigatória.')
+
+    ajuste_antigo = _buscar_ajuste(ajuste_id)
+    if not ajuste_antigo:
+        raise ValueError('Ajuste não encontrado.')
+    registro = buscar_registro(ajuste_antigo['registro_id'])
+    if not registro:
+        raise ValueError('Registro não encontrado.')
+    campos_cfg = listar_campos_config(incluir_inativos=True)
+    meta = next((c for c in campos_cfg if c['campo_key'] == ajuste_antigo['campo_key']), None)
+
+    delta_antigo = (float(ajuste_antigo['valor']) if ajuste_antigo['tipo'] == 'adicao'
+                     else -float(ajuste_antigo['valor']))
+    delta_novo = valor if tipo == 'adicao' else -valor
+    novo_valor = _ajustar_valor_campo(
+        registro, ajuste_antigo['campo_key'], delta_novo - delta_antigo, meta, campos_cfg
+    )
+
+    campos_upd = {'tipo': tipo, 'valor': valor, 'justificativa': justificativa}
+    if USE_SUPABASE:
+        get_sb().table('ajustes_campo').update(campos_upd).eq('id', int(ajuste_id)).execute()
+    else:
+        conn = get_db()
+        conn.execute(
+            "UPDATE ajustes_campo SET tipo=?, valor=?, justificativa=? WHERE id=?",
+            (tipo, valor, justificativa, int(ajuste_id))
+        )
+        conn.commit()
+        conn.close()
+
+    ajuste_atualizado = dict(ajuste_antigo)
+    ajuste_atualizado.update(campos_upd)
+    return {'novo_valor': novo_valor, 'ajuste': ajuste_atualizado}
 
 # ── Lookups ────────────────────────────────────────────────────────────────────
 

@@ -45,7 +45,7 @@
 
 </div>
 
-{% if session.get('usuario_perfil') == 'admin' %}
+{% if (session.get('usuario_email') or '') | lower == 'afpereira@saude.sp.gov.br' %}
 <div class="mb-2">
   <h5 class="fw-bold text-danger"><i class="bi bi-shield-exclamation me-2"></i>Zona de Risco</h5>
   <small class="text-muted">Toda exclusão nesta seção pede sua senha de admin e fica registrada no log do sistema.</small>
@@ -169,7 +169,6 @@
     </div>
   </div>
 </div>
-{% endif %}
 
 <!-- Confirmar exclusão de competência -->
 <div class="modal fade" id="modalExcluirCompetencia" tabindex="-1">
@@ -243,6 +242,7 @@
     </div>
   </div>
 </div>
+{% endif %}
 
 <!-- Resultados da importação -->
 {% if resultados %}

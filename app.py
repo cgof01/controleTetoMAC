@@ -31,6 +31,22 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated
 
+# Zona de Risco (exclusão em massa de competência/ano/tudo): restrita a este
+# usuário específico, não a qualquer admin — é a única área do sistema capaz
+# de apagar dados em massa sem chance de desfazer.
+EMAIL_ZONA_RISCO = 'afpereira@saude.sp.gov.br'
+
+def zona_risco_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get('usuario_id'):
+            return redirect(url_for('login'))
+        if (session.get('usuario_email') or '').strip().lower() != EMAIL_ZONA_RISCO:
+            flash('Acesso restrito.', 'danger')
+            return redirect(url_for('dashboard'))
+        return f(*args, **kwargs)
+    return decorated
+
 BASE_TETOS = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'TETOS'))
 
 def _anos_disponiveis():
@@ -1091,7 +1107,7 @@ def auditoria_deletar_registros():
         return jsonify({'ok': False, 'msg': str(e)}), 500
 
 @app.route('/auditoria/deletar-periodo', methods=['POST'])
-@admin_required
+@zona_risco_required
 def auditoria_deletar_periodo():
     data = request.get_json() or {}
     ano, mes = data.get('ano'), data.get('mes')
@@ -1108,7 +1124,7 @@ def auditoria_deletar_periodo():
         return jsonify({'ok': False, 'msg': str(e)}), 500
 
 @app.route('/auditoria/deletar-ano', methods=['POST'])
-@admin_required
+@zona_risco_required
 def auditoria_deletar_ano():
     data = request.get_json() or {}
     ano = data.get('ano')
@@ -1125,7 +1141,7 @@ def auditoria_deletar_ano():
         return jsonify({'ok': False, 'msg': str(e)}), 500
 
 @app.route('/auditoria/deletar-tudo', methods=['POST'])
-@admin_required
+@zona_risco_required
 def auditoria_deletar_tudo():
     data = request.get_json() or {}
     confirmacao = (data.get('confirmacao') or '').strip().upper()
@@ -1497,6 +1513,46 @@ def ajuste_registrar():
         return jsonify({'ok': False, 'msg': str(e)}), 400
     except Exception as e:
         return jsonify({'ok': False, 'msg': f'Erro ao registrar ajuste: {e}'}), 500
+
+def _calculados_atuais(registro_id):
+    registro = db.buscar_registro(registro_id)
+    return {c['campo_key']: registro.get(c['campo_key'])
+            for c in db.listar_campos_config(incluir_inativos=True) if c.get('tipo') == 'calculado'}
+
+@app.route('/ajuste/remover', methods=['POST'])
+@login_required
+def ajuste_remover():
+    body = request.get_json(silent=True) or request.form
+    try:
+        ajuste_id = int(body.get('ajuste_id'))
+        resultado = db.remover_ajuste(ajuste_id)
+        return jsonify({'ok': True, 'novo_valor': resultado['novo_valor'],
+                         'campo_key': resultado['campo_key'],
+                         'calculados': _calculados_atuais(resultado['registro_id'])})
+    except ValueError as e:
+        return jsonify({'ok': False, 'msg': str(e)}), 400
+    except Exception as e:
+        return jsonify({'ok': False, 'msg': f'Erro ao remover ajuste: {e}'}), 500
+
+@app.route('/ajuste/editar', methods=['POST'])
+@login_required
+def ajuste_editar():
+    body = request.get_json(silent=True) or request.form
+    try:
+        ajuste_id = int(body.get('ajuste_id'))
+        resultado = db.editar_ajuste(
+            ajuste_id=ajuste_id,
+            tipo=body.get('tipo', ''),
+            valor=body.get('valor'),
+            justificativa=body.get('justificativa', ''),
+        )
+        return jsonify({'ok': True, 'novo_valor': resultado['novo_valor'],
+                         'ajuste': resultado['ajuste'],
+                         'calculados': _calculados_atuais(resultado['ajuste']['registro_id'])})
+    except ValueError as e:
+        return jsonify({'ok': False, 'msg': str(e)}), 400
+    except Exception as e:
+        return jsonify({'ok': False, 'msg': f'Erro ao editar ajuste: {e}'}), 500
 
 @app.route('/api/portarias/<cnes>')
 @login_required
