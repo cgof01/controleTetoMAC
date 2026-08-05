@@ -530,6 +530,108 @@ def campos_com_ajustes(registro_ids):
         resultado.setdefault(row['registro_id'], set()).add(row['campo_key'])
     return resultado
 
+def _campos_calculado_afetados(campos_tocados):
+    """Dado um conjunto de campo_key ajustados diretamente, devolve também as
+    colunas 'calculado' (aih_total, sia_total, total_mc_ac_incentivos...) cuja
+    fórmula depende de algum deles — o valor delas muda junto quando um ajuste é
+    lançado (recálculo automático em registrar_ajuste), então também devem ser
+    destacadas em vermelho nos relatórios."""
+    if not campos_tocados:
+        return set()
+    campos_cfg = listar_campos_config(incluir_inativos=True)
+    extras = set()
+    for c in campos_cfg:
+        if c.get('tipo') != 'calculado' or not c.get('formula'):
+            continue
+        formula_keys = {k.strip() for k in c['formula'].split(',') if k.strip()}
+        if formula_keys & campos_tocados:
+            extras.add(c.get('coluna_db') or c['campo_key'])
+    return extras
+
+def campos_ajustados_por_drs(ano, mes):
+    """Para uma competência, devolve {drs: {coluna_do_resumo,...}} indicando quais
+    colunas do Resumo por DRS foram afetadas por algum ajuste manual lançado num
+    registro daquele DRS — usado pra destacar em vermelho no Excel do Resumo DRS."""
+    campos = ['id', 'drs', 'aih_fisico', 'aih_mc', 'aih_ac', 'sia_mc', 'sia_ac', 'teto_mac']
+    if USE_SUPABASE:
+        r = (get_sb().table('teto_mac').select(','.join(campos))
+             .eq('ano', ano).eq('mes', mes).execute())
+        registros = r.data or []
+    else:
+        conn = get_db()
+        cols = ','.join(campos)
+        registros = [dict(row) for row in conn.execute(
+            f"SELECT {cols} FROM teto_mac WHERE ano=? AND mes=?", (ano, mes)
+        ).fetchall()]
+        conn.close()
+
+    ajustes_map = campos_com_ajustes([r.get('id') for r in registros])
+    if not ajustes_map:
+        return {}
+    incentivos_keys = {k for k, _ in INCENTIVOS_TODOS}
+    resultado = {}
+    for reg in registros:
+        tocados = ajustes_map.get(reg.get('id'))
+        if not tocados:
+            continue
+        drs = int(reg.get('drs') or 0)
+        destino = resultado.setdefault(drs, set())
+        destino |= _campos_calculado_afetados(tocados)
+        destino.add('total_geral')  # qualquer ajuste de valor afeta o total geral do DRS
+        for campo in tocados:
+            if campo == 'aih_fisico':
+                destino.add('aih_fisico')
+            elif campo in ('aih_mc', 'aih_ac'):
+                destino.add('total_aih')
+            elif campo in ('sia_mc', 'sia_ac'):
+                destino.add('total_sia')
+            elif campo == 'teto_mac':
+                destino.add('teto_mac')
+            elif campo in incentivos_keys:
+                destino.add(campo)
+                destino.add('total_incentivos')
+    return resultado
+
+def _norm_dim(v):
+    """Normaliza um valor de dimensão (drs, cnes, ano, mes...) pra comparar de forma
+    estável entre o que vem direto do banco (ex.: drs como REAL, 1.0) e o que volta
+    do front-end depois de passar por JSON (1.0 vira 1 no JS) — sem isso a chave de
+    agrupamento nunca bate e nada fica destacado em vermelho."""
+    if v is None or v == '':
+        return ''
+    try:
+        f = float(v)
+        return str(int(f)) if f == int(f) else str(f)
+    except (TypeError, ValueError):
+        return str(v).strip()
+
+def campos_ajustados_por_dimensoes(ano, mes, dims, ano_fim=None, mes_fim=None):
+    """Para o mesmo período/agrupamento usado pela Central de Relatórios
+    (consulta_analitica), devolve {tupla_de_valores_das_dimensoes: {campo_key,...}}
+    com os campos que tiveram algum ajuste manual dentro de cada grupo — usado pra
+    destacar em vermelho no Excel exportado do Construtor. A chave da tupla usa o
+    mesmo formato (str por dimensão, na ordem de `dims`) do agrupamento feito em
+    consulta_analitica, pra bater linha a linha com o relatório já gerado."""
+    dims = [d for d in (dims or []) if d in _DIMS_ALLOW]
+    ano_fim = ano_fim or ano
+    mes_fim = mes_fim or mes
+    campos = list(dict.fromkeys(['id'] + dims))
+    registros = _fetch_periodo(ano, mes, ano_fim, mes_fim, campos=campos)
+
+    ajustes_map = campos_com_ajustes([r.get('id') for r in registros])
+    if not ajustes_map:
+        return {}
+    resultado = {}
+    for reg in registros:
+        tocados = ajustes_map.get(reg.get('id'))
+        if not tocados:
+            continue
+        key = tuple(_norm_dim(reg.get(d)) for d in dims) if dims else ('_total_',)
+        destino = resultado.setdefault(key, set())
+        destino |= tocados
+        destino |= _campos_calculado_afetados(tocados)
+    return resultado
+
 def _recalcular_calculados(valores, campos_cfg):
     """Reaplica a soma dos campos 'calculado' (mesma lógica de recalcularTodos()
     em form.html, só que em Python) a partir de `valores` — dict com os valores

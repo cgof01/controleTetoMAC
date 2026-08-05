@@ -1086,9 +1086,9 @@ function exportCSV() {
 async function exportExcel() {
   if(!_data.length) { alert('Nenhum dado para exportar. Gere um relatório primeiro.'); return; }
   const { dims, cols, data } = getExportData();
-  const { ano, mes } = getAnoMes();
+  const { ano, mes, ano_fim, mes_fim } = getAnoMes();
   const payload = {
-    ano, mes,
+    ano, mes, ano_fim, mes_fim,
     titulo: 'Central de Relatórios',
     colunas: cols.map(c => ({ key: c, label: FIELD_LABELS[c] || c, dimensao: dims.includes(c) })),
     linhas: data,

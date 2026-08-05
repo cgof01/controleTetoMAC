@@ -677,12 +677,16 @@ def exportar_excel():
         mes_ini = request.args.get('mes_ini', type=int) or 1
         ano_fim = request.args.get('ano_fim', type=int) or ano_ini
         mes_fim = request.args.get('mes_fim', type=int) or 12
-        registros = db.periodo_completo(ano_ini, mes_ini, ano_fim, mes_fim, campos=campos)
+        registros = db.periodo_completo(ano_ini, mes_ini, ano_fim, mes_fim, campos=['id'] + campos)
         periodo = (ano_ini, mes_ini, ano_fim, mes_fim)
         filtros = {}
     else:
         filtros = {k: v for k, v in request.args.items() if v and k not in ('format',)}
         registros = db.pesquisar_todos(filtros)
+
+    # Campos que já receberam ajuste (adição/subtração) em cada registro exportado,
+    # pra destacar em vermelho na planilha igual já é feito na lista de Pesquisa.
+    ajustados_map = db.campos_com_ajustes([r.get('id') for r in registros])
 
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -724,9 +728,11 @@ def exportar_excel():
     fmt_moeda = '#,##0.00'
     fmt_numero = '#,##0'
     col_aih_fisico = campos.index('aih_fisico') + 1
+    fonte_ajustado = Font(color="C00000", bold=True)
 
     for row_num, reg in enumerate(registros, 3):
         fill = fill_par if row_num % 2 == 0 else None
+        campos_ajustados_linha = ajustados_map.get(reg.get('id'), set())
         for col, campo in enumerate(campos, 1):
             val = reg.get(campo, '')
             if campo == 'mes' and val:
@@ -735,6 +741,8 @@ def exportar_excel():
             cell.border = borda
             if fill:
                 cell.fill = fill
+            if campo in campos_ajustados_linha:
+                cell.font = fonte_ajustado
             if col > 9 and isinstance(val, (int, float)) and val:
                 cell.number_format = fmt_numero if col == col_aih_fisico else fmt_moeda
                 cell.alignment = Alignment(horizontal='right')
@@ -775,6 +783,8 @@ def exportar_excel_drs():
     ano = request.args.get('ano', type=int)
     mes = request.args.get('mes', type=int)
     dados = db.relatorio_resumo_drs(ano, mes)
+    ajustes_por_drs = db.campos_ajustados_por_drs(ano, mes)
+    fonte_ajustado = Font(color="C00000", bold=True)
 
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -798,8 +808,11 @@ def exportar_excel_drs():
         c.fill = PatternFill("solid", fgColor=cor_fundo)
 
     for r, row in enumerate(dados, 3):
+        campos_ajustados_linha = ajustes_por_drs.get(int(row.get('drs') or 0), set())
         for col, campo in enumerate(campos_h, 1):
-            ws.cell(r, col, row.get(campo))
+            cell = ws.cell(r, col, row.get(campo))
+            if campo in campos_ajustados_linha:
+                cell.font = fonte_ajustado
 
     output = io.BytesIO()
     wb.save(output)
@@ -829,11 +842,18 @@ def exportar_analitico_excel():
     body = request.get_json(force=True) or {}
     ano = body.get('ano')
     mes = body.get('mes')
+    ano_fim = body.get('ano_fim')
+    mes_fim = body.get('mes_fim')
     titulo = (body.get('titulo') or 'Relatório').strip()
     colunas = body.get('colunas') or []
     linhas = body.get('linhas') or []
     if not colunas or not linhas:
         return jsonify({'erro': 'Sem dados para exportar'}), 400
+
+    dims = [c.get('key') for c in colunas if c.get('dimensao')]
+    ajustes_por_grupo = (db.campos_ajustados_por_dimensoes(int(ano), int(mes), dims, ano_fim, mes_fim)
+                          if ano and mes else {})
+    fonte_ajustado = Font(color="C00000", bold=True)
 
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -873,6 +893,8 @@ def exportar_analitico_excel():
 
     for row_num, linha in enumerate(linhas, 3):
         fill = fill_par if row_num % 2 == 0 else None
+        chave_grupo = tuple(db._norm_dim(linha.get(d)) for d in dims) if dims else ('_total_',)
+        campos_ajustados_linha = ajustes_por_grupo.get(chave_grupo, set())
         for col, c in enumerate(colunas, 1):
             key = c.get('key', '')
             val = linha.get(key, '')
@@ -880,6 +902,8 @@ def exportar_analitico_excel():
             cell.border = borda
             if fill:
                 cell.fill = fill
+            if not c.get('dimensao') and key in campos_ajustados_linha:
+                cell.font = fonte_ajustado
             if not c.get('dimensao') and isinstance(val, (int, float)):
                 cell.number_format = fmt_numero if key in _CAMPOS_QUANTIDADE else fmt_moeda
                 cell.alignment = Alignment(horizontal='right')

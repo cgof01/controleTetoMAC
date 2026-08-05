@@ -27,13 +27,12 @@
 
 {# Badge somente-leitura com a contagem de ajustes (adição/subtração + justificativa)
    já lançados num campo travado — ver Editar Registro para lançar novos. #}
-{% macro badge_ajustes(campo) %}
+{% macro badge_ajustes(campo, filtro='moeda') %}
   {% set lista = ajustes_por_campo.get(campo, []) %}
   {% if lista %}
-    {% set titulo = lista | map(attribute='justificativa') | join(' | ') %}
     <a href="{{ url_for('editar', id=registro.id) }}"
-       class="badge bg-info text-decoration-none ms-1" style="font-size:.65rem"
-       title="{{ titulo }}">
+       class="badge bg-info text-decoration-none ms-1 badge-ajuste-popover" style="font-size:.65rem"
+       data-campo-key="{{ campo }}" data-campo-tipo="{{ filtro }}">
       <i class="bi bi-clock-history"></i> {{ lista | length }}
     </a>
   {% endif %}
@@ -111,7 +110,7 @@
       <div class="card-body">
         {% macro linha(label, campo, valor, filtro='moeda', destaque_total=false) %}
           <tr class="{{ 'table-active fw-bold' if destaque_total else '' }}">
-            <td>{{ label }}{{ badge_ajustes(campo) }}</td>
+            <td>{{ label }}{{ badge_ajustes(campo, filtro) }}</td>
             <td class="text-end num-moeda {{ 'text-danger' if campo in alterados else '' }}">
               {{ valor | numero if filtro == 'numero' else valor | moeda }}
             </td>
@@ -209,6 +208,43 @@
 {% endblock %}
 
 {% block extra_js %}
+<script>
+// ── Balão (popover) com o histórico de ajustes ao passar o mouse no badge ──────
+const AJUSTES_POR_CAMPO = {{ ajustes_por_campo | tojson }};
+
+function _escHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+
+function _htmlPopoverAjustes(campoKey, tipo) {
+  const lista = AJUSTES_POR_CAMPO[campoKey] || [];
+  if (!lista.length) return '<span class="text-muted small">Nenhum ajuste lançado ainda.</span>';
+  return lista.map(function(a) {
+    const sinal = a.tipo === 'adicao' ? '+' : '−';
+    const cor = a.tipo === 'adicao' ? 'text-success' : 'text-danger';
+    const valorFmt = tipo === 'numero' ? numBR(a.valor) : moeda(a.valor);
+    return '<div class="mb-1 pb-1 border-bottom">' +
+      '<span class="fw-bold ' + cor + '">' + sinal + ' ' + valorFmt + '</span>' +
+      '<div class="small text-muted">' + _escHtml(a.created_at) + ' — ' + _escHtml(a.usuario_nome) + '</div>' +
+      '<div class="small">' + _escHtml(a.justificativa) + '</div>' +
+    '</div>';
+  }).join('');
+}
+
+document.querySelectorAll('.badge-ajuste-popover').forEach(function(badge) {
+  const campoKey = badge.dataset.campoKey;
+  const tipo = badge.dataset.campoTipo;
+  new bootstrap.Popover(badge, {
+    html: true,
+    trigger: 'hover focus',
+    placement: 'top',
+    title: 'Histórico de ajustes',
+    content: function() { return _htmlPopoverAjustes(campoKey, tipo); }
+  });
+});
+</script>
 {% if historico %}
 <script>
 const HIST = {{ historico_json | safe }};

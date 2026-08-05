@@ -465,6 +465,41 @@ function _fmtValorAjuste(v, tipo) {
   return tipo === 'numero' ? numBR(v) : moeda(v);
 }
 
+function _escHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+
+// ── Balão (popover) com o histórico de ajustes ao passar o mouse no badge ──────
+// Não precisa reabrir o modal só pra conferir o que já foi lançado num campo.
+function _htmlPopoverAjustes(campoKey, tipo) {
+  const lista = AJUSTES_POR_CAMPO[campoKey] || [];
+  if (!lista.length) return '<span class="text-muted small">Nenhum ajuste lançado ainda.</span>';
+  return lista.map(function(a) {
+    const sinal = a.tipo === 'adicao' ? '+' : '−';
+    const cor = a.tipo === 'adicao' ? 'text-success' : 'text-danger';
+    return '<div class="mb-1 pb-1 border-bottom">' +
+      '<span class="fw-bold ' + cor + '">' + sinal + ' ' + _fmtValorAjuste(a.valor, tipo) + '</span>' +
+      '<div class="small text-muted">' + _escHtml(a.created_at) + ' — ' + _escHtml(a.usuario_nome) + '</div>' +
+      '<div class="small">' + _escHtml(a.justificativa) + '</div>' +
+    '</div>';
+  }).join('');
+}
+
+document.querySelectorAll('[id^="badge_"]').forEach(function(badge) {
+  const campoKey = badge.id.slice('badge_'.length);
+  const btn = badge.previousElementSibling;
+  const tipo = btn ? btn.dataset.campoTipo : 'moeda';
+  new bootstrap.Popover(badge, {
+    html: true,
+    trigger: 'hover focus',
+    placement: 'top',
+    title: 'Histórico de ajustes',
+    content: function() { return _htmlPopoverAjustes(campoKey, tipo); }
+  });
+});
+
 function abrirModalAjuste(btn) {
   campoAtualAjuste = { key: btn.dataset.campoKey, tipo: btn.dataset.campoTipo };
   document.getElementById('ajusteCampoLabel').textContent = btn.dataset.campoLabel;
