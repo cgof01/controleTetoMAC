@@ -2,6 +2,7 @@
 {% block title %}Relatório por Período — Teto MAC{% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="https://cdn.datatables.net/fixedcolumns/4.3.0/css/fixedColumns.dataTables.min.css">
 <style>
   .rp-kpi-row { display:flex; gap:.6rem; flex-wrap:wrap; margin-bottom:1rem; }
   .rp-kpi {
@@ -206,8 +207,12 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="https://cdn.datatables.net/fixedcolumns/4.3.0/js/dataTables.fixedColumns.min.js"></script>
 <script>
 $(document).ready(function() {
+  // Colunas de identificação (Ano/Mês, DRS... ou Competência, Unidades) fixas
+  // à esquerda enquanto rola pelas ~22 colunas de incentivo — sem isso é fácil
+  // achar que alguma coluna "sumiu" só porque ficou fora da área visível.
   $('#tabelaPeriodo').DataTable({
     pageLength: 100,
     language: {
@@ -218,7 +223,8 @@ $(document).ready(function() {
     scrollX: true,
     scrollY: '60vh',
     scrollCollapse: true,
-    paging: true
+    paging: true,
+    fixedColumns: { left: {{ 5 if granularidade == 'detalhado' else 2 }} }
   });
 });
 </script>
