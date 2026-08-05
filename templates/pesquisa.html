@@ -221,6 +221,7 @@
           </th>
         {% endif %}
       {% endmacro %}
+      {% macro cls_ajuste(campo, r) %}{% if campo in r._campos_ajustados %} text-danger fw-bold{% endif %}{% endmacro %}
       <table class="table table-hover table-teto mb-0">
         <thead>
           <tr>
@@ -265,18 +266,18 @@
                   {{ (r.unidade or '—')[:45] }}{% if r.unidade and r.unidade|length > 45 %}...{% endif %}
                 </span>
               </td>
-              <td class="num-moeda col-extra">{{ r.aih_fisico | numero if r.aih_fisico else '—' }}</td>
-              <td class="num-moeda col-extra">{{ r.aih_faec | moeda if r.aih_faec else '—' }}</td>
-              <td class="num-moeda col-extra">{{ r.aih_mc | moeda if r.aih_mc else '—' }}</td>
-              <td class="num-moeda col-extra">{{ r.aih_ac | moeda if r.aih_ac else '—' }}</td>
-              <td class="num-moeda col-extra">{{ r.sia_faec | moeda if r.sia_faec else '—' }}</td>
-              <td class="num-moeda col-extra">{{ r.sia_mc | moeda if r.sia_mc else '—' }}</td>
-              <td class="num-moeda col-extra">{{ r.sia_ac | moeda if r.sia_ac else '—' }}</td>
-              <td class="num-moeda col-extra">{{ r.equip_hemodialise | moeda if r.equip_hemodialise else '—' }}</td>
-              <td class="num-moeda col-extra">{{ r.limite_complementacao | moeda if r.limite_complementacao else '—' }}</td>
-              <td class="num-moeda fw-bold col-extra">{{ (r.teto_mac or r.total_teto_mac) | moeda }}</td>
+              <td class="num-moeda col-extra{{ cls_ajuste('aih_fisico', r) }}">{{ r.aih_fisico | numero if r.aih_fisico else '—' }}</td>
+              <td class="num-moeda col-extra{{ cls_ajuste('aih_faec', r) }}">{{ r.aih_faec | moeda if r.aih_faec else '—' }}</td>
+              <td class="num-moeda col-extra{{ cls_ajuste('aih_mc', r) }}">{{ r.aih_mc | moeda if r.aih_mc else '—' }}</td>
+              <td class="num-moeda col-extra{{ cls_ajuste('aih_ac', r) }}">{{ r.aih_ac | moeda if r.aih_ac else '—' }}</td>
+              <td class="num-moeda col-extra{{ cls_ajuste('sia_faec', r) }}">{{ r.sia_faec | moeda if r.sia_faec else '—' }}</td>
+              <td class="num-moeda col-extra{{ cls_ajuste('sia_mc', r) }}">{{ r.sia_mc | moeda if r.sia_mc else '—' }}</td>
+              <td class="num-moeda col-extra{{ cls_ajuste('sia_ac', r) }}">{{ r.sia_ac | moeda if r.sia_ac else '—' }}</td>
+              <td class="num-moeda col-extra{{ cls_ajuste('equip_hemodialise', r) }}">{{ r.equip_hemodialise | moeda if r.equip_hemodialise else '—' }}</td>
+              <td class="num-moeda col-extra{{ cls_ajuste('limite_complementacao', r) }}">{{ r.limite_complementacao | moeda if r.limite_complementacao else '—' }}</td>
+              <td class="num-moeda fw-bold col-extra{{ cls_ajuste('teto_mac', r) }}">{{ (r.teto_mac or r.total_teto_mac) | moeda }}</td>
               {% for campo, label in incentivos %}
-              <td class="num-moeda col-extra">{{ r.get(campo) | moeda if r.get(campo) else '—' }}</td>
+              <td class="num-moeda col-extra{{ cls_ajuste(campo, r) }}">{{ r.get(campo) | moeda if r.get(campo) else '—' }}</td>
               {% endfor %}
               <td class="num-moeda fw-bold text-primary">{{ r.total_mc_ac_incentivos | moeda }}</td>
               <td class="text-center" onclick="event.stopPropagation()">

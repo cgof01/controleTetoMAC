@@ -288,8 +288,10 @@ def pesquisa():
     # Marca (só na página atual, já carregada — sem custo extra) quais registros
     # foram replicados de outra competência e alterados depois da cópia, para
     # destacar em vermelho na lista, igual ao detalhe/edição do registro.
+    campos_ajustados_map = db.campos_com_ajustes([r.get('id') for r in registros])
     for r in registros:
         r['_alterado'] = bool(db.campos_alterados(r))
+        r['_campos_ajustados'] = campos_ajustados_map.get(r.get('id'), set())
 
     anos_meses = db.obter_anos_meses()
     drs_lista = db.obter_drs_lista()

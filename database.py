@@ -506,6 +506,30 @@ def listar_ajustes(registro_id):
     conn.close()
     return [dict(r) for r in rows]
 
+def campos_com_ajustes(registro_ids):
+    """Para uma lista de ids de registro, devolve {registro_id: {campo_key, ...}}
+    com os campos que já receberam pelo menos um ajuste — usado para destacar em
+    vermelho, na lista de Pesquisa, os valores que foram alterados via ajuste."""
+    ids = [int(i) for i in registro_ids if i is not None]
+    if not ids:
+        return {}
+    if USE_SUPABASE:
+        r = (get_sb().table('ajustes_campo').select('registro_id,campo_key')
+             .in_('registro_id', ids).execute())
+        rows = r.data or []
+    else:
+        conn = get_db()
+        placeholders = ','.join('?' for _ in ids)
+        rows = [dict(row) for row in conn.execute(
+            f"SELECT registro_id, campo_key FROM ajustes_campo WHERE registro_id IN ({placeholders})",
+            ids
+        ).fetchall()]
+        conn.close()
+    resultado = {}
+    for row in rows:
+        resultado.setdefault(row['registro_id'], set()).add(row['campo_key'])
+    return resultado
+
 def _recalcular_calculados(valores, campos_cfg):
     """Reaplica a soma dos campos 'calculado' (mesma lógica de recalcularTodos()
     em form.html, só que em Python) a partir de `valores` — dict com os valores
