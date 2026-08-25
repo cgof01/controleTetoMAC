@@ -233,12 +233,12 @@
           <i class="bi bi-speedometer2"></i><span class="nav-label">Dashboard</span>
         </a>
         <a class="nav-link {{ 'active' if request.endpoint == 'pesquisa' }}"
-           href="{{ url_for('pesquisa') }}" data-tip="Pesquisar">
-          <i class="bi bi-search"></i><span class="nav-label">Pesquisar</span>
+           href="{{ url_for('pesquisa') }}" data-tip="Consultar / Editar">
+          <i class="bi bi-pencil-square"></i><span class="nav-label">Consultar / Editar</span>
         </a>
         <a class="nav-link {{ 'active' if request.endpoint == 'inserir' }}"
-           href="{{ url_for('inserir') }}" data-tip="Inserir Registro">
-          <i class="bi bi-plus-square"></i><span class="nav-label">Inserir Registro</span>
+           href="{{ url_for('inserir') }}" data-tip="Nova Competência">
+          <i class="bi bi-calendar-plus"></i><span class="nav-label">Nova Competência</span>
         </a>
       </nav>
 

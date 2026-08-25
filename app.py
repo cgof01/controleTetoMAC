@@ -1,6 +1,7 @@
 import os
 import json
 import io
+import concurrent.futures
 from datetime import datetime
 from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file, Response, session, send_from_directory
@@ -243,22 +244,32 @@ def dashboard():
         meses_do_ano = [am['mes'] for am in anos_meses if am['ano'] == ano_sel]
         mes_sel = max(meses_do_ano) if meses_do_ano else 1
 
-    stats = db.estatisticas_gerais()
-    evolucao = db.grafico_evolucao_mensal()
-
+    # As buscas abaixo são independentes entre si (cada uma é sua própria
+    # consulta ao Supabase) — rodá-las em paralelo faz o tempo total da tela
+    # ficar perto do tempo da consulta mais lenta, em vez da soma de todas.
+    tarefas = {'stats': db.estatisticas_gerais, 'evolucao': db.grafico_evolucao_mensal}
     if todos_anos:
-        kpis = db.dashboard_kpis_geral()
-        kpi_anterior = {}
-        por_drs, por_tipo, top_unidades = [], [], []
+        tarefas['kpis'] = db.dashboard_kpis_geral
     else:
-        kpis = db.dashboard_kpis(ano_sel, mes_sel)
-        por_drs   = db.grafico_por_drs(ano_sel, mes_sel)
-        por_tipo  = db.grafico_por_tipo(ano_sel, mes_sel)
-        top_unidades = db.grafico_top_unidades(ano_sel, mes_sel)
-        kpi_anterior = {}
+        tarefas['kpis'] = lambda: db.dashboard_kpis(ano_sel, mes_sel)
+        tarefas['por_drs'] = lambda: db.grafico_por_drs(ano_sel, mes_sel)
+        tarefas['por_tipo'] = lambda: db.grafico_por_tipo(ano_sel, mes_sel)
+        tarefas['top_unidades'] = lambda: db.grafico_top_unidades(ano_sel, mes_sel)
         if anos_meses and len(anos_meses) > 1:
             am2 = anos_meses[1]
-            kpi_anterior = db.dashboard_kpis(am2['ano'], am2['mes'])
+            tarefas['kpi_anterior'] = lambda: db.dashboard_kpis(am2['ano'], am2['mes'])
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(tarefas)) as ex:
+        resultados = {nome: fut.result() for nome, fut in
+                      {nome: ex.submit(fn) for nome, fn in tarefas.items()}.items()}
+
+    stats = resultados['stats']
+    evolucao = resultados['evolucao']
+    kpis = resultados['kpis']
+    por_drs = resultados.get('por_drs', [])
+    por_tipo = resultados.get('por_tipo', [])
+    top_unidades = resultados.get('top_unidades', [])
+    kpi_anterior = resultados.get('kpi_anterior', {})
 
     return render_template('dashboard.html',
         kpis=kpis,
@@ -372,7 +383,7 @@ def inserir():
         mes_default=mes_default,
         ano_origem_default=ano_origem_default,
         mes_origem_default=mes_origem_default,
-        titulo='Inserir Novo Registro',
+        titulo='Nova Competência',
         secoes=db.listar_secoes_config(),
         campos=db.listar_campos_config(),
         campos_ajustaveis=set(),
@@ -1475,18 +1486,66 @@ def detalhamento_exportar():
 
 # ── Portarias ────────────────────────────────────────────────────────────────
 
+_FILTROS_IMAGEM_JA_COMPACTOS = {'/CCITTFaxDecode', '/JPXDecode', '/JBIG2Decode'}
+_TAMANHO_MIN_RECOMPRIMIR_IMAGEM = 40 * 1024  # abaixo disso não compensa o custo/risco
+_QUALIDADE_JPEG = 65  # compressão alta — portarias são pra leitura, não impressão fina
+
+def _recomprimir_imagem(raw_image):
+    """Reduz a qualidade JPEG de uma imagem embutida no PDF — é o que domina o
+    tamanho de portarias escaneadas (a recompactação de streams sozinha mal
+    encosta nelas). Pula imagens já em formato compacto (fax/JPEG2000/JBIG2),
+    máscaras de transparência, cores fora de RGB/escala de cinza (CMYK/
+    indexada) e imagens pequenas — nesses casos mantém a imagem original."""
+    import pikepdf, io
+    from pikepdf import PdfImage, Name
+
+    if len(raw_image.read_raw_bytes()) < _TAMANHO_MIN_RECOMPRIMIR_IMAGEM:
+        return
+    pdfimage = PdfImage(raw_image)
+    if pdfimage.image_mask:
+        return
+    if any(f in _FILTROS_IMAGEM_JA_COMPACTOS for f in pdfimage.filters):
+        return
+    if pdfimage.mode not in ('RGB', 'L'):
+        return
+
+    buf = io.BytesIO()
+    pdfimage.as_pil_image().save(buf, format='JPEG', quality=_QUALIDADE_JPEG, optimize=True)
+    novo = buf.getvalue()
+    if len(novo) >= len(raw_image.read_raw_bytes()):
+        return
+
+    raw_image.write(novo, filter=Name('/DCTDecode'))
+
 def _comprimir_pdf_bytes(input_bytes):
-    """Comprime PDF em memória com pikepdf. Retorna bytes comprimidos ou None."""
+    """Comprime PDF em memória com pikepdf: recompacta imagens embutidas em
+    JPEG de qualidade reduzida e recompacta todos os streams no nível máximo.
+    Retorna bytes comprimidos, ou None se não for possível comprimir com
+    segurança — o chamador então mantém o arquivo original."""
     try:
         import pikepdf, io
         inp = io.BytesIO(input_bytes)
-        out = io.BytesIO()
         with pikepdf.open(inp) as pdf:
+            for page in pdf.pages:
+                for raw_image in page.get_images().values():
+                    try:
+                        _recomprimir_imagem(raw_image)
+                    except Exception:
+                        continue  # mantém aquela imagem como estava
+
+            out = io.BytesIO()
             pdf.save(out,
                      compress_streams=True,
+                     recompress_flate=True,
                      object_stream_mode=pikepdf.ObjectStreamMode.generate)
-        out.seek(0)
-        return out.read()
+        resultado = out.getvalue()
+
+        # confere que o PDF gerado ainda abre normalmente antes de usá-lo —
+        # se algo saiu errado, é melhor manter o arquivo original do que
+        # arriscar salvar uma portaria corrompida.
+        with pikepdf.open(io.BytesIO(resultado)):
+            pass
+        return resultado
     except Exception:
         return None
 

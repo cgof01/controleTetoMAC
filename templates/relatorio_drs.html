@@ -62,7 +62,13 @@
         <tbody>
           {% for r in dados %}
           <tr>
-            <td><span class="badge bg-primary">DRS {{ r.drs }}</span></td>
+            <td>
+              {% if r.drs == 99 %}
+              <span class="badge bg-warning text-dark">Reserva de Recurso</span>
+              {% else %}
+              <span class="badge bg-primary">DRS {{ r.drs }}</span>
+              {% endif %}
+            </td>
             <td class="text-center">{{ r.total_unidades }}</td>
             <td class="num-moeda">{{ r.aih_fisico | numero }}</td>
             <td class="num-moeda">{{ r.total_aih | moeda }}</td>
@@ -118,7 +124,7 @@
 
 <!-- Links para detalhes -->
 <div class="row g-2 mt-3 no-print">
-  {% for r in dados %}
+  {% for r in dados if r.drs != 99 %}
   <div class="col-auto">
     <a href="{{ url_for('pesquisa', ano=ano, mes=mes, drs=r.drs) }}" class="btn btn-outline-primary btn-sm">
       <i class="bi bi-search me-1"></i>DRS {{ r.drs }} ({{ r.total_unidades }} unid.)

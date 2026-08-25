@@ -188,6 +188,10 @@ def pesquisar(filtros=None, page=1, per_page=50, ordenar_por=None, ordenar_dir='
         return _pesquisar_sqlite(filtros, page, per_page, ordenar_por, ordenar_dir)
 
 def _aplicar_filtros_supabase(q, filtros):
+    # DRS 99 é a "Reserva de Recurso" (linha orçamentária, não uma unidade de
+    # saúde) — some das listas/telas normais, só fica disponível como opção
+    # dentro da Central de Relatórios (que não passa por este filtro).
+    q = q.or_('drs.is.null,drs.neq.99')
     if filtros:
         if filtros.get('ano'):
             q = q.eq('ano', int(filtros['ano']))
@@ -208,7 +212,7 @@ def _aplicar_filtros_supabase(q, filtros):
     return q
 
 def _where_sqlite(filtros):
-    where_parts = []
+    where_parts = ["(drs IS NULL OR CAST(drs AS INTEGER) <> 99)"]
     params = []
     if filtros:
         if filtros.get('ano'):
@@ -330,6 +334,20 @@ def pesquisar_totais(filtros=None):
     totais['registros'] = 0
     if USE_SUPABASE:
         sb = get_sb()
+        # Caminho rápido: soma feita no Postgres via RPC (uma chamada, sem baixar
+        # linha nenhuma). Se a função ainda não foi aplicada no banco (migração
+        # migration_perf_pesquisar_totais.sql não rodada), cai no caminho antigo
+        # abaixo, que pagina e soma em Python — mais lento, mas sempre funciona.
+        try:
+            r = sb.rpc('pesquisar_totais', {'p_filtros': filtros or {}}).execute()
+            if isinstance(r.data, dict):
+                for c in _CAMPOS_SOMA_PESQUISA:
+                    totais[c] = r.data.get(c) or 0
+                totais['registros'] = r.data.get('registros') or 0
+                return totais
+        except Exception:
+            pass
+
         cols = ','.join(_CAMPOS_SOMA_PESQUISA)
         total = (_aplicar_filtros_supabase(sb.table('teto_mac').select('id', count='exact'), filtros)
                   .limit(1).execute()).count or 0
@@ -833,7 +851,9 @@ def obter_drs_lista():
         if ams:
             r = get_sb().rpc('get_por_drs', {'p_ano': ams[0]['ano'], 'p_mes': ams[0]['mes']}).execute()
             data = r.data if isinstance(r.data, list) else []
-            return sorted(int(d['drs']) for d in data if d.get('drs') is not None)
+            # DRS 99 = Reserva de Recurso — não é uma unidade de saúde, fica de fora
+            # das listas normais (só selecionável na Central de Relatórios).
+            return sorted(int(d['drs']) for d in data if d.get('drs') is not None and int(d['drs']) != 99)
         return []
     else:
         conn = get_db()
@@ -841,7 +861,7 @@ def obter_drs_lista():
             "SELECT DISTINCT CAST(drs AS INTEGER) as drs FROM teto_mac WHERE drs IS NOT NULL ORDER BY CAST(drs AS INTEGER)"
         ).fetchall()
         conn.close()
-        return [r['drs'] for r in rows if r['drs']]
+        return [r['drs'] for r in rows if r['drs'] and r['drs'] != 99]
 
 def obter_municipios():
     if USE_SUPABASE:
@@ -879,12 +899,12 @@ def dashboard_kpis(ano=None, mes=None):
 def _dashboard_kpis_sqlite(ano=None, mes=None):
     conn = get_db()
     if ano and mes:
-        filtro = "WHERE ano = ? AND mes = ?"
+        filtro = "WHERE ano = ? AND mes = ? AND (drs IS NULL OR CAST(drs AS INTEGER) <> 99)"
         params = [ano, mes]
     else:
         ultimo = conn.execute("SELECT ano, mes FROM teto_mac ORDER BY ano DESC, mes DESC LIMIT 1").fetchone()
         if ultimo:
-            filtro = "WHERE ano = ? AND mes = ?"
+            filtro = "WHERE ano = ? AND mes = ? AND (drs IS NULL OR CAST(drs AS INTEGER) <> 99)"
             params = [ultimo['ano'], ultimo['mes']]
         else:
             conn.close()
@@ -916,13 +936,14 @@ def grafico_evolucao_mensal(anos=None):
             placeholders = ','.join(['?' for _ in anos])
             rows = conn.execute(f"""
                 SELECT ano, mes, SUM(total_mc_ac_incentivos) as total, COUNT(*) as unidades
-                FROM teto_mac WHERE ano IN ({placeholders})
+                FROM teto_mac WHERE ano IN ({placeholders}) AND (drs IS NULL OR CAST(drs AS INTEGER) <> 99)
                 GROUP BY ano, mes ORDER BY ano, mes
             """, anos).fetchall()
         else:
             rows = conn.execute("""
                 SELECT ano, mes, SUM(total_mc_ac_incentivos) as total, COUNT(*) as unidades
-                FROM teto_mac GROUP BY ano, mes ORDER BY ano, mes
+                FROM teto_mac WHERE (drs IS NULL OR CAST(drs AS INTEGER) <> 99)
+                GROUP BY ano, mes ORDER BY ano, mes
             """).fetchall()
         conn.close()
         return [dict(r) for r in rows]
@@ -949,6 +970,8 @@ def grafico_por_drs(ano, mes, ano_fim=None, mes_fim=None):
     seen = {}
     for row in rows:
         drs = int(row.get('drs') or 0)
+        if drs == 99:  # Reserva de Recurso — fora dos gráficos do Dashboard
+            continue
         if drs not in seen:
             seen[drs] = {'drs': drs, 'total': 0.0, 'unidades': 0}
         seen[drs]['total']    += row.get('total_mc_ac_incentivos') or 0
@@ -957,9 +980,11 @@ def grafico_por_drs(ano, mes, ano_fim=None, mes_fim=None):
 
 def grafico_top_unidades(ano, mes, limite=15, ano_fim=None, mes_fim=None):
     rows = _fetch_periodo(ano, mes, ano_fim or ano, mes_fim or mes,
-                           campos=['unidade', 'municipio', 'total_mc_ac_incentivos'])
+                           campos=['unidade', 'municipio', 'drs', 'total_mc_ac_incentivos'])
     acc = {}
     for row in rows:
+        if int(row.get('drs') or 0) == 99:  # Reserva de Recurso — fora do Dashboard
+            continue
         un = row.get('unidade') or ''
         if un not in acc:
             acc[un] = {'unidade': un, 'municipio': row.get('municipio'), 'total': 0.0}
@@ -977,9 +1002,11 @@ def grafico_por_tipo(ano, mes, ano_fim=None, mes_fim=None):
         return t.title() if t else 'Outros'
 
     rows = _fetch_periodo(ano, mes, ano_fim or ano, mes_fim or mes,
-                           campos=['tipo', 'total_mc_ac_incentivos'])
+                           campos=['tipo', 'drs', 'total_mc_ac_incentivos'])
     acc = {}
     for row in rows:
+        if int(row.get('drs') or 0) == 99:  # Reserva de Recurso — fora do Dashboard
+            continue
         tipo = _agrupar(row.get('tipo'))
         if tipo not in acc:
             acc[tipo] = {'tipo': tipo, 'total': 0.0, 'unidades': 0}
@@ -1497,7 +1524,7 @@ def estatisticas_gerais():
                 COUNT(DISTINCT CAST(drs AS INTEGER)) as total_drs,
                 MIN(ano) as ano_min, MAX(ano) as ano_max,
                 COUNT(DISTINCT ano * 100 + mes) as total_competencias
-            FROM teto_mac
+            FROM teto_mac WHERE (drs IS NULL OR CAST(drs AS INTEGER) <> 99)
         """).fetchone()
         conn.close()
         return dict(stats) if stats else {}
@@ -1607,7 +1634,7 @@ def dashboard_kpis_geral():
                 COALESCE(SUM(integrasus+iac+sus_100+opo+rede_viver_sem_limite+rsme+
                     rce_rceg+rau_hosp_sos+rca_rcan+iapi+residencia_medica+
                     melhor_em_casa+cer+doencas_raras+oficina_ortopedica+ihac),0) as total_incentivos
-            FROM teto_mac
+            FROM teto_mac WHERE (drs IS NULL OR CAST(drs AS INTEGER) <> 99)
         """).fetchone()
         conn.close()
         return dict(row) if row else {}
@@ -1921,7 +1948,7 @@ _SORT_ALLOW = {
 
 def detalhamento_registros(ano, mes, drs=None, tipo=None, busca=None, page=1, per_page=50,
                            sort_col='drs', sort_dir='asc', col_filters=None):
-    where = ['ano = ?', 'mes = ?']
+    where = ['ano = ?', 'mes = ?', '(drs IS NULL OR CAST(drs AS INTEGER) <> 99)']
     params = [ano, mes]
     if drs:
         where.append('CAST(drs AS INTEGER) = ?')
@@ -1969,8 +1996,8 @@ def detalhamento_registros(ano, mes, drs=None, tipo=None, busca=None, page=1, pe
 
     if USE_SUPABASE:
         sb = get_sb()
-        q  = sb.table('teto_mac').select('*').eq('ano', ano).eq('mes', mes)
-        tc = sb.table('teto_mac').select('id', count='exact').eq('ano', ano).eq('mes', mes)
+        q  = sb.table('teto_mac').select('*').eq('ano', ano).eq('mes', mes).or_('drs.is.null,drs.neq.99')
+        tc = sb.table('teto_mac').select('id', count='exact').eq('ano', ano).eq('mes', mes).or_('drs.is.null,drs.neq.99')
         if drs:
             q  = q.eq('drs', drs)
             tc = tc.eq('drs', drs)
