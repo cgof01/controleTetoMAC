@@ -1185,6 +1185,11 @@ def kpis_central(ano, mes, ano_fim=None, mes_fim=None):
 
 
 def _aplicar_filtros_analitico(q, filtros):
+    # DRS 99 (Reserva de Recurso) só entra na Central de Relatórios quando o
+    # usuário marca explicitamente "Incluir Reserva de Recurso" — por padrão
+    # fica de fora, igual às demais telas.
+    if not (filtros or {}).get('incluir_reserva'):
+        q = q.or_('drs.is.null,drs.neq.99')
     for k, v in (filtros or {}).items():
         if k not in _DIMS_ALLOW or not v:
             continue
@@ -1257,6 +1262,8 @@ def consulta_analitica(ano, mes, dimensoes=None, metricas=None, filtros=None, or
         conn = get_db()
         where  = ['(ano * 100 + mes) BETWEEN ? AND ?']
         params = [ini, fim]
+        if not filtros.get('incluir_reserva'):
+            where.append('(drs IS NULL OR CAST(drs AS INTEGER) <> 99)')
         for k, v in filtros.items():
             if k not in _DIMS_ALLOW or not v:
                 continue
@@ -1295,6 +1302,8 @@ def consulta_analitica(ano, mes, dimensoes=None, metricas=None, filtros=None, or
         conn = get_db()
         where  = ['(ano * 100 + mes) BETWEEN ? AND ?']
         params = [ini, fim]
+        if not filtros.get('incluir_reserva'):
+            where.append('(drs IS NULL OR CAST(drs AS INTEGER) <> 99)')
         for k, v in filtros.items():
             if k not in _DIMS_ALLOW or not v:
                 continue

@@ -268,8 +268,13 @@
       <select id="fDRS" class="sb-select" onchange="loadData()">
         <option value="">Todos os DRS</option>
         {% for d in range(1,18) %}<option value="{{ d }}">DRS {{ d }}</option>{% endfor %}
-        <option value="99">99 — Reserva de Recurso</option>
       </select>
+      <div class="form-check mt-1">
+        <input type="checkbox" class="form-check-input" id="fReserva" onchange="loadData()">
+        <label class="form-check-label" for="fReserva" style="font-size:.8rem">
+          Incluir Reserva de Recurso
+        </label>
+      </div>
       <select id="fTipo" class="sb-select" onchange="loadData()">
         <option value="">Todos os Tipos</option>
         <option>PRIVADOS</option><option>PRÓPRIOS</option><option>FIXO</option><option>PRODUÇÃO</option>
@@ -555,6 +560,8 @@ function limpar() {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
+  const fReserva = document.getElementById('fReserva');
+  if (fReserva) fReserva.checked = false;
   const lim = document.getElementById('sbLimite');
   if (lim) lim.value = '500';
   renderSb();
@@ -612,10 +619,12 @@ async function loadData() {
   const hu   = document.getElementById('fHU')?.value;
   const mun  = document.getElementById('fMun')?.value?.trim();
   const busca= document.getElementById('fBusca')?.value?.trim();
+  const reserva = document.getElementById('fReserva')?.checked;
   if(drs)  filtros.drs   = drs;
   if(tipo) filtros.tipo  = tipo;
   if(hu)   filtros.hu    = hu;
   if(mun)  filtros.municipio = mun;
+  if(reserva) filtros.incluir_reserva = '1';
 
   // Drill stack extras
   for(const drillItem of STATE.drill_stack) {
