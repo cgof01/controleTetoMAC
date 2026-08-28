@@ -1621,17 +1621,19 @@ def atualizar_senha(id, senha_hash):
 def dashboard_kpis_geral():
     """KPIs consolidados de todos os períodos."""
     if USE_SUPABASE:
-        ev = grafico_evolucao_mensal()
         stats = estatisticas_gerais()
-        total_geral = sum(d.get('total', 0) or 0 for d in ev)
-        return {
-            'total_geral': total_geral,
-            'total_unidades': stats.get('total_unidades', 0),
-            'total_teto_mac': 0,
-            'total_incentivos': 0,
-            'total_aih': 0,
-            'total_sia': 0,
-        }
+        try:
+            r = get_sb().rpc('get_kpis_geral', {}).execute()
+            kpis = r.data if isinstance(r.data, dict) else {}
+        except Exception:
+            # get_kpis_geral() ainda não existe no banco (migration_kpis_geral.sql
+            # não rodada) — cai no total_geral já calculável sem a função nova.
+            ev = grafico_evolucao_mensal()
+            total_geral = sum(d.get('total', 0) or 0 for d in ev)
+            kpis = {'total_geral': total_geral, 'total_teto_mac': 0,
+                    'total_incentivos': 0, 'total_aih': 0, 'total_sia': 0}
+        kpis['total_unidades'] = stats.get('total_unidades', 0)
+        return kpis
     else:
         conn = get_db()
         row = conn.execute("""
