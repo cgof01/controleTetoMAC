@@ -194,6 +194,10 @@ def _montar_registro(row_vals, mapa, ano, mes, nome_arquivo):
     unidade_val = row_vals[mapa['unidade']] if 'unidade' in mapa and mapa['unidade'] < len(row_vals) else ''
     if str(drs_val).strip() == '' and str(unidade_val).strip() == '':
         return None
+    # Linha de rodapé de soma da planilha (ex.: "TOTAL", "TOTAL GERAL") — não é
+    # um registro de unidade e não deve ser gravada nem somada ao total do sistema.
+    if 'TOTAL' in str(drs_val).strip().upper() or 'TOTAL' in str(unidade_val).strip().upper():
+        return None
 
     def get_col(campo):
         return row_vals[mapa[campo]] if campo in mapa and mapa[campo] < len(row_vals) else 0

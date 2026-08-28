@@ -994,7 +994,7 @@ def importar():
                       'success' if total_err == 0 else 'warning')
                 return render_template('importar.html',
                     resultados=resultados,
-                    anos_disponiveis=list(range(2021, 2028)),
+                    anos_disponiveis=_anos_disponiveis(),
                     meses=MESES,
                     historico_imp=_obter_historico_importacoes(),
                     logs_recentes=_obter_logs_recentes()
@@ -1017,7 +1017,7 @@ def importar():
                     flash(f'Arquivo "{arquivo.filename}": {res["importados"]} novos, {res.get("atualizados", 0)} atualizados de {res["total"]} ({res["erros"]} erros)', 'success' if res['erros'] == 0 else 'warning')
                     return render_template('importar.html',
                         resultados=[res],
-                        anos_disponiveis=list(range(2022, 2027)),
+                        anos_disponiveis=_anos_disponiveis(),
                         meses=MESES,
                         historico_imp=_obter_historico_importacoes(),
                         logs_recentes=_obter_logs_recentes()
@@ -1028,7 +1028,7 @@ def importar():
     historico_imp = _obter_historico_importacoes()
     return render_template('importar.html',
         resultados=None,
-        anos_disponiveis=list(range(2022, 2027)),
+        anos_disponiveis=_anos_disponiveis(),
         meses=MESES,
         historico_imp=historico_imp,
         logs_recentes=_obter_logs_recentes()
