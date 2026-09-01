@@ -395,8 +395,10 @@ const FIELD_LABELS = {
   ihac:'IHAC', rede_alyne:'Rede Alyne', pncp:'PNCP - Cuidados Paliativos',
   rce_rceg_custeio:'RCE/RCEG - Custeio UTI', rau_hosp_sos_custeio:'RAU/Hosp. SOS - Custeio UTI',
   rca_rcan_custeio:'RCA/RCAN - Custeio',
+  total_mc_ac:'Total MC+AC',
   total_mc_ac_incentivos:'Total MC+AC+Incentivos',
-  _count:'Registros'
+  _count:'Registros',
+  _row_total:'Total'
 };
 
 const DIMS = ['drs','municipio','unidade','cnes','cnpj','tipo','hu','ano','mes'];
@@ -406,7 +408,7 @@ const METS_INC  = ['integrasus','iac','sus_100','opo','rede_viver_sem_limite','r
                    'rsme','rce_rceg','rau_hosp_sos','rca_rcan','iapi','residencia_medica',
                    'melhor_em_casa','cer','doencas_raras','oficina_ortopedica','ihac',
                    'rede_alyne','pncp','rce_rceg_custeio','rau_hosp_sos_custeio','rca_rcan_custeio'];
-const METS_TOT  = ['teto_global','teto_mc','teto_ac','teto_mac','total_teto_mac','portaria_ms_gm_8516','total_mc_ac_incentivos'];
+const METS_TOT  = ['teto_global','teto_mc','teto_ac','teto_mac','total_teto_mac','portaria_ms_gm_8516','total_mc_ac','total_mc_ac_incentivos'];
 
 const CORES = ['#1e3a5f','#2a7dd8','#1a7a4a','#e07b00','#dc3545','#6f42c1',
                '#17a2b8','#fd7e14','#20c997','#6610f2','#e83e8c','#0dcaf0',
@@ -660,6 +662,10 @@ async function loadData() {
     _data = [];
   }
 
+  _data.forEach(row => {
+    row._row_total = STATE.metricas.reduce((s,m) => s + (Number(row[m])||0), 0);
+  });
+
   const displayDims = dimsFilt;
   renderTable(_data, displayDims, STATE.metricas);
   renderChart(_data, displayDims);
@@ -687,7 +693,7 @@ function renderTable(data, dims, mets) {
     });
   }
 
-  const allCols = [...dims, ...mets, ...(_data[0]?._count!==undefined?['_count']:[])];
+  const allCols = [...dims, ...mets, ...(_data[0]?._count!==undefined?['_count']:[]), '_row_total'];
   const isDim   = c => dims.includes(c);
   const drillable = (dim, i) => {
     const hierarchy = ['drs','municipio','unidade','cnes'];
@@ -699,6 +705,7 @@ function renderTable(data, dims, mets) {
   const totals = {};
   mets.forEach(m => { totals[m] = data.reduce((s,r)=>s+(r[m]||0),0); });
   if('_count' in (data[0]||{})) totals._count = data.reduce((s,r)=>s+(r._count||0),0);
+  totals._row_total = data.reduce((s,r)=>s+(r._row_total||0),0);
 
   const sortArrow = col => {
     if(_sortCol !== col) return `<span class="sort-arrow">↕</span>`;
@@ -950,7 +957,7 @@ async function loadDDLevel() {
   let html = `<div style="padding:8px 14px;font-size:.78rem;color:#64748b">
     <strong>${FIELD_LABELS[nextDim]||nextDim}</strong> — ${data.length} registros
     <select style="float:right;font-size:.75rem;padding:1px 4px;border:1px solid #ddd;border-radius:4px" onchange="_ddMet=this.value;loadDDLevel()">
-      ${[...METS_MAC,...METS_INC,['total_mc_ac_incentivos']].flat().map(m=>
+      ${[...METS_MAC,...METS_INC,['total_mc_ac','total_mc_ac_incentivos']].flat().map(m=>
         `<option value="${m}" ${_ddMet===m?'selected':''}>${FIELD_LABELS[m]||m}</option>`
       ).join('')}
     </select>
@@ -1069,7 +1076,7 @@ function getExportData() {
   const dims = STATE.dimensoes.filter(d=>!STATE.drill_stack.some(s=>s.dim===d));
   const mets = STATE.metricas;
   const temContagem = _data.length && _data[0]._count !== undefined;
-  const cols = [...dims, ...mets, ...(temContagem ? ['_count'] : [])];
+  const cols = [...dims, ...mets, ...(temContagem ? ['_count'] : []), '_row_total'];
   let data = _data;
   if (_sortCol) {
     data = [...data].sort((a, b) => {

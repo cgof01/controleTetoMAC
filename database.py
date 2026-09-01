@@ -1139,11 +1139,19 @@ _METS_NATIVAS = {
     'rau_hosp_sos', 'rca_rcan', 'iapi', 'residencia_medica', 'melhor_em_casa',
     'cer', 'doencas_raras', 'oficina_ortopedica', 'ihac', 'total_mc_ac_incentivos'
 }
-_METS_ALLOW = _METS_NATIVAS | _METS_EXTRAS
+# Métricas calculadas na hora a partir de outras colunas nativas (não têm
+# coluna própria em teto_mac) — ex.: Total MC+AC sem incentivos.
+_METS_VIRTUAL = {
+    'total_mc_ac': ['aih_mc', 'aih_ac', 'sia_mc', 'sia_ac'],
+}
+_METS_ALLOW = _METS_NATIVAS | _METS_EXTRAS | set(_METS_VIRTUAL)
 
 def _valor_metrica(row, m):
     """Lê o valor de uma métrica de uma linha, indo buscar dentro de
-    campos_extras quando a métrica não é uma coluna nativa."""
+    campos_extras quando a métrica não é uma coluna nativa, ou somando as
+    colunas componentes quando é uma métrica virtual (calculada)."""
+    if m in _METS_VIRTUAL:
+        return sum(row.get(p) or 0 for p in _METS_VIRTUAL[m])
     if m in _METS_EXTRAS:
         return (row.get('campos_extras') or {}).get(m) or 0
     return row.get(m) or 0
@@ -1225,7 +1233,9 @@ def consulta_analitica(ano, mes, dimensoes=None, metricas=None, filtros=None, or
     if USE_SUPABASE:
         sb = get_sb()
         col_set = list(dict.fromkeys(
-            ['ano', 'mes'] + dimensoes + [m for m in metricas if m not in _METS_EXTRAS]
+            ['ano', 'mes'] + dimensoes
+            + [m for m in metricas if m not in _METS_EXTRAS and m not in _METS_VIRTUAL]
+            + [p for m in metricas if m in _METS_VIRTUAL for p in _METS_VIRTUAL[m]]
             + (['campos_extras'] if tem_extras else [])
         ))
         cols = ','.join(col_set)
@@ -1279,7 +1289,12 @@ def consulta_analitica(ano, mes, dimensoes=None, metricas=None, filtros=None, or
                 except (ValueError, TypeError):
                     where.append(f'LOWER({k}) LIKE ?')
                     params.append(f'%{v.lower()}%')
-        col_set = list(dict.fromkeys(dimensoes + [m for m in metricas if m not in _METS_EXTRAS] + ['campos_extras']))
+        col_set = list(dict.fromkeys(
+            dimensoes
+            + [m for m in metricas if m not in _METS_EXTRAS and m not in _METS_VIRTUAL]
+            + [p for m in metricas if m in _METS_VIRTUAL for p in _METS_VIRTUAL[m]]
+            + ['campos_extras']
+        ))
         sql = f"SELECT {', '.join(col_set)} FROM teto_mac WHERE {' AND '.join(where)}"
         rows = conn.execute(sql, params).fetchall()
         conn.close()
@@ -1319,7 +1334,12 @@ def consulta_analitica(ano, mes, dimensoes=None, metricas=None, filtros=None, or
                 except (ValueError, TypeError):
                     where.append(f'LOWER({k}) LIKE ?')
                     params.append(f'%{v.lower()}%')
-        sel_mets = ', '.join(f'SUM(COALESCE({m},0)) as {m}' for m in metricas) + ', COUNT(*) as _count'
+        def _sel_met(m):
+            if m in _METS_VIRTUAL:
+                expr = '+'.join(f'COALESCE({p},0)' for p in _METS_VIRTUAL[m])
+                return f'SUM({expr}) as {m}'
+            return f'SUM(COALESCE({m},0)) as {m}'
+        sel_mets = ', '.join(_sel_met(m) for m in metricas) + ', COUNT(*) as _count'
         if dimensoes:
             g = ', '.join(dimensoes)
             sql = f"SELECT {g}, {sel_mets} FROM teto_mac WHERE {' AND '.join(where)} GROUP BY {g}"
