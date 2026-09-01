@@ -381,8 +381,8 @@ const FIELD_LABELS = {
   cnpj:'CNPJ', tipo:'Tipo', hu:'HU', ano:'Ano', mes:'Mês',
   aih_fisico:'AIH Físico', aih_faec:'AIH FAEC', sia_faec:'SIA FAEC',
   equip_hemodialise:'Equip. Hemodiálise', limite_complementacao:'Lim. Complementação',
-  aih_mc:'AIH MC', aih_ac:'AIH AC', aih_total:'AIH Total',
-  sia_mc:'SIA MC', sia_ac:'SIA AC', sia_total:'SIA Total',
+  aih_mc:'AIH MC', aih_ac:'AIH AC',
+  sia_mc:'SIA MC', sia_ac:'SIA AC',
   teto_global:'Teto Global', teto_mc:'Teto MC', teto_ac:'Teto AC',
   teto_mac:'Teto MAC', total_teto_mac:'Total Teto MAC',
   portaria_ms_gm_8516:'Portaria 8516',
@@ -401,9 +401,17 @@ const FIELD_LABELS = {
   _row_total:'Total'
 };
 
+// Garante que toda coluna (na tela, no CSV e no Excel) sempre tenha um nome
+// legível no cabeçalho — mesmo que um campo novo seja adicionado a DIMS/METS_*
+// e algum dia fique sem entrada em FIELD_LABELS, nunca mostra a chave crua.
+function labelFor(key) {
+  if (FIELD_LABELS[key]) return FIELD_LABELS[key];
+  return String(key).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
 const DIMS = ['drs','municipio','unidade','cnes','cnpj','tipo','hu','ano','mes'];
 const METS_FAEC = ['aih_fisico','aih_faec','sia_faec','equip_hemodialise','limite_complementacao'];
-const METS_MAC  = ['aih_mc','aih_ac','aih_total','sia_mc','sia_ac','sia_total'];
+const METS_MAC  = ['aih_mc','aih_ac','sia_mc','sia_ac'];
 const METS_INC  = ['integrasus','iac','sus_100','opo','rede_viver_sem_limite','rede_brasil_miseria',
                    'rsme','rce_rceg','rau_hosp_sos','rca_rcan','iapi','residencia_medica',
                    'melhor_em_casa','cer','doencas_raras','oficina_ortopedica','ihac',
@@ -495,7 +503,7 @@ function renderSb() {
   document.getElementById('sbDims').innerHTML = DIMS.map(d =>
     `<label class="sb-row">
        <input type="checkbox" id="dim_${d}" value="${d}" onchange="onDimChange()" ${STATE.dimensoes.includes(d)?'checked':''}>
-       <span>${FIELD_LABELS[d]}</span>
+       <span>${labelFor(d)}</span>
      </label>`
   ).join('');
 
@@ -504,7 +512,7 @@ function renderSb() {
     document.getElementById(id).innerHTML = list.map(m =>
       `<label class="sb-row">
          <input type="checkbox" id="met_${m}" value="${m}" onchange="onMetChange()" ${STATE.metricas.includes(m)?'checked':''}>
-         <span>${FIELD_LABELS[m]}</span>
+         <span>${labelFor(m)}</span>
        </label>`
     ).join('');
   });
@@ -714,7 +722,7 @@ function renderTable(data, dims, mets) {
 
   let html = `<table class="rel-table"><thead><tr>
     <th style="width:40px">#</th>
-    ${allCols.map(c=>`<th class="${isDim(c)?'':'num'}" onclick="sortBy('${c}')">${FIELD_LABELS[c]||c} ${sortArrow(c)}</th>`).join('')}
+    ${allCols.map(c=>`<th class="${isDim(c)?'':'num'}" onclick="sortBy('${c}')">${labelFor(c)} ${sortArrow(c)}</th>`).join('')}
   </tr></thead><tbody>`;
 
   data.forEach((row, i) => {
@@ -789,7 +797,7 @@ function renderChart(data, dims) {
   if(dims.length === 0) {
     // No dimension: show each metric as a bar (summary)
     const row = data[0] || {};
-    labels = mets.map(m => FIELD_LABELS[m]||m);
+    labels = mets.map(m => labelFor(m));
     datasets = [{
       label:'Total', data: mets.map(m=>row[m]||0),
       backgroundColor: CORES.map(c=>c+'cc'), borderColor:CORES,
@@ -804,7 +812,7 @@ function renderChart(data, dims) {
 
     if(mets.length === 1) {
       datasets = [{
-        label: FIELD_LABELS[mets[0]]||mets[0],
+        label: labelFor(mets[0]),
         data: dataSlice.map(row=>row[mets[0]]||0),
         backgroundColor: CORES.map(c=>c+'cc'), borderColor:CORES,
         borderWidth:1.5, borderRadius:4,
@@ -814,7 +822,7 @@ function renderChart(data, dims) {
       }];
     } else {
       datasets = mets.map((m,i)=>({
-        label: FIELD_LABELS[m]||m,
+        label: labelFor(m),
         data: dataSlice.map(row=>row[m]||0),
         backgroundColor: CORES[i%CORES.length]+'cc',
         borderColor: CORES[i%CORES.length],
@@ -885,7 +893,7 @@ function updateDrillBar() {
   STATE.drill_stack.forEach((s,i) => {
     html += `<span class="crumb-sep">›</span>
       <span class="crumb-item ${i===STATE.drill_stack.length-1?'active':''}"
-        onclick="drillBack(${i})">${FIELD_LABELS[s.dim]||s.dim}: ${s.val}</span>`;
+        onclick="drillBack(${i})">${labelFor(s.dim)}: ${s.val}</span>`;
   });
   bar.innerHTML = html;
   bar.style.display = 'flex';
@@ -917,7 +925,7 @@ function renderDDCrumb() {
   _ddStack.forEach((s,i) => {
     html += `<span class="crumb-sep">›</span>
       <span class="crumb-item ${i===_ddStack.length-1?'active':''}" onclick="ddGoTo(${i})">
-        ${FIELD_LABELS[s.dim]||s.dim}: ${s.val}
+        ${labelFor(s.dim)}: ${s.val}
       </span>`;
   });
   crumb.innerHTML = html;
@@ -955,16 +963,16 @@ async function loadDDLevel() {
   const canDrill = level < DRILL_HIER.length - 1;
 
   let html = `<div style="padding:8px 14px;font-size:.78rem;color:#64748b">
-    <strong>${FIELD_LABELS[nextDim]||nextDim}</strong> — ${data.length} registros
+    <strong>${labelFor(nextDim)}</strong> — ${data.length} registros
     <select style="float:right;font-size:.75rem;padding:1px 4px;border:1px solid #ddd;border-radius:4px" onchange="_ddMet=this.value;loadDDLevel()">
       ${[...METS_MAC,...METS_INC,['total_mc_ac','total_mc_ac_incentivos']].flat().map(m=>
-        `<option value="${m}" ${_ddMet===m?'selected':''}>${FIELD_LABELS[m]||m}</option>`
+        `<option value="${m}" ${_ddMet===m?'selected':''}>${labelFor(m)}</option>`
       ).join('')}
     </select>
   </div>
   <table class="rel-table"><thead><tr>
-    <th>${FIELD_LABELS[nextDim]||nextDim}</th>
-    <th class="num">${FIELD_LABELS[_ddMet]||_ddMet}</th>
+    <th>${labelFor(nextDim)}</th>
+    <th class="num">${labelFor(_ddMet)}</th>
     <th class="num">%</th>
     ${canDrill?'<th></th>':''}
   </tr></thead><tbody>`;
@@ -1093,7 +1101,7 @@ function getExportData() {
 function exportCSV() {
   if(!_data.length) { alert('Nenhum dado para exportar. Gere um relatório primeiro.'); return; }
   const { cols, data } = getExportData();
-  const hdr = cols.map(c=>FIELD_LABELS[c]||c);
+  const hdr = cols.map(c=>labelFor(c));
   const rows = data.map(row=>cols.map(c=>{
     const v=row[c];
     if(v==null) return '';
@@ -1114,7 +1122,7 @@ async function exportExcel() {
   const payload = {
     ano, mes, ano_fim, mes_fim,
     titulo: 'Central de Relatórios',
-    colunas: cols.map(c => ({ key: c, label: FIELD_LABELS[c] || c, dimensao: dims.includes(c) })),
+    colunas: cols.map(c => ({ key: c, label: labelFor(c), dimensao: dims.includes(c) })),
     linhas: data,
   };
   try {

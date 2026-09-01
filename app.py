@@ -907,7 +907,11 @@ def exportar_analitico_excel():
         key = c.get('key', '')
         is_dim = bool(c.get('dimensao')) or key == '_count'
         cor_fundo, cor_fonte = _COR_HEADER_PADRAO if is_dim else _cores_header_campo(key)
-        cell = ws.cell(row=2, column=col, value=c.get('label', key))
+        # Garante que todo cabeçalho tenha um nome legível — mesmo que o
+        # front-end não mande 'label' (ou mande vazio), nunca cai na chave
+        # crua (ex.: "total_mc_ac") sem formatação.
+        label = c.get('label') or key.replace('_', ' ').strip().title() or key
+        cell = ws.cell(row=2, column=col, value=label)
         cell.font = Font(bold=True, color=cor_fonte, size=11)
         cell.fill = PatternFill("solid", fgColor=cor_fundo)
         cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
