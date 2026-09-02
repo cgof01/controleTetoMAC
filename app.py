@@ -49,6 +49,68 @@ def zona_risco_required(f):
         return f(*args, **kwargs)
     return decorated
 
+# Acessos por seção — controla, para usuários de perfil 'usuario', quais
+# itens do menu lateral (e as rotas por trás deles) ficam disponíveis.
+# Perfil 'admin' sempre tem acesso total e ignora este controle.
+ACESSOS_MENU = [
+    ('dashboard', 'Dashboard'),
+    ('pesquisa', 'Consultar / Editar'),
+    ('inserir', 'Nova Competência'),
+    ('graficos', 'Gráficos'),
+    ('central_analitica', 'Central de Relatórios'),
+    ('detalhamento', 'Detalhamento'),
+]
+
+# Rotas que pertencem a cada seção acima — endpoint do Flask -> chave do grupo.
+# Endpoints fora deste mapa (login, alterar-senha, usuarios/*, admin/* etc.)
+# não são afetados: continuam cobertos só por login_required/admin_required.
+_GRUPOS_ACESSO = {
+    'dashboard': 'dashboard',
+    'pesquisa': 'pesquisa', 'autocomplete': 'pesquisa', 'editar': 'pesquisa',
+    'detalhe': 'pesquisa', 'deletar': 'pesquisa',
+    'ajuste_registrar': 'pesquisa', 'ajuste_remover': 'pesquisa', 'ajuste_editar': 'pesquisa',
+    'api_portarias': 'pesquisa', 'portaria_upload': 'pesquisa', 'portaria_ver': 'pesquisa',
+    'portaria_validar': 'pesquisa', 'portaria_deletar': 'pesquisa',
+    'inserir': 'inserir', 'replicar_competencia': 'inserir',
+    'graficos': 'graficos', 'api_evolucao': 'graficos', 'api_drs': 'graficos',
+    'api_tipo': 'graficos', 'api_top_unidades': 'graficos', 'api_kpis': 'graficos',
+    'central_analitica': 'central_analitica', 'api_kpis_central': 'central_analitica',
+    'api_analitico': 'central_analitica', 'api_relatorio_unidade': 'central_analitica',
+    'api_relatorio_municipio': 'central_analitica', 'api_relatorio_fundo': 'central_analitica',
+    'api_relatorio_incentivos': 'central_analitica', 'exportar_analitico_excel': 'central_analitica',
+    'detalhamento': 'detalhamento', 'api_detalhamento_registros': 'detalhamento',
+    'api_detalhamento_valores_unicos': 'detalhamento', 'detalhamento_exportar': 'detalhamento',
+}
+
+def _acessos_para_lista(acessos_raw):
+    """None (coluna NULL) = sem restrição, acesso a todas as seções.
+    String vazia = todas as seções foram removidas (lista vazia = nenhum
+    acesso). Caso contrário, lista das chaves liberadas."""
+    if acessos_raw is None:
+        return None
+    return [a.strip() for a in acessos_raw.split(',') if a.strip()]
+
+def _pode_acessar(grupo, perfil=None, acessos=None):
+    perfil = session.get('usuario_perfil') if perfil is None else perfil
+    if perfil == 'admin':
+        return True
+    if acessos is None:
+        acessos = session.get('usuario_acessos')
+    return acessos is None or grupo in acessos
+
+def _primeira_pagina_permitida():
+    acessos = session.get('usuario_acessos')
+    if acessos is None:
+        return url_for('dashboard')
+    for grupo, _ in ACESSOS_MENU:
+        if grupo in acessos:
+            return url_for(grupo)
+    return url_for('alterar_senha')
+
+@app.context_processor
+def _inject_acessos():
+    return dict(pode_acessar=_pode_acessar)
+
 BASE_TETOS = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'TETOS'))
 
 def _anos_disponiveis():
@@ -104,6 +166,17 @@ def favicon():
 def setup():
     db.init_db()
 
+@app.before_request
+def checar_acesso():
+    if not session.get('usuario_id') or session.get('usuario_perfil') == 'admin':
+        return
+    grupo = _GRUPOS_ACESSO.get(request.endpoint)
+    if grupo is None:
+        return
+    if not _pode_acessar(grupo):
+        flash('Você não tem acesso a esta seção. Solicite ao administrador.', 'danger')
+        return redirect(_primeira_pagina_permitida())
+
 # ── Autenticação ──────────────────────────────────────────────────────────────
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -123,8 +196,9 @@ def login():
             session['usuario_nome'] = usuario['nome']
             session['usuario_email'] = usuario['email']
             session['usuario_perfil'] = usuario['perfil']
+            session['usuario_acessos'] = _acessos_para_lista(usuario.get('acessos'))
             db.registrar_acesso(usuario['id'])
-            return redirect(url_for('dashboard'))
+            return redirect(_primeira_pagina_permitida())
         flash('Email ou senha incorretos.', 'danger')
         return render_template('login.html', email=email)
     return render_template('login.html')
@@ -153,16 +227,32 @@ def alterar_senha():
         else:
             db.atualizar_senha(session['usuario_id'], generate_password_hash(nova))
             flash('Senha alterada com sucesso!', 'success')
-            return redirect(url_for('dashboard'))
+            return redirect(_primeira_pagina_permitida())
     return render_template('alterar_senha.html')
 
 # ── Gerenciamento de Usuários (admin) ─────────────────────────────────────────
+
+def _acessos_do_form():
+    """Lê os checkboxes 'acessos' do form. Todos marcados equivale a sem
+    restrição (None); senão grava a lista marcada — que pode ser vazia,
+    se o admin desmarcou todas as seções (usuário fica sem nenhum acesso
+    além de alterar senha/sair)."""
+    marcados = request.form.getlist('acessos')
+    todas = [k for k, _ in ACESSOS_MENU]
+    if set(marcados) >= set(todas):
+        return None
+    return ','.join(k for k in todas if k in marcados)
 
 @app.route('/usuarios')
 @admin_required
 def usuarios():
     lista = db.listar_usuarios()
-    return render_template('usuarios.html', usuarios=lista)
+    labels = dict(ACESSOS_MENU)
+    for u in lista:
+        acessos_lista = _acessos_para_lista(u.get('acessos'))
+        u['_acessos_lista'] = acessos_lista
+        u['_acessos_labels'] = ', '.join(labels[k] for k in acessos_lista if k in labels) if acessos_lista is not None else None
+    return render_template('usuarios.html', usuarios=lista, acessos_menu=ACESSOS_MENU)
 
 @app.route('/usuarios/criar', methods=['POST'])
 @admin_required
@@ -171,11 +261,12 @@ def criar_usuario():
     email = request.form.get('email', '').strip()
     senha = request.form.get('senha', '')
     perfil = request.form.get('perfil', 'usuario')
+    acessos = _acessos_do_form() if perfil != 'admin' else None
     if not nome or not email or not senha:
         flash('Preencha todos os campos.', 'danger')
     else:
         try:
-            db.criar_usuario(nome, email, generate_password_hash(senha), perfil)
+            db.criar_usuario(nome, email, generate_password_hash(senha), perfil, acessos)
             flash(f'Usuário {nome} criado com sucesso!', 'success')
         except Exception as e:
             flash(f'Erro ao criar usuário: {e}', 'danger')
@@ -189,8 +280,12 @@ def editar_usuario():
     email = request.form.get('email', '').strip()
     perfil = request.form.get('perfil', 'usuario')
     ativo = request.form.get('ativo', '1') == '1'
+    acessos = _acessos_do_form() if perfil != 'admin' else None
     try:
-        db.editar_usuario_db(uid, nome, email, perfil, ativo)
+        db.editar_usuario_db(uid, nome, email, perfil, ativo, acessos)
+        if uid == session.get('usuario_id'):
+            session['usuario_perfil'] = perfil
+            session['usuario_acessos'] = _acessos_para_lista(acessos)
         flash('Usuário atualizado com sucesso!', 'success')
     except Exception as e:
         flash(f'Erro ao atualizar: {e}', 'danger')

@@ -1590,32 +1590,33 @@ def listar_usuarios():
         conn.close()
         return [dict(r) for r in rows]
 
-def criar_usuario(nome, email, senha_hash, perfil='usuario'):
-    dados = {'nome': nome, 'email': email.lower(), 'senha_hash': senha_hash, 'perfil': perfil, 'ativo': True}
+def criar_usuario(nome, email, senha_hash, perfil='usuario', acessos=None):
+    dados = {'nome': nome, 'email': email.lower(), 'senha_hash': senha_hash, 'perfil': perfil,
+             'ativo': True, 'acessos': acessos}
     if USE_SUPABASE:
         r = get_sb().table('usuarios').insert(dados).execute()
         return r.data[0]['id'] if r.data else None
     else:
         conn = get_db()
         cur = conn.execute(
-            "INSERT INTO usuarios (nome, email, senha_hash, perfil, ativo) VALUES (?,?,?,?,1)",
-            (nome, email.lower(), senha_hash, perfil)
+            "INSERT INTO usuarios (nome, email, senha_hash, perfil, ativo, acessos) VALUES (?,?,?,?,1,?)",
+            (nome, email.lower(), senha_hash, perfil, acessos)
         )
         conn.commit()
         uid = cur.lastrowid
         conn.close()
         return uid
 
-def editar_usuario_db(id, nome, email, perfil, ativo):
+def editar_usuario_db(id, nome, email, perfil, ativo, acessos=None):
     if USE_SUPABASE:
         get_sb().table('usuarios').update({
-            'nome': nome, 'email': email.lower(), 'perfil': perfil, 'ativo': bool(ativo)
+            'nome': nome, 'email': email.lower(), 'perfil': perfil, 'ativo': bool(ativo), 'acessos': acessos
         }).eq('id', id).execute()
     else:
         conn = get_db()
         conn.execute(
-            "UPDATE usuarios SET nome=?, email=?, perfil=?, ativo=? WHERE id=?",
-            (nome, email.lower(), perfil, int(ativo), id)
+            "UPDATE usuarios SET nome=?, email=?, perfil=?, ativo=?, acessos=? WHERE id=?",
+            (nome, email.lower(), perfil, int(ativo), acessos, id)
         )
         conn.commit()
         conn.close()
@@ -2229,7 +2230,8 @@ def _init_sqlite():
             ativo INTEGER DEFAULT 1,
             criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             atualizado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            ultimo_acesso TIMESTAMP
+            ultimo_acesso TIMESTAMP,
+            acessos TEXT
         );
         CREATE TABLE IF NOT EXISTS secao_config (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -2295,6 +2297,7 @@ def _init_sqlite():
         "ALTER TABLE teto_mac ADD COLUMN snapshot_replicacao TEXT",
         "ALTER TABLE teto_mac ADD COLUMN origem_replicacao_ano INTEGER",
         "ALTER TABLE teto_mac ADD COLUMN origem_replicacao_mes INTEGER",
+        "ALTER TABLE usuarios ADD COLUMN acessos TEXT",
     ):
         try:
             conn.execute(alter_sql)

@@ -228,35 +228,47 @@
 
       <div class="sidebar-heading">Principal</div>
       <nav class="nav flex-column">
+        {% if pode_acessar('dashboard') %}
         <a class="nav-link {{ 'active' if request.endpoint == 'dashboard' }}"
            href="{{ url_for('dashboard') }}" data-tip="Dashboard">
           <i class="bi bi-speedometer2"></i><span class="nav-label">Dashboard</span>
         </a>
+        {% endif %}
+        {% if pode_acessar('pesquisa') %}
         <a class="nav-link {{ 'active' if request.endpoint == 'pesquisa' }}"
            href="{{ url_for('pesquisa') }}" data-tip="Consultar / Editar">
           <i class="bi bi-pencil-square"></i><span class="nav-label">Consultar / Editar</span>
         </a>
+        {% endif %}
+        {% if pode_acessar('inserir') %}
         <a class="nav-link {{ 'active' if request.endpoint == 'inserir' }}"
            href="{{ url_for('inserir') }}" data-tip="Nova Competência">
           <i class="bi bi-calendar-plus"></i><span class="nav-label">Nova Competência</span>
         </a>
+        {% endif %}
       </nav>
 
       <div class="sidebar-divider"></div>
       <div class="sidebar-heading">Análise &amp; Relatórios</div>
       <nav class="nav flex-column">
+        {% if pode_acessar('graficos') %}
         <a class="nav-link {{ 'active' if request.endpoint == 'graficos' }}"
            href="{{ url_for('graficos') }}" data-tip="Gráficos">
           <i class="bi bi-bar-chart-line"></i><span class="nav-label">Gráficos</span>
         </a>
+        {% endif %}
+        {% if pode_acessar('central_analitica') %}
         <a class="nav-link {{ 'active' if request.endpoint == 'central_analitica' }}"
            href="{{ url_for('central_analitica') }}" data-tip="Central de Relatórios">
           <i class="bi bi-graph-up-arrow"></i><span class="nav-label">Central de Relatórios</span>
         </a>
+        {% endif %}
+        {% if pode_acessar('detalhamento') %}
         <a class="nav-link {{ 'active' if request.endpoint == 'detalhamento' }}"
            href="{{ url_for('detalhamento') }}" data-tip="Detalhamento">
           <i class="bi bi-table"></i><span class="nav-label">Detalhamento</span>
         </a>
+        {% endif %}
       </nav>
 
       {% if session.get('usuario_perfil') == 'admin' %}

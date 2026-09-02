@@ -19,6 +19,7 @@
             <th>Nome</th>
             <th>Email</th>
             <th>Perfil</th>
+            <th>Acessos</th>
             <th>Status</th>
             <th>Criado em</th>
             <th>Último Acesso</th>
@@ -37,6 +38,16 @@
               </span>
             </td>
             <td>
+              {% if u.perfil == 'admin' or u._acessos_lista is none %}
+              <span class="badge bg-success">Completo</span>
+              {% else %}
+              <span class="badge bg-warning text-dark"
+                title="{{ u._acessos_labels or 'Nenhum acesso' }}">
+                Restrito ({{ u._acessos_lista | length }}/{{ acessos_menu | length }})
+              </span>
+              {% endif %}
+            </td>
+            <td>
               <span class="badge {{ 'bg-success' if u.ativo else 'bg-secondary' }}">
                 {{ 'Ativo' if u.ativo else 'Inativo' }}
               </span>
@@ -45,7 +56,10 @@
             <td>{{ u.ultimo_acesso[:16].replace('T',' ') if u.ultimo_acesso else '—' }}</td>
             <td class="text-center">
               <button class="btn btn-sm btn-outline-primary" title="Editar"
-                onclick="abrirEdicao({{ u.id }}, '{{ u.nome }}', '{{ u.email }}', '{{ u.perfil }}', {{ 'true' if u.ativo else 'false' }})">
+                data-id="{{ u.id }}" data-nome="{{ u.nome }}" data-email="{{ u.email }}"
+                data-perfil="{{ u.perfil }}" data-ativo="{{ 'true' if u.ativo else 'false' }}"
+                data-acessos='{{ (u._acessos_lista if u._acessos_lista is not none else acessos_menu | map(attribute=0) | list) | tojson }}'
+                onclick="abrirEdicaoBtn(this)">
                 <i class="bi bi-pencil"></i>
               </button>
               <button class="btn btn-sm btn-outline-warning" title="Trocar Senha"
@@ -93,10 +107,20 @@
           </div>
           <div class="mb-3">
             <label class="form-label fw-bold">Perfil</label>
-            <select class="form-select" name="perfil">
+            <select class="form-select" name="perfil" onchange="toggleAcessos(this, 'novoAcessos')">
               <option value="usuario">Usuário</option>
               <option value="admin">Administrador</option>
             </select>
+          </div>
+          <div class="mb-2" id="novoAcessos">
+            <label class="form-label fw-bold">Acessos liberados</label>
+            <div class="form-text mb-1">Desmarque as seções que este usuário não deve acessar.</div>
+            {% for key, label in acessos_menu %}
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="acessos" value="{{ key }}" id="novoAcesso_{{ key }}" checked>
+              <label class="form-check-label" for="novoAcesso_{{ key }}">{{ label }}</label>
+            </div>
+            {% endfor %}
           </div>
         </div>
         <div class="modal-footer">
@@ -129,7 +153,7 @@
           </div>
           <div class="mb-3">
             <label class="form-label fw-bold">Perfil</label>
-            <select class="form-select" name="perfil" id="editPerfil">
+            <select class="form-select" name="perfil" id="editPerfil" onchange="toggleAcessos(this, 'editAcessos')">
               <option value="usuario">Usuário</option>
               <option value="admin">Administrador</option>
             </select>
@@ -140,6 +164,16 @@
               <option value="1">Ativo</option>
               <option value="0">Inativo</option>
             </select>
+          </div>
+          <div class="mb-2" id="editAcessos">
+            <label class="form-label fw-bold">Acessos liberados</label>
+            <div class="form-text mb-1">Desmarque as seções que este usuário não deve acessar.</div>
+            {% for key, label in acessos_menu %}
+            <div class="form-check">
+              <input class="form-check-input edit-acesso" type="checkbox" name="acessos" value="{{ key }}" id="editAcesso_{{ key }}">
+              <label class="form-check-label" for="editAcesso_{{ key }}">{{ label }}</label>
+            </div>
+            {% endfor %}
           </div>
         </div>
         <div class="modal-footer">
@@ -183,12 +217,24 @@
 
 {% block extra_js %}
 <script>
-function abrirEdicao(id, nome, email, perfil, ativo) {
+function toggleAcessos(selectEl, blocoId) {
+  document.getElementById(blocoId).style.display = selectEl.value === 'admin' ? 'none' : '';
+}
+function abrirEdicaoBtn(btn) {
+  let acessos = [];
+  try { acessos = JSON.parse(btn.dataset.acessos || '[]'); } catch (e) {}
+  abrirEdicao(+btn.dataset.id, btn.dataset.nome, btn.dataset.email, btn.dataset.perfil, btn.dataset.ativo === 'true', acessos);
+}
+function abrirEdicao(id, nome, email, perfil, ativo, acessos) {
   document.getElementById('editId').value = id;
   document.getElementById('editNome').value = nome;
   document.getElementById('editEmail').value = email;
   document.getElementById('editPerfil').value = perfil;
   document.getElementById('editAtivo').value = ativo ? '1' : '0';
+  document.querySelectorAll('.edit-acesso').forEach(function(cb) {
+    cb.checked = acessos.includes(cb.value);
+  });
+  toggleAcessos(document.getElementById('editPerfil'), 'editAcessos');
   new bootstrap.Modal(document.getElementById('modalEditarUsuario')).show();
 }
 function abrirTrocarSenha(id, nome) {
