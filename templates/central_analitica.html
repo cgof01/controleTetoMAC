@@ -416,7 +416,7 @@ const METS_INC  = ['integrasus','iac','sus_100','opo','rede_viver_sem_limite','r
                    'rsme','rce_rceg','rau_hosp_sos','rca_rcan','iapi','residencia_medica',
                    'melhor_em_casa','cer','doencas_raras','oficina_ortopedica','ihac',
                    'rede_alyne','pncp','rce_rceg_custeio','rau_hosp_sos_custeio','rca_rcan_custeio'];
-const METS_TOT  = ['teto_global','teto_mc','teto_ac','teto_mac','total_teto_mac','portaria_ms_gm_8516','total_mc_ac','total_mc_ac_incentivos'];
+const METS_TOT  = ['teto_global','teto_mc','teto_ac','teto_mac','total_teto_mac','portaria_ms_gm_8516','total_mc_ac_incentivos'];
 
 const CORES = ['#1e3a5f','#2a7dd8','#1a7a4a','#e07b00','#dc3545','#6f42c1',
                '#17a2b8','#fd7e14','#20c997','#6610f2','#e83e8c','#0dcaf0',
@@ -455,9 +455,19 @@ function fmtMetric(field, v) {
   if (QTY_FIELDS.includes(field)) return numBR(v);
   return isNumericField(field) ? moedaFull(v) : numBR(v);
 }
+function fmtDrs(v) { return String(v).trim().padStart(2,'0'); }
+function fmtCnes(v) { return String(v).trim().padStart(7,'0'); }
+function fmtCnpj(v) {
+  const d = String(v).replace(/\D/g,'').padStart(14,'0');
+  if (d.length !== 14) return String(v);
+  return d.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
+}
 function fmtDim(field, v) {
   if (v == null || v === '') return '—';
   if (field === 'mes') return MES_NOMES[+v] || String(v);
+  if (field === 'drs') return fmtDrs(v);
+  if (field === 'cnes') return fmtCnes(v);
+  if (field === 'cnpj') return fmtCnpj(v);
   return String(v);
 }
 
@@ -1095,6 +1105,15 @@ function getExportData() {
         : String(bv).localeCompare(String(av));
     });
   }
+  // DRS/CNES/CNPJ saem formatados como texto (zeros à esquerda / máscara),
+  // igual à tabela em tela, para não virarem número no CSV/Excel.
+  data = data.map(row => {
+    const out = {...row};
+    if ('drs' in out && out.drs != null && out.drs !== '') out.drs = fmtDrs(out.drs);
+    if ('cnes' in out && out.cnes != null && out.cnes !== '') out.cnes = fmtCnes(out.cnes);
+    if ('cnpj' in out && out.cnpj != null && out.cnpj !== '') out.cnpj = fmtCnpj(out.cnpj);
+    return out;
+  });
   return { dims, mets, cols, data };
 }
 
