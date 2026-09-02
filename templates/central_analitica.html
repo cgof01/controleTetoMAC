@@ -425,7 +425,7 @@ const CORES = ['#1e3a5f','#2a7dd8','#1a7a4a','#e07b00','#dc3545','#6f42c1',
 // ── Estado ──────────────────────────────────────────────────────────────────
 let STATE = {
   dimensoes: ['drs'],
-  metricas: ['total_mc_ac_incentivos'],
+  metricas: [],
   chart_type: 'bar-h',
   sort_col: null,
   sort_dir: 'desc',
@@ -551,7 +551,6 @@ function onDimChange() {
 function onMetChange() {
   STATE.metricas = [...METS_FAEC,...METS_MAC,...METS_INC,...METS_TOT]
     .filter(m => document.getElementById(`met_${m}`)?.checked);
-  if(!STATE.metricas.length) STATE.metricas = ['total_mc_ac_incentivos'];
 }
 
 // ── "Todos" por grupo (dimensões e cada bloco de métricas) ─────────────────────
@@ -571,7 +570,7 @@ document.querySelectorAll('.sb-selall').forEach(function(a) {
 // ── Limpar: volta dimensões/métricas/filtros/visualização ao estado inicial ────
 function limpar() {
   STATE.dimensoes = [];
-  STATE.metricas = ['total_mc_ac_incentivos'];
+  STATE.metricas = [];
   STATE.chart_type = 'bar-h';
   STATE.drill_stack = [];
   STATE.limite = 500;
@@ -630,6 +629,14 @@ async function loadKPIs() {
 
 // ── Data loading ─────────────────────────────────────────────────────────────
 async function loadData() {
+  if (!STATE.metricas.length) {
+    _data = [];
+    document.getElementById('tableWrap').innerHTML = '<div class="ca-empty"><i class="bi bi-inbox" style="font-size:2rem"></i><small>Selecione ao menos uma métrica</small></div>';
+    renderChart(_data, STATE.dimensoes);
+    updateDrillBar();
+    updateMeta(0);
+    return;
+  }
   const periodo = getAnoMes();
   const {ano, mes} = periodo;
   const filtros = {};
