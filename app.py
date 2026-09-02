@@ -1,6 +1,7 @@
 import os
 import json
 import io
+import re
 import concurrent.futures
 from datetime import datetime
 from functools import wraps
@@ -853,6 +854,15 @@ def exportar_excel_drs():
 # Campos de contagem física (não monetários) — mesma lista usada no front (QTY_FIELDS)
 _CAMPOS_QUANTIDADE = {'aih_fisico', '_count'}
 
+# DRS/CNES/CNPJ saem como número real com máscara de exibição (zeros à
+# esquerda preservados na tela, sem o aviso do Excel "número armazenado
+# como texto" que aparece quando o valor é gravado como string).
+_FMT_NUM_MASCARA = {
+    'drs': '00',
+    'cnes': '0000000',
+    'cnpj': r'00\.000\.000\/0000\-00',
+}
+
 @app.route('/exportar/analitico-excel', methods=['POST'])
 @login_required
 def exportar_analitico_excel():
@@ -929,7 +939,13 @@ def exportar_analitico_excel():
         for col, c in enumerate(colunas, 1):
             key = c.get('key', '')
             val = linha.get(key, '')
-            cell = ws.cell(row=row_num, column=col, value=val)
+            if key in _FMT_NUM_MASCARA:
+                digitos = re.sub(r'\D', '', str(val)) if val not in (None, '') else ''
+                cell = ws.cell(row=row_num, column=col, value=int(digitos) if digitos else val)
+                if digitos:
+                    cell.number_format = _FMT_NUM_MASCARA[key]
+            else:
+                cell = ws.cell(row=row_num, column=col, value=val)
             cell.border = borda
             if fill:
                 cell.fill = fill
