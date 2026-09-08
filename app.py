@@ -947,15 +947,16 @@ def exportar_excel_drs():
     )
 
 # Campos de contagem física (não monetários) — mesma lista usada no front (QTY_FIELDS)
-_CAMPOS_QUANTIDADE = {'aih_fisico', '_count'}
+_CAMPOS_QUANTIDADE = {'aih_fisico'}
 
 # DRS/CNES/CNPJ saem como número real com máscara de exibição (zeros à
 # esquerda preservados na tela, sem o aviso do Excel "número armazenado
-# como texto" que aparece quando o valor é gravado como string).
+# como texto" que aparece quando o valor é gravado como string). CNPJ fica
+# só com os dígitos (sem ponto/barra/traço), apenas com zeros à esquerda.
 _FMT_NUM_MASCARA = {
     'drs': '00',
     'cnes': '0000000',
-    'cnpj': r'00\.000\.000\/0000\-00',
+    'cnpj': '00000000000000',
 }
 
 @app.route('/exportar/analitico-excel', methods=['POST'])
@@ -1010,7 +1011,7 @@ def exportar_analitico_excel():
 
     for col, c in enumerate(colunas, 1):
         key = c.get('key', '')
-        is_dim = bool(c.get('dimensao')) or key == '_count'
+        is_dim = bool(c.get('dimensao'))
         cor_fundo, cor_fonte = _COR_HEADER_PADRAO if is_dim else _cores_header_campo(key)
         # Garante que todo cabeçalho tenha um nome legível — mesmo que o
         # front-end não mande 'label' (ou mande vazio), nunca cai na chave

@@ -247,6 +247,10 @@
         <i class="bi bi-exclamation-triangle-fill" style="font-size:.85rem;color:var(--ses-laranja)"></i>
         <span class="fw-semibold" style="color:var(--ses-laranja)">Incluir Reserva de Recurso</span>
       </label>
+      <label class="sb-row mt-1" for="fMostrarTotal">
+        <input type="checkbox" id="fMostrarTotal" onchange="toggleMostrarTotal()">
+        <span>Mostrar coluna Total (soma das métricas)</span>
+      </label>
     </div>
 
     <!-- Visualização -->
@@ -397,7 +401,7 @@ const FIELD_LABELS = {
   rca_rcan_custeio:'RCA/RCAN - Custeio',
   total_mc_ac:'Total MC+AC',
   total_mc_ac_incentivos:'Total MC+AC+Incentivos',
-  _count:'Registros',
+  total_faec:'Total FAEC', total_mc:'Total MC', total_ac:'Total AC',
   _row_total:'Total'
 };
 
@@ -416,7 +420,7 @@ const METS_INC  = ['integrasus','iac','sus_100','opo','rede_viver_sem_limite','r
                    'rsme','rce_rceg','rau_hosp_sos','rca_rcan','iapi','residencia_medica',
                    'melhor_em_casa','cer','doencas_raras','oficina_ortopedica','ihac',
                    'rede_alyne','pncp','rce_rceg_custeio','rau_hosp_sos_custeio','rca_rcan_custeio'];
-const METS_TOT  = ['teto_global','teto_mc','teto_ac','teto_mac','total_teto_mac','portaria_ms_gm_8516','total_mc_ac_incentivos'];
+const METS_TOT  = ['teto_global','teto_mc','teto_ac','teto_mac','total_teto_mac','portaria_ms_gm_8516','total_mc_ac_incentivos','total_faec','total_mc','total_ac'];
 
 const CORES = ['#1e3a5f','#2a7dd8','#1a7a4a','#e07b00','#dc3545','#6f42c1',
                '#17a2b8','#fd7e14','#20c997','#6610f2','#e83e8c','#0dcaf0',
@@ -430,7 +434,8 @@ let STATE = {
   sort_col: null,
   sort_dir: 'desc',
   drill_stack: [],
-  limite: 500
+  limite: 500,
+  mostrarTotal: false
 };
 let _data = [];
 let _mainChart = null;
@@ -449,7 +454,7 @@ function moedaFull(v) {
   return 'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 }
 function numBR(v) { return Number(v||0).toLocaleString('pt-BR'); }
-function isNumericField(f) { return !DIMS.includes(f) && f !== '_count'; }
+function isNumericField(f) { return !DIMS.includes(f); }
 const QTY_FIELDS = ['aih_fisico'];
 function fmtMetric(field, v) {
   if (QTY_FIELDS.includes(field)) return numBR(v);
@@ -459,8 +464,7 @@ function fmtDrs(v) { return String(v).trim().padStart(2,'0'); }
 function fmtCnes(v) { return String(v).trim().padStart(7,'0'); }
 function fmtCnpj(v) {
   const d = String(v).replace(/\D/g,'').padStart(14,'0');
-  if (d.length !== 14) return String(v);
-  return d.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
+  return d.length === 14 ? d : String(v);
 }
 function fmtDim(field, v) {
   if (v == null || v === '') return '—';
@@ -553,6 +557,17 @@ function onMetChange() {
     .filter(m => document.getElementById(`met_${m}`)?.checked);
 }
 
+// ── Coluna "Total" (soma das métricas selecionadas) — opcional, não é mais
+// exibida/exportada automaticamente; só reprocessa a tabela já carregada,
+// sem precisar buscar os dados de novo no servidor.
+function toggleMostrarTotal() {
+  STATE.mostrarTotal = document.getElementById('fMostrarTotal').checked;
+  if (_data.length) {
+    const displayDims = STATE.dimensoes.filter(d => !STATE.drill_stack.some(s=>s.dim===d));
+    renderTable(_data, displayDims, STATE.metricas);
+  }
+}
+
 // ── "Todos" por grupo (dimensões e cada bloco de métricas) ─────────────────────
 document.querySelectorAll('.sb-selall').forEach(function(a) {
   a.addEventListener('click', function() {
@@ -574,12 +589,15 @@ function limpar() {
   STATE.chart_type = 'bar-h';
   STATE.drill_stack = [];
   STATE.limite = 500;
+  STATE.mostrarTotal = false;
   ['fDRS', 'fTipo', 'fHU', 'fMun', 'fBusca'].forEach(function(id) {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
   const fReserva = document.getElementById('fReserva');
   if (fReserva) fReserva.checked = false;
+  const fMostrarTotal = document.getElementById('fMostrarTotal');
+  if (fMostrarTotal) fMostrarTotal.checked = false;
   const lim = document.getElementById('sbLimite');
   if (lim) lim.value = '500';
   renderSb();
@@ -718,7 +736,7 @@ function renderTable(data, dims, mets) {
     });
   }
 
-  const allCols = [...dims, ...mets, ...(_data[0]?._count!==undefined?['_count']:[]), '_row_total'];
+  const allCols = [...dims, ...mets, ...(STATE.mostrarTotal ? ['_row_total'] : [])];
   const isDim   = c => dims.includes(c);
   const drillable = (dim, i) => {
     const hierarchy = ['drs','municipio','unidade','cnes'];
@@ -729,7 +747,6 @@ function renderTable(data, dims, mets) {
   // Totals
   const totals = {};
   mets.forEach(m => { totals[m] = data.reduce((s,r)=>s+(r[m]||0),0); });
-  if('_count' in (data[0]||{})) totals._count = data.reduce((s,r)=>s+(r._count||0),0);
   totals._row_total = data.reduce((s,r)=>s+(r._row_total||0),0);
 
   const sortArrow = col => {
@@ -1100,8 +1117,7 @@ function switchTab(tab, btn) {
 function getExportData() {
   const dims = STATE.dimensoes.filter(d=>!STATE.drill_stack.some(s=>s.dim===d));
   const mets = STATE.metricas;
-  const temContagem = _data.length && _data[0]._count !== undefined;
-  const cols = [...dims, ...mets, ...(temContagem ? ['_count'] : []), '_row_total'];
+  const cols = [...dims, ...mets, ...(STATE.mostrarTotal ? ['_row_total'] : [])];
   let data = _data;
   if (_sortCol) {
     data = [...data].sort((a, b) => {
@@ -1131,7 +1147,7 @@ function exportCSV() {
   const rows = data.map(row=>cols.map(c=>{
     const v=row[c];
     if(v==null) return '';
-    if(QTY_FIELDS.includes(c) || c==='_count') return String(Math.round(Number(v)));
+    if(QTY_FIELDS.includes(c)) return String(Math.round(Number(v)));
     if(isNumericField(c)) return String(Number(v).toFixed(2)).replace('.',',');
     return String(v).replace(/;/g,'|');
   }));

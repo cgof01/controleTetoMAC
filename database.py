@@ -1143,6 +1143,9 @@ _METS_NATIVAS = {
 # coluna própria em teto_mac) — ex.: Total MC+AC sem incentivos.
 _METS_VIRTUAL = {
     'total_mc_ac': ['aih_mc', 'aih_ac', 'sia_mc', 'sia_ac'],
+    'total_faec': ['aih_faec', 'sia_faec', 'equip_hemodialise', 'limite_complementacao'],
+    'total_mc': ['aih_mc', 'sia_mc'],
+    'total_ac': ['aih_ac', 'sia_ac'],
 }
 _METS_ALLOW = _METS_NATIVAS | _METS_EXTRAS | set(_METS_VIRTUAL)
 
