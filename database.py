@@ -395,12 +395,16 @@ _META_EXCLUIR_SNAPSHOT = {
 
 def _fetch_todos_competencia(ano, mes):
     """Busca TODOS os registros de uma competência, paginando para não depender
-    de limites de linhas por requisição (ex: max_rows do PostgREST no Supabase)."""
+    de limites de linhas por requisição (ex: max_rows do PostgREST no Supabase).
+    Usada só por replicar_competencia — inclui a Reserva de Recurso (DRS 99) via
+    incluir_reserva, senão 'replicar a competência inteira' pulava essa linha
+    silenciosamente (ela some de pesquisar() por padrão) tanto na cópia quanto
+    na checagem de duplicados no destino."""
     todos = []
     page = 1
     per_page = 500
     while True:
-        regs, total = pesquisar({'ano': ano, 'mes': mes}, page=page, per_page=per_page)
+        regs, total = pesquisar({'ano': ano, 'mes': mes, 'incluir_reserva': '1'}, page=page, per_page=per_page)
         if not regs:
             break
         todos.extend(regs)

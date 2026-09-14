@@ -197,16 +197,49 @@
   </div>
 </div>
 
+{% macro paginacao() %}
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 w-100">
+    <small class="text-muted">
+      Mostrando {{ (page-1)*per_page + 1 }}–{{ [page*per_page, total]|min }} de {{ total }} registros
+    </small>
+    <nav>
+      <ul class="pagination pagination-sm mb-0">
+        {% if page > 1 %}
+          <li class="page-item"><a class="page-link" href="{{ url_for('pesquisa', page=page-1, **filtros) }}">‹</a></li>
+        {% endif %}
+        {% for p in range([1, page-2]|max, [total_pages+1, page+3]|min) %}
+          <li class="page-item {{ 'active' if p == page }}">
+            <a class="page-link" href="{{ url_for('pesquisa', page=p, **filtros) }}">{{ p }}</a>
+          </li>
+        {% endfor %}
+        {% if page < total_pages %}
+          <li class="page-item"><a class="page-link" href="{{ url_for('pesquisa', page=page+1, **filtros) }}">›</a></li>
+          <li class="page-item">
+            <a class="page-link" href="{{ url_for('pesquisa', page=total_pages, **filtros) }}" title="Última página ({{ total_pages }})">
+              Última »
+            </a>
+          </li>
+        {% endif %}
+      </ul>
+    </nav>
+  </div>
+{% endmacro %}
+
 <!-- Resultados -->
 <div class="card">
-  <div class="card-header bg-white d-flex justify-content-between align-items-center gap-2 flex-wrap">
-    <strong><i class="bi bi-table me-2 text-primary"></i>Resultados</strong>
-    <div class="d-flex align-items-center gap-2">
-      <button type="button" class="btn btn-outline-secondary btn-sm" id="btnToggleColunas" onclick="toggleColunasExtras()">
-        <i class="bi bi-eye me-1"></i>Mostrar todas as colunas
-      </button>
-      <span class="badge bg-primary">{{ total }} registros encontrados</span>
+  <div class="card-header bg-white">
+    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+      <strong><i class="bi bi-table me-2 text-primary"></i>Resultados</strong>
+      <div class="d-flex align-items-center gap-2">
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="btnToggleColunas" onclick="toggleColunasExtras()">
+          <i class="bi bi-eye me-1"></i>Mostrar todas as colunas
+        </button>
+        <span class="badge bg-primary">{{ total }} registros encontrados</span>
+      </div>
     </div>
+    {% if total_pages > 1 %}
+      <div class="mt-2 pt-2 border-top">{{ paginacao() }}</div>
+    {% endif %}
   </div>
   <div class="card-body p-0">
     <div class="table-responsive drag-scroll" id="scrollResultados">
@@ -327,26 +360,7 @@
   </div>
 
   {% if total_pages > 1 %}
-  <div class="card-footer bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
-    <small class="text-muted">
-      Mostrando {{ (page-1)*per_page + 1 }}–{{ [page*per_page, total]|min }} de {{ total }} registros
-    </small>
-    <nav>
-      <ul class="pagination pagination-sm mb-0">
-        {% if page > 1 %}
-          <li class="page-item"><a class="page-link" href="{{ url_for('pesquisa', page=page-1, **filtros) }}">‹</a></li>
-        {% endif %}
-        {% for p in range([1, page-2]|max, [total_pages+1, page+3]|min) %}
-          <li class="page-item {{ 'active' if p == page }}">
-            <a class="page-link" href="{{ url_for('pesquisa', page=p, **filtros) }}">{{ p }}</a>
-          </li>
-        {% endfor %}
-        {% if page < total_pages %}
-          <li class="page-item"><a class="page-link" href="{{ url_for('pesquisa', page=page+1, **filtros) }}">›</a></li>
-        {% endif %}
-      </ul>
-    </nav>
-  </div>
+  <div class="card-footer bg-white">{{ paginacao() }}</div>
   {% endif %}
 </div>
 
