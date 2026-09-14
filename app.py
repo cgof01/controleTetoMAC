@@ -537,7 +537,10 @@ def editar(id):
         try:
             db.atualizar_registro(id, dados)
             flash('Registro atualizado com sucesso!', 'success')
-            return redirect(url_for('detalhe', id=id))
+            # salvo=1 avisa o detalhe.html a notificar (via BroadcastChannel) outras
+            # abas abertas — ex.: a Central de Relatórios, pra atualizar sozinha
+            # depois que o usuário edita a Reserva de Recurso numa aba separada.
+            return redirect(url_for('detalhe', id=id, salvo=1))
         except Exception as e:
             flash(f'Erro ao atualizar: {e}', 'danger')
 

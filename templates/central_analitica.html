@@ -243,10 +243,11 @@
       {{ sb_ttl('Consolidado', 'sbMetTot', 'mt-2') }}
       <div id="sbMetTot"></div>
       <label class="sb-row mt-1 p-1 rounded" for="fReserva" style="background:#fff4e6; border:1px solid var(--ses-laranja);">
-        <input type="checkbox" id="fReserva" onchange="loadData()">
+        <input type="checkbox" id="fReserva" onchange="onReservaChange()">
         <i class="bi bi-exclamation-triangle-fill" style="font-size:.85rem;color:var(--ses-laranja)"></i>
         <span class="fw-semibold" style="color:var(--ses-laranja)">Incluir Reserva de Recurso</span>
       </label>
+      <div id="reservaQuickLinks" class="mt-1"></div>
       <label class="sb-row mt-1" for="fMostrarTotal">
         <input type="checkbox" id="fMostrarTotal" onchange="toggleMostrarTotal()">
         <span>Mostrar coluna Total (soma das métricas)</span>
@@ -414,13 +415,17 @@ function labelFor(key) {
 }
 
 const DIMS = ['drs','municipio','unidade','cnes','cnpj','tipo','hu','ano','mes'];
-const METS_FAEC = ['aih_fisico','aih_faec','sia_faec','equip_hemodialise','limite_complementacao'];
-const METS_MAC  = ['aih_mc','aih_ac','sia_mc','sia_ac'];
+// "Total FAEC"/"Total MC"/"Total AC" ficam junto do próprio conjunto que somam
+// (não mais no Consolidado) — cada um logo depois do último campo do grupo, de
+// forma que a soma só considere os campos que o usuário de fato marcou (ver
+// _valor_metrica em database.py) e a coluna já nasça posicionada ao lado deles.
+const METS_FAEC = ['aih_fisico','aih_faec','sia_faec','equip_hemodialise','limite_complementacao','total_faec'];
+const METS_MAC  = ['aih_mc','sia_mc','total_mc','aih_ac','sia_ac','total_ac'];
 const METS_INC  = ['integrasus','iac','sus_100','opo','rede_viver_sem_limite','rede_brasil_miseria',
                    'rsme','rce_rceg','rau_hosp_sos','rca_rcan','iapi','residencia_medica',
                    'melhor_em_casa','cer','doencas_raras','oficina_ortopedica','ihac',
                    'rede_alyne','pncp','rce_rceg_custeio','rau_hosp_sos_custeio','rca_rcan_custeio'];
-const METS_TOT  = ['teto_global','teto_mc','teto_ac','teto_mac','total_teto_mac','portaria_ms_gm_8516','total_mc_ac_incentivos','total_faec','total_mc','total_ac'];
+const METS_TOT  = ['teto_global','teto_mc','teto_ac','teto_mac','total_teto_mac','portaria_ms_gm_8516','total_mc_ac_incentivos'];
 
 const CORES = ['#1e3a5f','#2a7dd8','#1a7a4a','#e07b00','#dc3545','#6f42c1',
                '#17a2b8','#fd7e14','#20c997','#6610f2','#e83e8c','#0dcaf0',
@@ -521,14 +526,17 @@ function renderSb() {
      </label>`
   ).join('');
 
-  // Métricas por grupo
+  // Métricas por grupo — "Total X" dentro do próprio grupo fica em negrito,
+  // pra deixar claro que é a soma calculada dos campos acima dele (só dos
+  // que estiverem marcados), não um campo nativo igual aos outros.
   [['sbMetFaec',METS_FAEC],['sbMetMac',METS_MAC],['sbMetInc',METS_INC],['sbMetTot',METS_TOT]].forEach(([id,list])=>{
-    document.getElementById(id).innerHTML = list.map(m =>
-      `<label class="sb-row">
+    document.getElementById(id).innerHTML = list.map(m => {
+      const ehTotal = m.startsWith('total_');
+      return `<label class="sb-row">
          <input type="checkbox" id="met_${m}" value="${m}" onchange="onMetChange()" ${STATE.metricas.includes(m)?'checked':''}>
-         <span>${labelFor(m)}</span>
-       </label>`
-    ).join('');
+         <span class="${ehTotal?'fw-bold':''}">${labelFor(m)}</span>
+       </label>`;
+    }).join('');
   });
 
   // Visualização
@@ -552,8 +560,12 @@ function onDimChange() {
   STATE.dimensoes = DIMS.filter(d => document.getElementById(`dim_${d}`)?.checked);
   STATE.drill_stack = [];
 }
+// "Total FAEC"/"Total MC"/"Total AC" já nascem posicionados dentro do próprio
+// grupo (METS_FAEC/METS_MAC, acima) — como cada um vem logo depois dos campos
+// que soma, filtrar mantendo a ordem do array já coloca o total logo após o
+// último campo do grupo que estiver marcado, sem precisar de lógica extra.
 function onMetChange() {
-  STATE.metricas = [...METS_FAEC,...METS_MAC,...METS_INC,...METS_TOT]
+  STATE.metricas = [...METS_FAEC, ...METS_MAC, ...METS_INC, ...METS_TOT]
     .filter(m => document.getElementById(`met_${m}`)?.checked);
 }
 
@@ -602,6 +614,7 @@ function limpar() {
   if (lim) lim.value = '500';
   renderSb();
   loadData();
+  atualizarBotaoReserva();
 }
 
 function toggleSb() {
@@ -643,6 +656,49 @@ async function loadKPIs() {
   document.getElementById('kMun').textContent   = kpi.count_municipios||'—';
   document.getElementById('kUn').textContent    = kpi.count_unidades||'—';
   document.getElementById('kCnes').textContent  = kpi.count_cnes||'—';
+}
+
+function onReservaChange() {
+  atualizarBotaoReserva();
+  loadData();
+}
+
+// ── Atalho "Editar Reserva de Recurso" ──────────────────────────────────────
+// Antes o único jeito de editar a Reserva era achar a linha dela no fim de
+// uma tabela com centenas de linhas. Ao marcar "Incluir Reserva de Recurso"
+// (ou mudar o período com a caixa já marcada), busca direto quais competências
+// do período têm Reserva lançada e mostra um botão "Editar" pra cada uma,
+// sem precisar gerar o relatório inteiro nem rolar até o final da lista.
+async function atualizarBotaoReserva() {
+  const box = document.getElementById('reservaQuickLinks');
+  if (!box) return;
+  const marcado = document.getElementById('fReserva')?.checked;
+  if (!marcado) { box.innerHTML = ''; return; }
+
+  box.innerHTML = '<span class="small text-muted"><i class="bi bi-hourglass-split me-1"></i>Buscando Reserva de Recurso…</span>';
+  try {
+    const body = {
+      ...periodoParams(getAnoMes()),
+      dimensoes: ['ano', 'mes'],
+      metricas: ['aih_mc'],
+      filtros: { drs: '99', incluir_reserva: '1' },
+      limite: 60
+    };
+    const r = await fetch('/api/analitico', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    const linhas = await r.json();
+    const comId = (linhas || []).filter(l => l._id).sort((a,b) => (b.ano*100+b.mes) - (a.ano*100+a.mes));
+    if (!comId.length) {
+      box.innerHTML = '<span class="small text-muted">Nenhuma Reserva de Recurso lançada nesse período.</span>';
+      return;
+    }
+    box.innerHTML = comId.map(l =>
+      `<a href="/editar/${l._id}" target="_blank" class="btn btn-outline-warning btn-sm d-flex align-items-center gap-1 mb-1" style="color:#92400e;border-color:var(--ses-laranja)">
+         <i class="bi bi-pencil-square"></i> Editar Reserva — ${MES_NOMES[l.mes]}/${l.ano}
+       </a>`
+    ).join('');
+  } catch(e) {
+    box.innerHTML = '<span class="small text-danger">Erro ao buscar Reserva de Recurso.</span>';
+  }
 }
 
 // ── Data loading ─────────────────────────────────────────────────────────────
@@ -754,9 +810,26 @@ function renderTable(data, dims, mets) {
     return `<span class="sort-arrow ${_sortDir}">${_sortDir==='asc'?'↑':'↓'}</span>`;
   };
 
+  // Com "Incluir Reserva de Recurso" marcado, a linha da Reserva (DRS 99)
+  // ganha um link direto pra tela de Editar — sem isso não havia como alterar
+  // esses valores a não ser achando o registro na Pesquisa manualmente.
+  const mostrarAcaoReserva = !!document.getElementById('fReserva')?.checked;
+  const ehLinhaReserva = row => String(row.drs ?? '') === '99'
+    || row.tipo === 'RESREC' || row.unidade === 'RESERVA DE RECURSO';
+  const celulaAcao = row => {
+    if (!mostrarAcaoReserva) return '';
+    if (!ehLinhaReserva(row) || !row._id) return '<td></td>';
+    return `<td style="text-align:center">
+      <a href="/editar/${row._id}" target="_blank" class="btn btn-outline-primary btn-sm py-0 px-1" title="Editar Reserva de Recurso">
+        <i class="bi bi-pencil-square"></i>
+      </a>
+    </td>`;
+  };
+
   let html = `<table class="rel-table"><thead><tr>
     <th style="width:40px">#</th>
     ${allCols.map(c=>`<th class="${isDim(c)?'':'num'}" onclick="sortBy('${c}')">${labelFor(c)} ${sortArrow(c)}</th>`).join('')}
+    ${mostrarAcaoReserva ? '<th style="width:50px">Ações</th>' : ''}
   </tr></thead><tbody>`;
 
   data.forEach((row, i) => {
@@ -777,6 +850,7 @@ function renderTable(data, dims, mets) {
           return `<td class="num">${num}</td>`;
         }
       }).join('')}
+      ${celulaAcao(row)}
     </tr>`;
   });
 
@@ -788,6 +862,7 @@ function renderTable(data, dims, mets) {
         ? `<td><strong>TOTAL</strong></td>`
         : `<td class="num">${fmtMetric(c, totals[c]||0)}</td>`
       ).join('')}
+      ${mostrarAcaoReserva ? '<td></td>' : ''}
     </tr>`;
   }
 
@@ -1183,7 +1258,14 @@ async function exportExcel() {
 }
 
 // ── Recarga ─────────────────────────────────────────────────────────────────────
-function recarregar() { loadKPIs(); loadData(); }
+function recarregar() { loadKPIs(); loadData(); atualizarBotaoReserva(); }
+
+// Registro salvo/ajustado em outra aba (ex.: Editar Reserva de Recurso aberta
+// a partir do botão da Central de Relatórios) — recarrega tudo sozinho, sem
+// precisar que o usuário volte aqui e clique em Atualizar.
+if ('BroadcastChannel' in window) {
+  new BroadcastChannel('teto_mac_updates').onmessage = () => recarregar();
+}
 
 // ── Init ────────────────────────────────────────────────────────────────────────
 renderSb();

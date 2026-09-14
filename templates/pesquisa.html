@@ -130,6 +130,14 @@
               <option value="200" {{ 'selected' if filtros.get('per_page')=='200' }}>200</option>
             </select>
           </div>
+          <div class="col-12">
+            <label class="d-inline-flex align-items-center gap-2 px-2 py-1 rounded"
+                   style="background:#fff4e6; border:1px solid var(--ses-laranja); cursor:pointer">
+              <input type="checkbox" name="incluir_reserva" value="1" {{ 'checked' if filtros.get('incluir_reserva') }}>
+              <i class="bi bi-exclamation-triangle-fill" style="font-size:.85rem;color:var(--ses-laranja)"></i>
+              <span class="fw-semibold small" style="color:var(--ses-laranja)">Incluir Reserva de Recurso (DRS 99)</span>
+            </label>
+          </div>
           <div class="col-12 d-flex gap-2">
             <button type="submit" class="btn btn-ses btn-sm"><i class="bi bi-search me-1"></i>Buscar</button>
             <a href="{{ url_for('pesquisa') }}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-x-circle me-1"></i>Limpar</a>

@@ -189,9 +189,11 @@ def pesquisar(filtros=None, page=1, per_page=50, ordenar_por=None, ordenar_dir='
 
 def _aplicar_filtros_supabase(q, filtros):
     # DRS 99 é a "Reserva de Recurso" (linha orçamentária, não uma unidade de
-    # saúde) — some das listas/telas normais, só fica disponível como opção
-    # dentro da Central de Relatórios (que não passa por este filtro).
-    q = q.or_('drs.is.null,drs.neq.99')
+    # saúde) — some das listas/telas normais por padrão. Marcando "Incluir
+    # Reserva de Recurso" na Pesquisa (mesma opção que já existe na Central de
+    # Relatórios) ela aparece, permitindo localizar o registro para editar.
+    if not (filtros or {}).get('incluir_reserva'):
+        q = q.or_('drs.is.null,drs.neq.99')
     if filtros:
         if filtros.get('ano'):
             q = q.eq('ano', int(filtros['ano']))
@@ -212,7 +214,7 @@ def _aplicar_filtros_supabase(q, filtros):
     return q
 
 def _where_sqlite(filtros):
-    where_parts = ["(drs IS NULL OR CAST(drs AS INTEGER) <> 99)"]
+    where_parts = [] if (filtros or {}).get('incluir_reserva') else ["(drs IS NULL OR CAST(drs AS INTEGER) <> 99)"]
     params = []
     if filtros:
         if filtros.get('ano'):
@@ -1149,12 +1151,19 @@ _METS_VIRTUAL = {
 }
 _METS_ALLOW = _METS_NATIVAS | _METS_EXTRAS | set(_METS_VIRTUAL)
 
-def _valor_metrica(row, m):
+def _valor_metrica(row, m, metricas=None):
     """Lê o valor de uma métrica de uma linha, indo buscar dentro de
     campos_extras quando a métrica não é uma coluna nativa, ou somando as
-    colunas componentes quando é uma métrica virtual (calculada)."""
+    colunas componentes quando é uma métrica virtual (calculada) — nesse caso
+    só entram na soma os componentes que o próprio usuário também selecionou
+    como coluna (ex.: Total FAEC só soma Equip. Hemodiálise e Lim. Complementação
+    se essas colunas estiverem marcadas; se nada do grupo estiver marcado, o
+    total sai zerado em vez de somar componentes escondidos)."""
     if m in _METS_VIRTUAL:
-        return sum(row.get(p) or 0 for p in _METS_VIRTUAL[m])
+        componentes = _METS_VIRTUAL[m]
+        if metricas is not None:
+            componentes = [p for p in componentes if p in metricas]
+        return sum(row.get(p) or 0 for p in componentes)
     if m in _METS_EXTRAS:
         return (row.get('campos_extras') or {}).get(m) or 0
     return row.get(m) or 0
@@ -1232,14 +1241,20 @@ def consulta_analitica(ano, mes, dimensoes=None, metricas=None, filtros=None, or
     fim = ano_fim * 100 + mes_fim
 
     tem_extras = any(m in _METS_EXTRAS for m in metricas)
+    # Com Reserva de Recurso incluída, busca também o id de cada registro —
+    # permite montar um link "Editar" direto na Central de Relatórios para a
+    # linha da Reserva, sem precisar ir até a Pesquisa. Só marca o id na
+    # linha agregada quando o grupo tiver exatamente 1 registro (senão o id
+    # seria ambíguo — várias linhas somadas numa só).
+    incluir_id = bool((filtros or {}).get('incluir_reserva'))
 
     if USE_SUPABASE:
         sb = get_sb()
         col_set = list(dict.fromkeys(
             ['ano', 'mes'] + dimensoes
             + [m for m in metricas if m not in _METS_EXTRAS and m not in _METS_VIRTUAL]
-            + [p for m in metricas if m in _METS_VIRTUAL for p in _METS_VIRTUAL[m]]
             + (['campos_extras'] if tem_extras else [])
+            + (['id'] if incluir_id else [])
         ))
         cols = ','.join(col_set)
 
@@ -1266,8 +1281,12 @@ def consulta_analitica(ano, mes, dimensoes=None, metricas=None, filtros=None, or
                 for m in metricas:
                     seen[key][m] = 0.0
                 seen[key]['_count'] = 0
+                if incluir_id:
+                    seen[key]['_id'] = row.get('id')
+            elif incluir_id:
+                seen[key]['_id'] = None
             for m in metricas:
-                seen[key][m] += _valor_metrica(row, m)
+                seen[key][m] += _valor_metrica(row, m, metricas)
             seen[key]['_count'] += 1
         result = list(seen.values())
     elif tem_extras:
@@ -1295,8 +1314,8 @@ def consulta_analitica(ano, mes, dimensoes=None, metricas=None, filtros=None, or
         col_set = list(dict.fromkeys(
             dimensoes
             + [m for m in metricas if m not in _METS_EXTRAS and m not in _METS_VIRTUAL]
-            + [p for m in metricas if m in _METS_VIRTUAL for p in _METS_VIRTUAL[m]]
             + ['campos_extras']
+            + (['id'] if incluir_id else [])
         ))
         sql = f"SELECT {', '.join(col_set)} FROM teto_mac WHERE {' AND '.join(where)}"
         rows = conn.execute(sql, params).fetchall()
@@ -1312,8 +1331,12 @@ def consulta_analitica(ano, mes, dimensoes=None, metricas=None, filtros=None, or
                 for m in metricas:
                     seen[key][m] = 0.0
                 seen[key]['_count'] = 0
+                if incluir_id:
+                    seen[key]['_id'] = row.get('id')
+            elif incluir_id:
+                seen[key]['_id'] = None
             for m in metricas:
-                seen[key][m] += _valor_metrica(row, m)
+                seen[key][m] += _valor_metrica(row, m, metricas)
             seen[key]['_count'] += 1
         result = list(seen.values())
     else:
@@ -1339,10 +1362,15 @@ def consulta_analitica(ano, mes, dimensoes=None, metricas=None, filtros=None, or
                     params.append(f'%{v.lower()}%')
         def _sel_met(m):
             if m in _METS_VIRTUAL:
-                expr = '+'.join(f'COALESCE({p},0)' for p in _METS_VIRTUAL[m])
+                componentes = [p for p in _METS_VIRTUAL[m] if p in metricas]
+                if not componentes:
+                    return f'0 as {m}'
+                expr = '+'.join(f'COALESCE({p},0)' for p in componentes)
                 return f'SUM({expr}) as {m}'
             return f'SUM(COALESCE({m},0)) as {m}'
         sel_mets = ', '.join(_sel_met(m) for m in metricas) + ', COUNT(*) as _count'
+        if incluir_id:
+            sel_mets += ", (CASE WHEN COUNT(*) = 1 THEN MAX(id) ELSE NULL END) as _id"
         if dimensoes:
             g = ', '.join(dimensoes)
             sql = f"SELECT {g}, {sel_mets} FROM teto_mac WHERE {' AND '.join(where)} GROUP BY {g}"

@@ -209,6 +209,12 @@
 
 {% block extra_js %}
 <script>
+{% if request.args.get('salvo') %}
+// Acabou de salvar o formulário de edição — avisa outras abas (ex.: a Central
+// de Relatórios aberta antes de editar a Reserva de Recurso) pra recarregar.
+avisarRegistroAtualizado();
+{% endif %}
+
 // ── Balão (popover) com o histórico de ajustes ao passar o mouse no badge ──────
 const AJUSTES_POR_CAMPO = {{ ajustes_por_campo | tojson }};
 

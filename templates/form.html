@@ -163,8 +163,9 @@
 
         {% call linha_id('DRS') %}
           <input type="number" name="drs" class="form-control form-control-sm"
-                 value="{{ r.get('drs', '') }}" min="1" max="17" placeholder="1-17"
-                 style="max-width:120px" {% if 'drs' in snap %}data-original="{{ snap.drs }}"{% endif %}>
+                 value="{{ r.get('drs', '') }}" min="1" max="99" placeholder="1-17 ou 99 (Reserva de Recurso)"
+                 style="max-width:260px" {% if 'drs' in snap %}data-original="{{ snap.drs }}"{% endif %}>
+          <div class="form-text">Use <strong>99</strong> para lançar/editar Reserva de Recurso (Tipo = RESREC).</div>
         {% endcall %}
 
         {% call linha_id('Tipo de Estabelecimento') %}
@@ -617,6 +618,7 @@ async function removerAjusteClick(ajusteId) {
     if (editandoAjusteId === ajusteId) cancelarEdicaoAjuste();
     _aplicarResultadoAjuste(campoKey, data.novo_valor, data.calculados);
     _renderHistoricoAjuste();
+    avisarRegistroAtualizado();
   } catch (e) {
     erroEl.textContent = 'Erro de comunicação ao remover ajuste.';
   }
@@ -656,6 +658,7 @@ async function enviarAjuste(ev) {
     _aplicarResultadoAjuste(campoKey, data.novo_valor, data.calculados);
     cancelarEdicaoAjuste();
     _renderHistoricoAjuste();
+    avisarRegistroAtualizado();
   } catch (e) {
     erroEl.textContent = 'Erro de comunicação ao salvar ajuste.';
   }

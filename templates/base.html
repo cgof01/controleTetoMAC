@@ -350,6 +350,19 @@
       return v ? parseInt(v).toLocaleString('pt-BR') : '0';
     }
 
+    /* ── Aviso entre abas de que um registro foi salvo/ajustado ────────────
+       Usado por form.html (modal de Ajuste) e detalhe.html (após salvar o
+       formulário) pra avisar outras abas da mesma origem — ex.: a Central de
+       Relatórios aberta antes de editar a Reserva de Recurso — que os dados
+       mudaram e o relatório na tela precisa recarregar. */
+    function avisarRegistroAtualizado() {
+      try {
+        if ('BroadcastChannel' in window) {
+          new BroadcastChannel('teto_mac_updates').postMessage({tipo: 'registro_atualizado'});
+        }
+      } catch (e) { /* navegador sem suporte — sem problema, é só uma conveniência */ }
+    }
+
     /* ── Arrastar com o mouse pra rolar tabelas largas na horizontal ──────
        Usado em toda tela com tabela de muitas colunas (Pesquisa, Relatório
        por Período/DRS/Unidade, Central de Relatórios). Ignora mousedown em
